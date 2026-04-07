@@ -12,16 +12,22 @@ terraform {
   }
 }
 
-# Default providers (empty for default settings)
-provider "google" {}
-provider "google-beta" {}
-
 locals {
   project_id = {
     dev     = var.dev_project_id
     staging = var.staging_project_id
     prod    = var.prod_project_id
   }[var.environment]
+}
+
+provider "google" {
+  project = local.project_id
+  region  = var.region
+}
+
+provider "google-beta" {
+  project = local.project_id
+  region  = var.region
 }
 
 # Functionality
