@@ -1,0 +1,71 @@
+# --- Terraform ---
+# Provider plugins and module cache (regenerate with `terraform init`)
+.terraform/
+
+# State — never commit; may contain secrets
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config files (may contain credentials)
+.terraformrc
+terraform.rc
+
+# Saved plans (often large / environment-specific)
+*.tfplan
+*.tfplan.json
+
+# Keep: .terraform.lock.hcl (commit for reproducible provider versions)
+
+# --- Terraform secrets (uncomment if you store secrets in tfvars) ---
+# terraform.tfvars
+# *.tfvars
+# !terraform.tfvars.example
+
+*.auto.tfvars
+*.auto.tfvars.json
+secrets.tfvars
+terraform.tfvars.local
+*.pem
+
+# --- Python (Cloud Functions) ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Editors / IDEs ---
+.idea/
+*.swp
+*.swo
+*~
+
+# --- GCP / service accounts (never commit keys) ---
+*credentials*.json
+*-key.json
+*-sa-key.json
+service-account*.json
+gcloud-application*.json

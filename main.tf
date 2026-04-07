@@ -1,41 +1,62 @@
 terraform {
   required_version = ">= 1.5"
-}
-
-variable "project_ids" {
-  type        = map(string)
-  description = "GCP project ID per environment name"
-
-  validation {
-    condition     = length(var.project_ids) > 0
-    error_message = "project_ids must not be empty."
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 5.0"
+    }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = ">= 5.0"
+    }
   }
 }
 
-variable "environment" {
-  type        = string
-  description = "The environment to deploy the stack to"
-
-  validation {
-    condition     = var.environment != "" && contains(keys(var.project_ids), var.environment)
-    error_message = "environment must be non-empty and a key in project_ids."
-  }
-}
+# Default providers (empty for default settings)
+provider "google" {}
+provider "google-beta" {}
 
 locals {
-  project_id = var.project_ids[var.environment]
+  project_id = {
+    dev     = var.dev_project_id
+    staging = var.staging_project_id
+    prod    = var.prod_project_id
+  }[var.environment]
 }
 
+# Functionality
 module "core" { source = "./core" }
-module "db" { source = "./db" }
+
+
+# Database (depends on APIs in gcp_apis.tf)
+module "db" {
+  source     = "./db"
+  project_id = local.project_id
+  region     = var.region
+  providers = {
+    google      = google
+    google-beta = google-beta
+  }
+  depends_on = [google_project_service.gcp]
+}
+
+
 module "auth" { source = "./auth" }
-module "api" { source = "./api" }
-module "integrations" { source = "./integations" }
+module "api" {
+  source                       = "./api"
+  project_id                   = local.project_id
+  region                       = var.region
+  db_internal_gateway_hostname = module.db.db_gateway_hostname
+  providers = {
+    google      = google
+    google-beta = google-beta
+  }
+  depends_on = [google_project_service.gcp, module.db]
+}
+module "integrations" { source = "./integrations" }
 
 output "stack" {
   value = {
-    environment  = var.environment
-    project_id   = local.project_id
     core         = module.core.id
     db           = module.db.id
     auth         = module.auth.id
