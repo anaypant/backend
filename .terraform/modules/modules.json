@@ -1,0 +1,1 @@
+{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"api","Source":"./api","Dir":"api"},{"Key":"auth","Source":"./auth","Dir":"auth"},{"Key":"core","Source":"./core","Dir":"core"},{"Key":"db","Source":"./db","Dir":"db"},{"Key":"integrations","Source":"./integations","Dir":"integations"}]}
