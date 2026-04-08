@@ -40,8 +40,8 @@ resource "google_storage_bucket_object" "fn" {
 
 resource "google_cloudfunctions2_function" "fn" {
   for_each = local.functions
-  # output_md5 is the zip artifact checksum (source tree content + layout). Name changes only when the bundle changes.
-  name     = "db-${each.key}-${data.archive_file.fn[each.key].output_md5}"
+  # Stable name: deploys update the same Cloud Run service in place. MD5 on the bucket object only avoids stale source zips.
+  name     = "db-${each.key}"
   location = var.region
 
   build_config {

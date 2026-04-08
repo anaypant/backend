@@ -37,7 +37,8 @@ resource "google_storage_bucket_object" "bundle" {
 
 resource "google_cloudfunctions2_function" "fn" {
   for_each = local.function_keys
-  name     = "auth-${replace(each.key, "_", "-")}-${data.archive_file.bundle.output_md5}"
+  # Stable name: same as db/functions — in-place deploys; bundle identity is tracked on the GCS object name.
+  name     = "auth-${replace(each.key, "_", "-")}"
   location = var.region
 
   build_config {
