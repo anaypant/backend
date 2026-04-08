@@ -72,6 +72,11 @@ locals {
   }
 
   openapi_yaml = yamlencode(local.openapi_struct)
+  # Deterministic id: spec + backend SA (gateway_config); avoids md5(yaml) drift and short-hash collisions.
+  api_config_revision = sha256(jsonencode({
+    spec       = local.openapi_struct
+    backend_sa = var.backend_service_account_email
+  }))
 }
 
 resource "google_api_gateway_api" "internal" {
@@ -82,8 +87,7 @@ resource "google_api_gateway_api" "internal" {
 resource "google_api_gateway_api_config" "internal" {
   provider      = google-beta
   api           = google_api_gateway_api.internal.api_id
-  # Immutable config revisions; hash ties this revision to the OpenAPI + function URLs.
-  api_config_id = "cfg${substr(md5(local.openapi_yaml), 0, 14)}"
+  api_config_id = "cfg${substr(local.api_config_revision, 0, 32)}"
 
   openapi_documents {
     document {
