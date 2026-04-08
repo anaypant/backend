@@ -1,4 +1,5 @@
 # Client-facing API: managed API Gateway behind a global external HTTP(S) LB + Cloud Armor.
+# Platform SA + IAM live in root platform.tf; gateway_config uses var.platform_service_account_email.
 
 terraform {
   required_providers {
@@ -13,36 +14,6 @@ terraform {
   }
 }
 
-data "google_project" "project" {
-  project_id = var.project_id
-}
-
-locals {
-  apigateway_mgmt_sa = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway-mgmt.iam.gserviceaccount.com"
-}
-
-resource "google_service_account" "api_backend" {
-  project      = var.project_id
-  account_id   = "acs-api-backend"
-  display_name = "ACS API backend (client-facing gateway)"
-}
-
-# Public API Gateway (ESP) uses google_service_account.api_backend in gateway_config.backend_config.
-# The API Gateway management SA must impersonate that SA or backend calls (e.g. proxy to internal
-# gateways) fail with 401 / permission errors.
-resource "google_service_account_iam_member" "apigateway_impersonate_backend" {
-  service_account_id = google_service_account.api_backend.name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = local.apigateway_mgmt_sa
-}
-
-resource "google_project_iam_member" "api_backend_run_invoker" {
-  project = var.project_id
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.api_backend.email}"
-}
-
 output "id" {
   value = "api"
 }
-

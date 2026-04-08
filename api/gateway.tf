@@ -115,11 +115,9 @@ resource "google_api_gateway_api_config" "public" {
 
   gateway_config {
     backend_config {
-      google_service_account = google_service_account.api_backend.email
+      google_service_account = var.platform_service_account_email
     }
   }
-
-  depends_on = [google_service_account_iam_member.apigateway_impersonate_backend]
 
   lifecycle {
     create_before_destroy = true

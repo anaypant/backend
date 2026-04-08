@@ -17,3 +17,8 @@ variable "auth_internal_gateway_hostname" {
   type        = string
   description = "Hostname of the internal Auth API Gateway (module.auth), without https:// — used to proxy /auth/* on the public gateway."
 }
+
+variable "platform_service_account_email" {
+  type        = string
+  description = "Root google_service_account.platform.email — ESP backend identity for the public gateway."
+}

@@ -18,10 +18,5 @@ variable "db_functions" {
 
 variable "backend_service_account_email" {
   type        = string
-  description = "DB backend SA email for API Gateway backend_config (signs requests to Cloud Run)."
-}
-
-variable "backend_service_account_name" {
-  type        = string
-  description = "Fully qualified SA resource name for IAM bindings (e.g. projects/.../serviceAccounts/...)."
+  description = "Root platform SA email for API Gateway backend_config (signs requests to Cloud Run)."
 }

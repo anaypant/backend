@@ -1,4 +1,5 @@
 # Internal Auth API — Google API Gateway in front of auth Cloud Functions (Gen2 / Cloud Run).
+# Platform SA + IAM (TokenCreator, run.invoker) are in root platform.tf.
 
 terraform {
   required_providers {
@@ -11,30 +12,6 @@ terraform {
       version = ">= 5.0"
     }
   }
-}
-
-data "google_project" "project" {
-  project_id = var.project_id
-}
-
-locals {
-  apigateway_mgmt_sa = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway-mgmt.iam.gserviceaccount.com"
-}
-
-resource "google_service_account_iam_member" "apigateway_impersonate_backend" {
-  service_account_id = var.backend_service_account_name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = local.apigateway_mgmt_sa
-}
-
-resource "google_cloud_run_v2_service_iam_member" "fn_invoker" {
-  for_each = var.auth_functions
-
-  project  = var.project_id
-  location = var.region
-  name     = each.value.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${var.backend_service_account_email}"
 }
 
 locals {
@@ -126,11 +103,6 @@ resource "google_api_gateway_api_config" "internal" {
       google_service_account = var.backend_service_account_email
     }
   }
-
-  depends_on = [
-    google_service_account_iam_member.apigateway_impersonate_backend,
-    google_cloud_run_v2_service_iam_member.fn_invoker,
-  ]
 
   lifecycle {
     create_before_destroy = true

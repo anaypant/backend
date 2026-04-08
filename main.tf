@@ -30,50 +30,48 @@ provider "google-beta" {
   region  = var.region
 }
 
-# Functionality
-module "core" { source = "./core" }
-
-
-# Database (depends on APIs in gcp_apis.tf)
 module "db" {
-  source     = "./db"
-  project_id = local.project_id
-  region     = var.region
+  source             = "./db"
+  project_id         = local.project_id
+  region             = var.region
+  platform_sa_email = google_service_account.platform.email
   providers = {
     google      = google
     google-beta = google-beta
   }
-  depends_on = [google_project_service.gcp]
+  depends_on = [google_project_service.gcp, google_service_account.platform]
 }
 
-
 module "auth" {
-  source                         = "./auth"
-  project_id                     = local.project_id
-  region                         = var.region
-  firebase_web_api_key           = var.firebase_web_api_key
-  google_oauth_client_id         = var.google_oauth_client_id
-  google_oauth_client_secret     = var.google_oauth_client_secret
-  db_internal_gateway_hostname   = module.db.db_gateway_hostname
+  source                       = "./auth"
+  project_id                   = local.project_id
+  region                       = var.region
+  firebase_web_api_key         = var.firebase_web_api_key
+  google_oauth_client_id       = var.google_oauth_client_id
+  google_oauth_client_secret   = var.google_oauth_client_secret
+  db_internal_gateway_hostname = module.db.db_gateway_hostname
+  platform_sa_email = google_service_account.platform.email
   providers = {
     google      = google
     google-beta = google-beta
   }
-  depends_on = [google_project_service.gcp, module.db]
+  depends_on = [google_project_service.gcp, module.db, google_service_account.platform]
 }
 
 module "api" {
-  source                        = "./api"
-  project_id                    = local.project_id
-  region                        = var.region
-  db_internal_gateway_hostname  = module.db.db_gateway_hostname
-  auth_internal_gateway_hostname = module.auth.auth_gateway_hostname
+  source                         = "./api"
+  project_id                     = local.project_id
+  region                         = var.region
+  db_internal_gateway_hostname   = module.db.db_gateway_hostname
+  auth_internal_gateway_hostname   = module.auth.auth_gateway_hostname
+  platform_service_account_email = google_service_account.platform.email
   providers = {
     google      = google
     google-beta = google-beta
   }
-  depends_on = [google_project_service.gcp, module.db, module.auth]
+  depends_on = [google_project_service.gcp, module.db, module.auth, google_service_account.platform]
 }
 
-module "integrations" { source = "./integrations" }
-
+module "integrations" {
+  source = "./integrations"
+}

@@ -11,16 +11,12 @@ terraform {
   }
 }
 
-# Default Firestore (Native). Collections below are documentation-only — Firestore
-# creates a collection when the first document is written; Terraform has no resource
-# for an empty collection.
 locals {
   firestore_collections = [
     "Realtors",
-    "People",        # Leads/Clients/Converted
-    "Internals",     # Employees/Agents/Admin/etc.
-    "Organizations", # Groups of Realtors
-
+    "People",
+    "Internals",
+    "Organizations",
   ]
 }
 
@@ -28,7 +24,7 @@ module "functions" {
   source                        = "./functions"
   project_id                    = var.project_id
   region                        = var.region
-  backend_service_account_email = google_service_account.db_backend.email
+  backend_service_account_email = var.platform_sa_email
 }
 
 module "api" {
@@ -40,8 +36,7 @@ module "api" {
   project_id                    = var.project_id
   region                        = var.region
   db_functions                  = module.functions.db_functions
-  backend_service_account_email = google_service_account.db_backend.email
-  backend_service_account_name  = google_service_account.db_backend.name
+  backend_service_account_email = var.platform_sa_email
   depends_on                    = [module.functions]
 }
 
@@ -56,7 +51,6 @@ output "id" {
 }
 
 output "db_gateway_hostname" {
-  description = "Internal DB API Gateway hostname (no scheme). POST https://<host>/db/read|upsert|delete|query."
+  description = "Internal DB API Gateway hostname (no scheme)."
   value       = module.api.gateway_hostname
 }
-

@@ -1,5 +1,5 @@
-# Internal DB API — Google API Gateway in front of db read / upsert / delete / query Cloud Functions (Gen2 / Cloud Run).
-# Backend SA is created in the parent db module; this module only binds API Gateway–specific IAM and gateway_config.
+# Internal DB API — Google API Gateway in front of db Cloud Functions (Gen2 / Cloud Run).
+# Platform SA + IAM (TokenCreator, run.invoker) are in root platform.tf.
 
 terraform {
   required_providers {
@@ -12,30 +12,6 @@ terraform {
       version = ">= 5.0"
     }
   }
-}
-
-data "google_project" "project" {
-  project_id = var.project_id
-}
-
-locals {
-  apigateway_mgmt_sa = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-apigateway-mgmt.iam.gserviceaccount.com"
-}
-
-resource "google_service_account_iam_member" "apigateway_impersonate_backend" {
-  service_account_id = var.backend_service_account_name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = local.apigateway_mgmt_sa
-}
-
-resource "google_cloud_run_v2_service_iam_member" "fn_invoker" {
-  for_each = var.db_functions
-
-  project  = var.project_id
-  location = var.region
-  name     = each.value.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${var.backend_service_account_email}"
 }
 
 locals {
@@ -67,7 +43,6 @@ locals {
         produces    = ["application/json"]
         security    = []
         "x-google-backend" = {
-          # CONSTANT_ADDRESS sends all traffic to the function root (body and method preserved).
           address          = "${trimsuffix(fn.url, "/")}/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
@@ -105,8 +80,8 @@ resource "google_api_gateway_api" "internal" {
 }
 
 resource "google_api_gateway_api_config" "internal" {
-  provider = google-beta
-  api      = google_api_gateway_api.internal.api_id
+  provider      = google-beta
+  api           = google_api_gateway_api.internal.api_id
   # Immutable config revisions; hash ties this revision to the OpenAPI + function URLs.
   api_config_id = "cfg${substr(md5(local.openapi_yaml), 0, 14)}"
 
@@ -122,11 +97,6 @@ resource "google_api_gateway_api_config" "internal" {
       google_service_account = var.backend_service_account_email
     }
   }
-
-  depends_on = [
-    google_service_account_iam_member.apigateway_impersonate_backend,
-    google_cloud_run_v2_service_iam_member.fn_invoker,
-  ]
 
   lifecycle {
     create_before_destroy = true

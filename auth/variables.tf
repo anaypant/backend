@@ -19,6 +19,10 @@ variable "db_internal_gateway_hostname" {
   description = "Internal DB API Gateway hostname (no scheme), from module.db — used to POST /db/upsert with the user ID token."
 }
 
+variable "platform_sa_email" {
+  type = string
+}
+
 variable "google_oauth_client_id" {
   type        = string
   sensitive   = true

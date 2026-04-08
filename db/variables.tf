@@ -5,3 +5,7 @@ variable "project_id" {
 variable "region" {
   type = string
 }
+
+variable "platform_sa_email" {
+  type = string
+}
