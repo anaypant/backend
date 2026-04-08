@@ -74,6 +74,16 @@ resource "google_cloudfunctions2_function_iam_member" "platform_invoker" {
   member         = "serviceAccount:${var.backend_service_account_email}"
 }
 
+resource "google_cloud_run_v2_service_iam_member" "platform_run_invoker" {
+  for_each = local.functions
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloudfunctions2_function.fn[each.key].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.backend_service_account_email}"
+}
+
 output "db_functions" {
   description = "URLs and Cloud Run service names for API Gateway wiring."
   value = {

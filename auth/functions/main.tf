@@ -67,7 +67,7 @@ resource "google_cloudfunctions2_function" "fn" {
   }
 }
 
-# Gen2: API Gateway calls *.cloudfunctions.net with OIDC; project-level run.invoker is not always enough.
+# Gen2 runs on Cloud Run: grant both CF invoker and Run invoker on the underlying service.
 resource "google_cloudfunctions2_function_iam_member" "platform_invoker" {
   for_each = local.function_keys
 
@@ -76,6 +76,16 @@ resource "google_cloudfunctions2_function_iam_member" "platform_invoker" {
   cloud_function = google_cloudfunctions2_function.fn[each.key].name
   role           = "roles/cloudfunctions.invoker"
   member         = "serviceAccount:${var.backend_service_account_email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "platform_run_invoker" {
+  for_each = local.function_keys
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloudfunctions2_function.fn[each.key].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.backend_service_account_email}"
 }
 
 output "auth_functions" {

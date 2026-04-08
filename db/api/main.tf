@@ -46,6 +46,7 @@ locals {
           address          = "${trimsuffix(fn.url, "/")}/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          jwt_audience     = trimsuffix(fn.url, "/")
         }
         responses = {
           "200" = { description = "OK" }

@@ -53,6 +53,8 @@ locals {
           address          = "${trimsuffix(fn.url, "/")}/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          # Required for Gen2 (Cloud Run): token audience must match or Cloud Run returns 401.
+          jwt_audience = trimsuffix(fn.url, "/")
         }
         responses = {
           "200" = { description = "OK" }
