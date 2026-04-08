@@ -12,12 +12,11 @@ terraform {
 }
 
 module "functions" {
-  source                         = "./functions"
-  project_id                     = var.project_id
-  region                         = var.region
-  firebase_web_api_key           = var.firebase_web_api_key
-  db_internal_gateway_hostname   = var.db_internal_gateway_hostname
-  backend_service_account_email  = var.platform_sa_email
+  source                        = "./functions"
+  project_id                    = var.project_id
+  region                        = var.region
+  firebase_web_api_key          = var.firebase_web_api_key
+  backend_service_account_email = var.platform_sa_email
 }
 
 module "api" {

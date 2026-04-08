@@ -43,18 +43,18 @@ module "db" {
 }
 
 module "auth" {
-  source                       = "./auth"
-  project_id                   = local.project_id
-  region                       = var.region
-  firebase_web_api_key         = var.firebase_web_api_key
-  google_oauth_client_id       = var.google_oauth_client_id
-  google_oauth_client_secret   = var.google_oauth_client_secret
-  db_internal_gateway_hostname = module.db.db_gateway_hostname
-  platform_sa_email = google_service_account.platform.email
+  source                     = "./auth"
+  project_id                 = local.project_id
+  region                     = var.region
+  firebase_web_api_key       = var.firebase_web_api_key
+  google_oauth_client_id     = var.google_oauth_client_id
+  google_oauth_client_secret = var.google_oauth_client_secret
+  platform_sa_email          = google_service_account.platform.email
   providers = {
     google      = google
     google-beta = google-beta
   }
+  # Auth writes profile docs via Firestore Admin; db module provisions the database.
   depends_on = [google_project_service.gcp, module.db, google_service_account.platform]
 }
 

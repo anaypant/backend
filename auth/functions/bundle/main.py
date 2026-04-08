@@ -1,4 +1,8 @@
-"""Auth Cloud Functions: realtor/internal signup and login (password + Google via Identity Toolkit REST)."""
+"""Auth Cloud Functions: realtor/internal signup and login (password + Google via Identity Toolkit REST).
+
+Profile rows (Realtors|Internals/{uid}) are written here via Firestore Admin; see
+firestore_profile.py for rationale vs calling the db HTTP API.
+"""
 
 from __future__ import annotations
 
@@ -10,8 +14,9 @@ import urllib.parse
 import urllib.request
 
 import firebase_admin
+import firestore_profile as fp
 import functions_framework
-from firebase_admin import auth
+from firebase_admin import auth, firestore
 from firebase_admin import exceptions as fb_exc
 
 
@@ -34,13 +39,6 @@ def _require_api_key():
     if not k:
         raise RuntimeError("FIREBASE_WEB_API_KEY is not set")
     return k
-
-
-def _db_upsert_url() -> str:
-    host = (os.environ.get("DB_INTERNAL_GATEWAY_HOSTNAME") or "").strip()
-    if not host:
-        raise RuntimeError("DB_INTERNAL_GATEWAY_HOSTNAME is not set")
-    return f"https://{host.rstrip('/')}/db/upsert/"
 
 
 def _post_json(url: str, payload: dict) -> tuple[dict, int]:
@@ -81,38 +79,6 @@ def _post_form(url: str, form: dict) -> tuple[dict, int]:
             return json.loads(raw), e.code
         except json.JSONDecodeError:
             return {"error": {"message": raw, "code": e.code}}, e.code
-
-
-def _post_json_bearer(url: str, id_token: str, payload: dict) -> tuple[dict, int]:
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {id_token}",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            raw = resp.read().decode("utf-8")
-            return (json.loads(raw) if raw else {}), resp.status
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8")
-        try:
-            return json.loads(raw), e.code
-        except json.JSONDecodeError:
-            return {"error": raw or "upstream error"}, e.code
-
-
-def _db_upsert(id_token: str, path: str, data: dict, merge: bool = True) -> tuple[dict, int]:
-    """POST internal DB API /db/upsert (same contract as db/functions/upsert)."""
-    return _post_json_bearer(
-        _db_upsert_url(),
-        id_token,
-        {"path": path, "data": data, "merge": merge},
-    )
 
 
 def _sign_in_password(email: str, password: str) -> tuple[dict, int]:
@@ -181,33 +147,51 @@ def _normalize_token_bundle(
     return {k: v for k, v in out.items() if v is not None}
 
 
-def _profile_collection(role: str) -> str:
-    if role == "realtor":
-        return "Realtors"
-    if role == "internal":
-        return "Internals"
-    raise ValueError("invalid role")
-
-
-def _profile_document_path(role: str, uid: str) -> str:
-    return f"{_profile_collection(role)}/{uid}"
+def _require_token_uid(id_token: str, uid: str) -> tuple[dict | None, int]:
+    """Ensure id_token is valid and sub matches uid. Returns (error_body, status) or (None, 0)."""
+    try:
+        decoded = auth.verify_id_token(id_token, check_revoked=True)
+    except auth.RevokedIdTokenError:
+        return {"error": "token revoked"}, 401
+    except auth.ExpiredIdTokenError:
+        return {"error": "token expired"}, 401
+    except auth.InvalidIdTokenError:
+        return {"error": "invalid token"}, 401
+    except auth.CertificateFetchError:
+        return {"error": "auth verification unavailable"}, 503
+    if decoded.get("uid") != uid:
+        return {"error": "forbidden"}, 403
+    return None, 0
 
 
 def _sync_profile_signup(id_token: str, uid: str, email: str | None, role: str) -> tuple[dict | None, int]:
-    path = _profile_document_path(role, uid)
-    data = {"uid": uid, "email": (email or "").strip()}
-    return _db_upsert(id_token, path, data, merge=True)
+    err, st = _require_token_uid(id_token, uid)
+    if err:
+        return err, st
+    coll = fp.collection_for_role(role)
+    ref = firestore.client().collection(coll).document(uid)
+    snap = ref.get()
+    ref.set(fp.signup_document(uid, email, document_exists=snap.exists), merge=True)
+    return {}, 200
 
 
 def _sync_profile_login(id_token: str, uid: str, email: str | None, role: str) -> tuple[dict | None, int]:
-    path = _profile_document_path(role, uid)
-    data = {
-        "email": (email or "").strip(),
-        "lastSignInAt": datetime.datetime.now(datetime.timezone.utc)
+    err, st = _require_token_uid(id_token, uid)
+    if err:
+        return err, st
+    coll = fp.collection_for_role(role)
+    ref = firestore.client().collection(coll).document(uid)
+    snap = ref.get()
+    last = (
+        datetime.datetime.now(datetime.timezone.utc)
         .replace(microsecond=0)
-        .isoformat(),
-    }
-    return _db_upsert(id_token, path, data, merge=True)
+        .isoformat()
+    )
+    ref.set(
+        fp.login_document(uid, email, last, document_exists=snap.exists),
+        merge=True,
+    )
+    return {}, 200
 
 
 def _set_role_claim(uid: str, role: str):

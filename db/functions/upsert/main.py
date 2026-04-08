@@ -1,4 +1,5 @@
 # UPSERT function for database (create or merge-update)
+# For Realtors|Internals/{uid}, create semantics should match auth firestore_profile.py.
 
 import json
 
