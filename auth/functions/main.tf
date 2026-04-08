@@ -67,16 +67,6 @@ resource "google_cloudfunctions2_function" "fn" {
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "backend_invoker" {
-  for_each = google_cloudfunctions2_function.fn
-
-  project  = var.project_id
-  location = var.region
-  name     = each.value.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${var.backend_service_account_email}"
-}
-
 output "auth_functions" {
   description = "URLs and names for internal API Gateway wiring."
   value = {

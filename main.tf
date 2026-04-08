@@ -74,5 +74,6 @@ module "api" {
   }
   depends_on = [google_project_service.gcp, module.db, module.auth]
 }
+
 module "integrations" { source = "./integrations" }
 

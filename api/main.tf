@@ -36,8 +36,13 @@ resource "google_service_account_iam_member" "apigateway_impersonate_backend" {
   member             = local.apigateway_mgmt_sa
 }
 
+resource "google_project_iam_member" "api_backend_run_invoker" {
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.api_backend.email}"
+}
+
 output "id" {
   value = "api"
 }
-
 

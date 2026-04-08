@@ -27,6 +27,16 @@ resource "google_service_account_iam_member" "apigateway_impersonate_backend" {
   member             = local.apigateway_mgmt_sa
 }
 
+resource "google_cloud_run_v2_service_iam_member" "fn_invoker" {
+  for_each = var.auth_functions
+
+  project  = var.project_id
+  location = var.region
+  name     = each.value.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.backend_service_account_email}"
+}
+
 locals {
   auth_route_paths = {
     realtor_signup   = "/auth/realtor/signup"
@@ -117,7 +127,10 @@ resource "google_api_gateway_api_config" "internal" {
     }
   }
 
-  depends_on = [google_service_account_iam_member.apigateway_impersonate_backend]
+  depends_on = [
+    google_service_account_iam_member.apigateway_impersonate_backend,
+    google_cloud_run_v2_service_iam_member.fn_invoker,
+  ]
 
   lifecycle {
     create_before_destroy = true
