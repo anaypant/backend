@@ -47,26 +47,32 @@ module "db" {
 }
 
 
-module "auth" { source = "./auth" }
-module "api" {
-  source                       = "./api"
-  project_id                   = local.project_id
-  region                       = var.region
-  db_internal_gateway_hostname = module.db.db_gateway_hostname
+module "auth" {
+  source                         = "./auth"
+  project_id                     = local.project_id
+  region                         = var.region
+  firebase_web_api_key           = var.firebase_web_api_key
+  google_oauth_client_id         = var.google_oauth_client_id
+  google_oauth_client_secret     = var.google_oauth_client_secret
+  db_internal_gateway_hostname   = module.db.db_gateway_hostname
   providers = {
     google      = google
     google-beta = google-beta
   }
   depends_on = [google_project_service.gcp, module.db]
 }
+
+module "api" {
+  source                        = "./api"
+  project_id                    = local.project_id
+  region                        = var.region
+  db_internal_gateway_hostname  = module.db.db_gateway_hostname
+  auth_internal_gateway_hostname = module.auth.auth_gateway_hostname
+  providers = {
+    google      = google
+    google-beta = google-beta
+  }
+  depends_on = [google_project_service.gcp, module.db, module.auth]
+}
 module "integrations" { source = "./integrations" }
 
-output "stack" {
-  value = {
-    core         = module.core.id
-    db           = module.db.id
-    auth         = module.auth.id
-    api          = module.api.id
-    integrations = module.integrations.id
-  }
-}

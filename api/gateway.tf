@@ -1,7 +1,8 @@
 # Public API Gateway — /health plus /db/* proxied to the internal DB API Gateway (same paths and JSON bodies).
 
 locals {
-  db_internal_base = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
+  db_internal_base  = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
+  auth_internal_base = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
 
   db_proxy_paths = {
     for key in ["read", "upsert", "delete", "query"] : "/db/${key}" => {
@@ -23,6 +24,38 @@ locals {
           "401" = { description = "Unauthorized" }
           "403" = { description = "Forbidden" }
           "404" = { description = "Not found" }
+          "500" = { description = "Error" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+  }
+
+  auth_proxy_paths = {
+    for path in [
+      "/auth/realtor/signup",
+      "/auth/realtor/login",
+      "/auth/internal/signup",
+      "/auth/internal/login",
+      ] : path => {
+      post = {
+        summary     = "Auth ${trimprefix(path, "/auth/")} (proxied to internal auth gateway)"
+        operationId = replace(replace(path, "/auth/", "auth_"), "/", "_")
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.auth_internal_base}${path}/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "409" = { description = "Conflict" }
           "500" = { description = "Error" }
           "503" = { description = "Unavailable" }
         }
@@ -56,7 +89,8 @@ locals {
           }
         }
       },
-      local.db_proxy_paths
+      local.db_proxy_paths,
+      local.auth_proxy_paths
     )
   }
   openapi_yaml = yamlencode(local.openapi_struct)

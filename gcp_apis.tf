@@ -8,11 +8,13 @@ resource "google_project_service" "gcp" {
     "cloudfunctions.googleapis.com",
     "compute.googleapis.com",
     "firestore.googleapis.com",
+    "identitytoolkit.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "run.googleapis.com",
     "servicecontrol.googleapis.com",
     "servicemanagement.googleapis.com",
+    "securetoken.googleapis.com",
   ])
   project            = local.project_id
   service            = each.key
