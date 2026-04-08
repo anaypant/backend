@@ -27,6 +27,9 @@ resource "google_service_account" "api_backend" {
   display_name = "ACS API backend (client-facing gateway)"
 }
 
+# Public API Gateway (ESP) uses google_service_account.api_backend in gateway_config.backend_config.
+# The API Gateway management SA must impersonate that SA or backend calls (e.g. proxy to internal
+# gateways) fail with 401 / permission errors.
 resource "google_service_account_iam_member" "apigateway_impersonate_backend" {
   service_account_id = google_service_account.api_backend.name
   role               = "roles/iam.serviceAccountTokenCreator"
