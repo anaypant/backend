@@ -11,25 +11,10 @@ terraform {
   }
 }
 
-# Identity Platform baseline (email/password is available once Identity Toolkit API is enabled).
-resource "google_identity_platform_config" "default" {
-  provider = google-beta
-  project  = var.project_id
-}
-
-# Google provider (optional Terraform wiring). If client_id/secret are empty, enable Google in Firebase Console.
-resource "google_identity_platform_default_supported_idp_config" "google" {
-  count = (
-    var.google_oauth_client_id != "" && var.google_oauth_client_secret != ""
-  ) ? 1 : 0
-
-  provider      = google-beta
-  project       = var.project_id
-  idp_id        = "google.com"
-  enabled       = true
-  client_id     = var.google_oauth_client_id
-  client_secret = var.google_oauth_client_secret
-}
+# Identity Platform is enabled via identitytoolkit.googleapis.com in gcp_apis.tf.
+# Do not manage google_identity_platform_* here: creating them fails when Firebase/IdP
+# was already turned on (400/409). Configure Google sign-in in Firebase Console; optional
+# google_oauth_* root variables remain for documentation or external tooling.
 
 module "functions" {
   source                         = "./functions"
