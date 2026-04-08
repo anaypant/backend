@@ -1,5 +1,6 @@
 # Internal DB API — Google API Gateway in front of db Cloud Functions (Gen2 / Cloud Run).
-# Platform SA + IAM (TokenCreator, run.invoker) are in root platform.tf.
+# ACS contract: POST /db/{read|upsert|delete|query} + JSON body; in-project callers must send
+# the end-user Firebase ID in header acs_internal.USER_JWT_HEADER (Authorization is SA OIDC from ESP).
 
 terraform {
   required_providers {

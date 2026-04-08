@@ -61,7 +61,8 @@ resource "google_cloudfunctions2_function" "fn" {
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email
     environment_variables = {
-      FIREBASE_WEB_API_KEY = var.firebase_web_api_key
+      FIREBASE_WEB_API_KEY         = var.firebase_web_api_key
+      DB_INTERNAL_GATEWAY_HOSTNAME = var.db_internal_gateway_hostname
     }
   }
 }

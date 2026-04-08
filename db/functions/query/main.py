@@ -1,5 +1,7 @@
 # QUERY function — list documents in a Firestore collection with filters / order / pagination.
 
+import acs_internal as acs
+
 import datetime
 import json
 import re
@@ -38,10 +40,13 @@ def _ensure_firebase():
 
 
 def _bearer_token(request) -> str | None:
-    header = request.headers.get("Authorization") or ""
-    parts = header.split()
-    if len(parts) == 2 and parts[0].lower() == "bearer":
-        return parts[1].strip() or None
+    for h in (acs.USER_JWT_HEADER, "Authorization"):
+        raw = request.headers.get(h) or ""
+        parts = raw.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            t = parts[1].strip()
+            if t:
+                return t
     return None
 
 

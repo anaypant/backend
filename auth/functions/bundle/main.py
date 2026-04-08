@@ -1,7 +1,6 @@
 """Auth Cloud Functions: realtor/internal signup and login (password + Google via Identity Toolkit REST).
 
-Profile rows (Realtors|Internals/{uid}) are written here via Firestore Admin; see
-firestore_profile.py for rationale vs calling the db HTTP API.
+Profile writes go to the internal DB gateway; end-user JWT uses acs_internal.USER_JWT_HEADER.
 """
 
 from __future__ import annotations
@@ -13,10 +12,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import acs_internal as acs
 import firebase_admin
 import firestore_profile as fp
 import functions_framework
-from firebase_admin import auth, firestore
+from firebase_admin import auth
 from firebase_admin import exceptions as fb_exc
 
 
@@ -147,51 +147,61 @@ def _normalize_token_bundle(
     return {k: v for k, v in out.items() if v is not None}
 
 
-def _require_token_uid(id_token: str, uid: str) -> tuple[dict | None, int]:
-    """Ensure id_token is valid and sub matches uid. Returns (error_body, status) or (None, 0)."""
+def _db_internal_origin() -> str:
+    host = (os.environ.get("DB_INTERNAL_GATEWAY_HOSTNAME") or "").strip()
+    if not host:
+        raise RuntimeError("DB_INTERNAL_GATEWAY_HOSTNAME is not set")
+    return f"https://{host.rstrip('/')}"
+
+
+def _post_db(user_jwt: str, path: str, payload: dict) -> tuple[dict, int]:
+    """POST internal db gateway path (e.g. /db/upsert/) with ACS user JWT header."""
+    url = _db_internal_origin() + path
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            acs.USER_JWT_HEADER: f"Bearer {user_jwt}",
+        },
+    )
     try:
-        decoded = auth.verify_id_token(id_token, check_revoked=True)
-    except auth.RevokedIdTokenError:
-        return {"error": "token revoked"}, 401
-    except auth.ExpiredIdTokenError:
-        return {"error": "token expired"}, 401
-    except auth.InvalidIdTokenError:
-        return {"error": "invalid token"}, 401
-    except auth.CertificateFetchError:
-        return {"error": "auth verification unavailable"}, 503
-    if decoded.get("uid") != uid:
-        return {"error": "forbidden"}, 403
-    return None, 0
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read().decode("utf-8")
+            return (json.loads(raw) if raw else {}), resp.status
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8")
+        try:
+            return json.loads(raw), e.code
+        except json.JSONDecodeError:
+            return {"error": raw or "upstream error"}, e.code
+
+
+def _db_upsert(id_token: str, path: str, data: dict, merge: bool = True) -> tuple[dict, int]:
+    return _post_db(id_token, "/db/upsert/", {"path": path, "data": data, "merge": merge})
 
 
 def _sync_profile_signup(id_token: str, uid: str, email: str | None, role: str) -> tuple[dict | None, int]:
-    err, st = _require_token_uid(id_token, uid)
-    if err:
-        return err, st
-    coll = fp.collection_for_role(role)
-    ref = firestore.client().collection(coll).document(uid)
-    snap = ref.get()
-    ref.set(fp.signup_document(uid, email, document_exists=snap.exists), merge=True)
-    return {}, 200
+    doc = f"{fp.collection_for_role(role)}/{uid}"
+    return _db_upsert(
+        id_token,
+        doc,
+        {"uid": uid, "email": (email or "").strip()},
+        merge=True,
+    )
 
 
 def _sync_profile_login(id_token: str, uid: str, email: str | None, role: str) -> tuple[dict | None, int]:
-    err, st = _require_token_uid(id_token, uid)
-    if err:
-        return err, st
-    coll = fp.collection_for_role(role)
-    ref = firestore.client().collection(coll).document(uid)
-    snap = ref.get()
-    last = (
-        datetime.datetime.now(datetime.timezone.utc)
+    doc = f"{fp.collection_for_role(role)}/{uid}"
+    data = {
+        "email": (email or "").strip(),
+        "lastSignInAt": datetime.datetime.now(datetime.timezone.utc)
         .replace(microsecond=0)
-        .isoformat()
-    )
-    ref.set(
-        fp.login_document(uid, email, last, document_exists=snap.exists),
-        merge=True,
-    )
-    return {}, 200
+        .isoformat(),
+    }
+    return _db_upsert(id_token, doc, data, merge=True)
 
 
 def _set_role_claim(uid: str, role: str):

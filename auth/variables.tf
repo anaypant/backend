@@ -14,6 +14,11 @@ variable "firebase_web_api_key" {
   description = "Firebase Web API key (Project settings) for Identity Toolkit REST from Cloud Functions."
 }
 
+variable "db_internal_gateway_hostname" {
+  type        = string
+  description = "module.db internal API hostname (no scheme) — required for profile /db/upsert via ACS header contract."
+}
+
 variable "platform_sa_email" {
   type = string
 }
