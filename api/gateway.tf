@@ -1,8 +1,9 @@
 # Public API Gateway — /health plus /db/* proxied to the internal DB API Gateway (same paths and JSON bodies).
 
 locals {
-  db_internal_base  = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
-  auth_internal_base = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
+  db_internal_base           = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
+  auth_internal_base         = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
+  integration_internal_base  = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
 
   db_proxy_paths = {
     for key in ["read", "upsert", "delete", "query"] : "/db/${key}" => {
@@ -63,6 +64,149 @@ locals {
     }
   }
 
+  integration_proxy_paths = {
+    "/integrations/webhooks/followupboss" = {
+      post = {
+        summary     = "Integration webhooks/followupboss (proxied to internal integration gateway)"
+        operationId = "integrations_webhooks_followupboss"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/webhooks/followupboss/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/oauth/start" = {
+      get = {
+        summary     = "Integration followupboss/oauth/start (proxied to internal integration gateway)"
+        operationId = "integrations_followupboss_oauth_start"
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "501" = { description = "Not implemented" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/oauth/callback" = {
+      get = {
+        summary     = "Integration followupboss/oauth/callback (proxied to internal integration gateway)"
+        operationId = "integrations_followupboss_oauth_callback"
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/oauth/callback/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/refresh" = {
+      post = {
+        summary     = "Integration followupboss/refresh (proxied to internal integration gateway)"
+        operationId = "integrations_followupboss_refresh"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/refresh/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/resync_webhooks" = {
+      post = {
+        summary     = "Integration followupboss/resync_webhooks (proxied to internal integration gateway)"
+        operationId = "integrations_followupboss_resync_webhooks"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/resync_webhooks/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/disconnect" = {
+      post = {
+        summary     = "Integration followupboss/disconnect (proxied to internal integration gateway)"
+        operationId = "integrations_followupboss_disconnect"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/disconnect/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+  }
+
   openapi_struct = {
     swagger = "2.0"
     info = {
@@ -90,7 +234,8 @@ locals {
         }
       },
       local.db_proxy_paths,
-      local.auth_proxy_paths
+      local.auth_proxy_paths,
+      local.integration_proxy_paths
     )
   }
   openapi_yaml = yamlencode(local.openapi_struct)

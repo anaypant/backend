@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acs.local/contracts/integration_actions.v1.json",
+  "title": "IntegrationActionsV1",
+  "type": "object",
+  "required": ["provider", "actions"],
+  "properties": {
+    "provider": { "type": "string" },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "payload"],
+        "properties": {
+          "name": { "type": "string" },
+          "payload": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

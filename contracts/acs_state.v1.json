@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acs.local/contracts/acs_state.v1.json",
+  "title": "ACSStateV1",
+  "type": "object",
+  "required": ["state_version", "correlation_id", "source", "payload"],
+  "additionalProperties": true,
+  "properties": {
+    "state_version": { "type": "integer", "const": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["provider", "event_type"],
+      "properties": {
+        "provider": { "type": "string" },
+        "event_type": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "payload": { "type": "object" },
+    "routing": { "type": "object" },
+    "metadata": { "type": "object" },
+    "errors": { "type": "array" }
+  }
+}

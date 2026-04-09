@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acs.local/contracts/core_run.v1.json",
+  "title": "CoreRunRequestV1",
+  "type": "object",
+  "required": ["state"],
+  "additionalProperties": true,
+  "properties": {
+    "workflow_id": { "type": "string" },
+    "state": { "type": "object" }
+  }
+}

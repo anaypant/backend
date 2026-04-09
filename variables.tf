@@ -41,3 +41,54 @@ variable "google_oauth_client_secret" {
   default     = ""
   description = "Optional. OAuth client secret for Google IdP (pair with google_oauth_client_id)."
 }
+
+variable "fub_oauth_authorize_url" {
+  type        = string
+  default     = ""
+  description = "Follow Up Boss OAuth authorize URL; required to build oauth/start authorizeUrl."
+}
+
+variable "fub_oauth_token_url" {
+  type        = string
+  default     = ""
+  description = "Follow Up Boss OAuth token URL for code exchange and refresh."
+}
+
+variable "fub_oauth_client_id" {
+  type        = string
+  default     = ""
+  description = "Follow Up Boss OAuth client id."
+}
+
+variable "fub_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Follow Up Boss OAuth client secret."
+}
+
+variable "fub_system_name" {
+  type        = string
+  default     = "ACS"
+  description = "X-System header used for FUB webhook management APIs."
+}
+
+variable "fub_x_system_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "X-System-Key used for FUB webhook signature validation."
+}
+
+variable "acs_public_integration_base_url" {
+  type        = string
+  default     = ""
+  description = "Public integration base URL used to construct callback URL deterministically."
+}
+
+variable "acs_oauth_state_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "HMAC secret used to sign OAuth state."
+}

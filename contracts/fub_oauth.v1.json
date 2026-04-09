@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acs.local/contracts/fub_oauth.v1.json",
+  "title": "FUBOAuthV1",
+  "type": "object",
+  "description": "Contracts for Follow Up Boss OAuth start/callback/refresh through integration public API.",
+  "definitions": {
+    "OAuthStartRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientRedirectUrl": { "type": "string" }
+      }
+    },
+    "OAuthStartResponse": {
+      "type": "object",
+      "required": ["ok", "state"],
+      "additionalProperties": true,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "state": { "type": "string" },
+        "authorizeUrl": { "type": "string" },
+        "callbackUrl": { "type": "string" },
+        "error": { "type": "string" },
+        "todo": {}
+      }
+    },
+    "OAuthCallbackResponse": {
+      "type": "object",
+      "required": ["ok"],
+      "additionalProperties": true,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "uid": { "type": "string" },
+        "state": { "type": "string" },
+        "webhooks": { "type": "object" },
+        "error": { "type": "string" }
+      }
+    },
+    "RefreshResponse": {
+      "type": "object",
+      "required": ["ok"],
+      "additionalProperties": true,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "uid": { "type": "string" },
+        "error": { "type": "string" }
+      }
+    }
+  }
+}
