@@ -100,6 +100,7 @@ module "api" {
   auth_internal_gateway_hostname       = module.auth.auth_gateway_hostname
   integration_internal_gateway_hostname = module.integration.integration_gateway_hostname
   platform_service_account_email       = google_service_account.platform.email
+  acs_public_integration_base_url      = var.acs_public_integration_base_url
   providers = {
     google      = google
     google-beta = google-beta

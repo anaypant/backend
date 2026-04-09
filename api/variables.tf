@@ -27,3 +27,10 @@ variable "platform_service_account_email" {
   type        = string
   description = "Root google_service_account.platform.email — ESP backend identity for the public gateway."
 }
+
+# Must match output public_gateway_base_url (enforced on google_api_gateway_gateway.public). Empty skips check.
+variable "acs_public_integration_base_url" {
+  type        = string
+  default     = ""
+  description = "Expected public origin for /integrations/* (https://…, no trailing slash). Empty = do not validate (integration fn may infer host from requests)."
+}

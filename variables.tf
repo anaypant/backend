@@ -83,7 +83,7 @@ variable "fub_x_system_key" {
 variable "acs_public_integration_base_url" {
   type        = string
   default     = ""
-  description = "Public integration base URL used to construct callback URL deterministically."
+  description = "Must match output public_gateway_base_url (validated against the public API Gateway). Empty = skip validation; integration function may infer host from requests."
 }
 
 variable "acs_oauth_state_secret" {

@@ -17,3 +17,8 @@ terraform {
 output "id" {
   value = "api"
 }
+
+output "public_gateway_base_url" {
+  description = "Canonical public API origin (scheme + default_hostname). Use for acs_public_integration_base_url and client NEXT_PUBLIC_API_BASE_URL."
+  value       = "https://${google_api_gateway_gateway.public.default_hostname}"
+}

@@ -280,4 +280,14 @@ resource "google_api_gateway_gateway" "public" {
   gateway_id = "acs-public"
 
   depends_on = [google_api_gateway_api_config.public]
+
+  lifecycle {
+    postcondition {
+      condition = (
+        var.acs_public_integration_base_url == "" ||
+        trim(var.acs_public_integration_base_url, "/") == "https://${self.default_hostname}"
+      )
+      error_message = "acs_public_integration_base_url must be empty or exactly https://${self.default_hostname} (single source: match output public_gateway_base_url)."
+    }
+  }
 }
