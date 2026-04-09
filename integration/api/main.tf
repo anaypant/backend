@@ -34,8 +34,8 @@ locals {
   }
 
   integration_backend = {
-    address          = "${trimsuffix(var.bridge_function.url, "/")}/"
-    path_translation = "CONSTANT_ADDRESS"
+    address          = trimsuffix(var.bridge_function.url, "/")
+    path_translation = "APPEND_PATH_TO_ADDRESS"
     protocol         = "h2"
     jwt_audience     = trimsuffix(var.bridge_function.url, "/")
   }
