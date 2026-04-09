@@ -7,6 +7,7 @@ import json
 
 import firebase_admin
 import functions_framework
+import platform_auth
 from firebase_admin import auth, firestore
 
 
@@ -108,20 +109,25 @@ def main(request):
 
     _ensure_firebase()
 
-    token = _bearer_token(request)
-    if not token:
-        return _json_response({"error": "missing Authorization bearer token"}, 401)
+    decoded, plat_err = platform_auth.try_platform_actor(request)
+    if plat_err is not None:
+        body, st = plat_err
+        return _json_response(body, st)
+    if decoded is None:
+        token = _bearer_token(request)
+        if not token:
+            return _json_response({"error": "missing Authorization bearer token"}, 401)
 
-    try:
-        decoded = auth.verify_id_token(token, check_revoked=True)
-    except auth.RevokedIdTokenError:
-        return _json_response({"error": "token revoked"}, 401)
-    except auth.ExpiredIdTokenError:
-        return _json_response({"error": "token expired"}, 401)
-    except auth.InvalidIdTokenError:
-        return _json_response({"error": "invalid token"}, 401)
-    except auth.CertificateFetchError:
-        return _json_response({"error": "auth verification unavailable"}, 503)
+        try:
+            decoded = auth.verify_id_token(token, check_revoked=True)
+        except auth.RevokedIdTokenError:
+            return _json_response({"error": "token revoked"}, 401)
+        except auth.ExpiredIdTokenError:
+            return _json_response({"error": "token expired"}, 401)
+        except auth.InvalidIdTokenError:
+            return _json_response({"error": "invalid token"}, 401)
+        except auth.CertificateFetchError:
+            return _json_response({"error": "auth verification unavailable"}, 503)
 
     try:
         request_body = request.get_json(silent=True) or {}

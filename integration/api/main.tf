@@ -137,6 +137,45 @@ locals {
         }
       }
     }
+    "/integrations/followupboss/webhooks" = {
+      get = {
+        summary         = "Integration followupboss/webhooks"
+        operationId     = "integrations_followupboss_webhooks_list"
+        produces        = ["application/json"]
+        security        = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/webhook_test" = {
+      post = {
+        summary         = "Integration followupboss/webhook_test"
+        operationId     = "integrations_followupboss_webhook_test"
+        consumes        = ["application/json"]
+        produces        = ["application/json"]
+        security        = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
     "/integrations/followupboss/disconnect" = {
       post = {
         summary         = "Integration followupboss/disconnect"

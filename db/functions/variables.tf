@@ -13,3 +13,9 @@ variable "backend_service_account_email" {
   type        = string
   description = "DB backend SA allowed to invoke these Cloud Run services (e.g. API Gateway identity)."
 }
+
+variable "db_internal_gateway_hostname" {
+  type        = string
+  description = "Hostname of acs-db-internal API Gateway (no scheme); used as Google ID token audience for platform callers."
+  default     = ""
+}

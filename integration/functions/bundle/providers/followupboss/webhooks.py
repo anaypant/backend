@@ -1,13 +1,14 @@
 import base64
 import hashlib
 import hmac
-import os
+import json
 import re
 import uuid
 
 from dispatcher.core_client import send_state_to_core
 from dispatcher.egress import dispatch_provider_actions, extract_actions_from_state, outbound_enabled
 from providers.followupboss.client import FubClient
+from store.authn import bearer_token, verify_realtor
 from store.common import json_response
 from store.profile_repo import (
     load_fub_profile_by_connection_id,
@@ -25,6 +26,38 @@ def _signature_ok(raw_body: bytes, header_sig: str | None, x_system_key: str) ->
     msg = base64.b64encode(raw_body)
     expected = hmac.new(x_system_key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, header_sig.strip())
+
+
+def _process_webhook_event(connection_id: str, fub: dict, event_body: dict):
+    """Shared pipeline after signature (ingress) or Firebase auth (test)."""
+    auth = dict(fub.get("auth") or {})
+
+    event_id = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
+    inserted, _ = put_event_ledger(connection_id, event_id, event_body)
+    if not inserted:
+        return json_response({"ok": True, "duplicate": True, "eventId": event_id}, 200)
+
+    state = _to_acs_state(event_body, connection_id)
+    core_body, core_status = send_state_to_core(state)
+    if core_status >= 400:
+        update_event_status(connection_id, event_id, "core_error", core_body)
+        return json_response({"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}, 200)
+
+    result_state = core_body.get("state") if isinstance(core_body, dict) else {}
+    actions = extract_actions_from_state(result_state if isinstance(result_state, dict) else {})
+    if outbound_enabled() and actions:
+        outbound = dispatch_provider_actions("followupboss", connection_id, actions)
+        update_event_status(connection_id, event_id, "processed_with_outbound", outbound)
+    else:
+        update_event_status(connection_id, event_id, "processed", {"actions": len(actions)})
+
+    uri = event_body.get("uri")
+    if isinstance(uri, str) and uri:
+        client = FubClient(access_token_ref=auth.get("accessTokenRef"), api_key_ref=auth.get("apiKeyRef"))
+        _r, _s = client.get_by_uri(uri)
+        update_event_status(connection_id, event_id, "processed", {"fetchedUri": _s < 400})
+
+    return json_response({"ok": True, "accepted": True, "eventId": event_id}, 200)
 
 
 def _to_acs_state(event_body: dict, connection_id: str) -> dict:
@@ -66,8 +99,6 @@ def webhook_ingress(request):
     if not _signature_ok(raw, request.headers.get("FUB-Signature"), x_system_key):
         return json_response({"error": "invalid FUB-Signature"}, 401)
 
-    import json
-
     try:
         event_body = json.loads(raw.decode("utf-8") if raw else "{}")
     except json.JSONDecodeError:
@@ -75,32 +106,29 @@ def webhook_ingress(request):
     if not isinstance(event_body, dict):
         return json_response({"error": "JSON object body required"}, 400)
 
-    event_id = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
-    inserted, _ = put_event_ledger(connection_id, event_id, event_body)
-    if not inserted:
-        return json_response({"ok": True, "duplicate": True, "eventId": event_id}, 200)
+    return _process_webhook_event(connection_id, fub, event_body)
 
-    state = _to_acs_state(event_body, connection_id)
-    core_body, core_status = send_state_to_core(state)
-    if core_status >= 400:
-        update_event_status(connection_id, event_id, "core_error", core_body)
-        # Keep 200 to avoid webhook retry storms; event is ledgered and can be replayed.
-        return json_response({"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}, 200)
 
-    result_state = core_body.get("state") if isinstance(core_body, dict) else {}
-    actions = extract_actions_from_state(result_state if isinstance(result_state, dict) else {})
-    if outbound_enabled() and actions:
-        outbound = dispatch_provider_actions("followupboss", connection_id, actions)
-        update_event_status(connection_id, event_id, "processed_with_outbound", outbound)
-    else:
-        update_event_status(connection_id, event_id, "processed", {"actions": len(actions)})
+def webhook_test(request):
+    """POST same JSON body as FUB webhooks; requires Firebase realtor token; uses token uid as connectionId."""
+    token = bearer_token(request)
+    if not token:
+        return json_response({"error": "missing bearer token"}, 401)
+    decoded, err = verify_realtor(token)
+    if err:
+        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+    uid = decoded["uid"]
 
-    # Optional follow-up fetch from webhook uri (decoupled, best-effort):
-    # TODO: move this into async worker if latency grows.
-    uri = event_body.get("uri")
-    if isinstance(uri, str) and uri:
-        client = FubClient(access_token_ref=auth.get("accessTokenRef"), api_key_ref=auth.get("apiKeyRef"))
-        _r, _s = client.get_by_uri(uri)
-        update_event_status(connection_id, event_id, "processed", {"fetchedUri": _s < 400})
+    raw = request.get_data(cache=False, as_text=False) or b""
+    try:
+        event_body = json.loads(raw.decode("utf-8") if raw else "{}")
+    except json.JSONDecodeError:
+        return json_response({"error": "invalid JSON body"}, 400)
+    if not isinstance(event_body, dict):
+        return json_response({"error": "JSON object body required"}, 400)
 
-    return json_response({"ok": True, "accepted": True, "eventId": event_id}, 200)
+    _, fub = load_fub_profile_by_connection_id(uid)
+    if not fub:
+        return json_response({"error": "followupboss not configured"}, 404)
+
+    return _process_webhook_event(uid, fub, event_body)

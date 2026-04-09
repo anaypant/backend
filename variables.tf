@@ -6,6 +6,12 @@ variable "environment" {
   }
 }
 
+variable "db_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = "Hostname only for acs-db-internal (platform OIDC audience https://HOST). Leave empty until first apply; then set from terraform output db_gateway_hostname."
+}
+
 variable "dev_project_id" {
   type = string
 }

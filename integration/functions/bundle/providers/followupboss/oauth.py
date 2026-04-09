@@ -386,3 +386,28 @@ def resync_webhooks(request):
     fub["audit"]["lastWebhookResyncAtEpoch"] = now_epoch()
     save_fub_profile(uid, token, fub)
     return json_response({"ok": sync_status in (200, 207), "uid": uid, "webhooks": result}, 200 if sync_status in (200, 207) else sync_status)
+
+
+def list_registered_webhooks(request):
+    """GET raw FUB /v1/webhooks for the connected realtor (read-only)."""
+    token = bearer_token(request)
+    if not token:
+        return json_response({"error": "missing bearer token"}, 401)
+    decoded, err = verify_realtor(token)
+    if err:
+        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+    uid = decoded["uid"]
+
+    existing, status = load_realtor_profile(uid, token)
+    if status not in (200, 404):
+        return json_response(existing, 502 if status >= 500 else status)
+    fub = fub_config_from_profile(existing)
+    if not fub:
+        return json_response({"error": "followupboss not configured"}, 404)
+    auth_block = dict(fub.get("auth") or {})
+    access_ref = auth_block.get("accessTokenRef")
+    if not isinstance(access_ref, str) or not access_ref:
+        return json_response({"error": "access token ref missing", "todo": "Complete OAuth connect first."}, 400)
+
+    raw, st = FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef")).list_webhooks()
+    return json_response({"ok": st < 400, "httpStatus": st, "fub": raw}, 200 if st < 400 else st)

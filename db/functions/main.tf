@@ -61,6 +61,13 @@ resource "google_cloudfunctions2_function" "fn" {
     timeout_seconds                  = 60
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 1
+    environment_variables = merge(
+      {},
+      contains(["read", "upsert"], each.key) && var.db_internal_gateway_hostname != "" ? {
+        ACS_PLATFORM_SERVICE_ACCOUNT_EMAIL = var.backend_service_account_email
+        ACS_DB_GATEWAY_HOSTNAME            = var.db_internal_gateway_hostname
+      } : {}
+    )
   }
 }
 

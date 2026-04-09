@@ -1,7 +1,6 @@
 from typing import Any
 
-from store.authn import ensure_firebase
-from store.common import db_origin, post_json
+from store.common import db_origin, post_json, post_json_platform
 
 
 def fub_config_from_profile(doc_data: dict) -> dict | None:
@@ -33,39 +32,54 @@ def save_fub_profile(uid: str, user_jwt: str, fub_profile: dict) -> tuple[dict, 
 
 
 def load_fub_profile_by_connection_id(connection_id: str) -> tuple[dict | None, dict | None]:
-    # TODO: Replace with DB internal API call authenticated as service account.
-    ensure_firebase()
-    from firebase_admin import firestore
-
-    snap = firestore.client().collection("Realtors").document(connection_id).get()
-    if not snap.exists:
+    body, status = post_json_platform(
+        db_origin() + "/db/read/",
+        {"path": f"Realtors/{connection_id}"},
+        acting_uid=connection_id,
+    )
+    if status == 200 and isinstance(body.get("data"), dict):
+        profile = body["data"]
+        return profile, fub_config_from_profile(profile)
+    if status == 404:
         return None, None
-    profile = snap.to_dict() or {}
-    return profile, fub_config_from_profile(profile)
+    return None, None
 
 
 def save_fub_profile_by_connection_id(connection_id: str, fub_profile: dict):
-    # TODO: Replace with DB internal API call authenticated as service account.
-    ensure_firebase()
-    from firebase_admin import firestore
+    body, status = post_json_platform(
+        db_origin() + "/db/read/",
+        {"path": f"Realtors/{connection_id}"},
+        acting_uid=connection_id,
+    )
+    existing: dict = {}
+    if status == 200 and isinstance(body.get("data"), dict):
+        existing = body["data"]
+    elif status != 404:
+        return
 
-    firestore.client().collection("Realtors").document(connection_id).set(
-        {"integrations": {"followupboss": fub_profile}},
-        merge=True,
+    integrations = dict(existing.get("integrations") or {})
+    integrations["followupboss"] = fub_profile
+    post_json_platform(
+        db_origin() + "/db/upsert/",
+        {"path": f"Realtors/{connection_id}", "data": {"integrations": integrations}, "merge": True},
+        acting_uid=connection_id,
     )
 
 
 def put_event_ledger(connection_id: str, event_id: str, event: dict) -> tuple[bool, dict]:
     """Returns (inserted, record)."""
-    ensure_firebase()
-    from firebase_admin import firestore
-
     key = f"followupboss::{connection_id}::{event_id}"
-    ref = firestore.client().collection("IntegrationEventLedger").document(key)
-    snap = ref.get()
-    if snap.exists:
-        data: dict[str, Any] = snap.to_dict() or {}
+    path = f"IntegrationEventLedger/{key}"
+    body, status = post_json_platform(
+        db_origin() + "/db/read/",
+        {"path": path},
+        acting_uid=connection_id,
+    )
+    if status == 200 and isinstance(body.get("data"), dict):
+        data: dict[str, Any] = body["data"]
         return False, data
+    if status != 404:
+        return False, {"error": "ledger read failed", "detail": body, "httpStatus": status}
 
     record = {
         "provider": "followupboss",
@@ -74,18 +88,27 @@ def put_event_ledger(connection_id: str, event_id: str, event: dict) -> tuple[bo
         "eventType": event.get("event"),
         "status": "received",
         "raw": event,
+        "ownerUid": connection_id,
+        "createdBy": connection_id,
     }
-    ref.set(record, merge=True)
+    _, ust = post_json_platform(
+        db_origin() + "/db/upsert/",
+        {"path": path, "data": record, "merge": True},
+        acting_uid=connection_id,
+    )
+    if ust >= 400:
+        return False, {"error": "ledger upsert failed", "httpStatus": ust}
     return True, record
 
 
 def update_event_status(connection_id: str, event_id: str, status: str, detail: dict | None = None):
-    ensure_firebase()
-    from firebase_admin import firestore
-
     key = f"followupboss::{connection_id}::{event_id}"
-    ref = firestore.client().collection("IntegrationEventLedger").document(key)
-    payload = {"status": status}
+    path = f"IntegrationEventLedger/{key}"
+    data: dict[str, Any] = {"status": status}
     if detail is not None:
-        payload["detail"] = detail
-    ref.set(payload, merge=True)
+        data["detail"] = detail
+    post_json_platform(
+        db_origin() + "/db/upsert/",
+        {"path": path, "data": data, "merge": True},
+        acting_uid=connection_id,
+    )

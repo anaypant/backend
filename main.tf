@@ -31,10 +31,11 @@ provider "google-beta" {
 }
 
 module "db" {
-  source             = "./db"
-  project_id         = local.project_id
-  region             = var.region
-  platform_sa_email = google_service_account.platform.email
+  source                        = "./db"
+  project_id                    = local.project_id
+  region                        = var.region
+  platform_sa_email             = google_service_account.platform.email
+  db_internal_gateway_hostname  = var.db_internal_gateway_hostname
   providers = {
     google      = google
     google-beta = google-beta
@@ -75,7 +76,7 @@ module "integration" {
   project_id                      = local.project_id
   region                          = var.region
   platform_sa_email               = google_service_account.platform.email
-  db_internal_gateway_hostname    = module.db.db_gateway_hostname
+  db_internal_gateway_hostname = var.db_internal_gateway_hostname != "" ? var.db_internal_gateway_hostname : module.db.db_gateway_hostname
   core_internal_gateway_hostname  = module.core.core_gateway_hostname
   fub_oauth_authorize_url         = var.fub_oauth_authorize_url
   fub_oauth_token_url             = var.fub_oauth_token_url

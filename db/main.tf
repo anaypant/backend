@@ -25,6 +25,7 @@ module "functions" {
   project_id                    = var.project_id
   region                        = var.region
   backend_service_account_email = var.platform_sa_email
+  db_internal_gateway_hostname  = var.db_internal_gateway_hostname
 }
 
 module "api" {

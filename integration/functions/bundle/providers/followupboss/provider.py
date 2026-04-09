@@ -1,6 +1,13 @@
 from providers.followupboss.egress import apply_outbound_actions
-from providers.followupboss.oauth import disconnect, oauth_callback, oauth_start, refresh, resync_webhooks
-from providers.followupboss.webhooks import webhook_ingress
+from providers.followupboss.oauth import (
+    disconnect,
+    list_registered_webhooks,
+    oauth_callback,
+    oauth_start,
+    refresh,
+    resync_webhooks,
+)
+from providers.followupboss.webhooks import webhook_ingress, webhook_test
 
 
 class FollowUpBossProvider:
@@ -20,6 +27,12 @@ class FollowUpBossProvider:
 
     def resync_webhooks(self, request):
         return resync_webhooks(request)
+
+    def list_webhooks(self, request):
+        return list_registered_webhooks(request)
+
+    def webhook_test(self, request):
+        return webhook_test(request)
 
     def webhook_ingress(self, request):
         return webhook_ingress(request)

@@ -7,6 +7,9 @@ prod_project_id    = "dynamic-heading-492620-m0"
 environment = "dev"
 region      = "us-central1"
 
+# Optional: set to terraform output db_gateway_hostname so db-read/db-upsert enable platform OIDC (X-ACS-Acting-Uid). Integration uses output automatically when this is empty.
+db_internal_gateway_hostname = ""
+
 # Firebase Console → Project settings → Your apps → Web API key (required for auth functions).
 firebase_web_api_key = "NULL"
 

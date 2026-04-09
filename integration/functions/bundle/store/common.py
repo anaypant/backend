@@ -7,6 +7,11 @@ import urllib.request
 
 import acs_internal as acs
 
+from store import gcp_identity
+
+HEADER_ACTING = "X-ACS-Acting-Uid"
+HEADER_PLATFORM_AUTH = "X-ACS-Platform-Authorization"
+
 
 def json_response(payload: dict, status: int):
     return (json.dumps(payload), status, {"Content-Type": "application/json"})
@@ -46,6 +51,19 @@ def post_json(url: str, payload: dict, *, user_jwt: str | None = None, headers: 
         req_headers[acs.USER_JWT_HEADER] = f"Bearer {user_jwt}"
     if headers:
         req_headers.update(headers)
+    req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)
+    return _exec(req, timeout=timeout)
+
+
+def post_json_platform(url: str, payload: dict, *, acting_uid: str, timeout: int = 60) -> tuple[dict, int]:
+    """DB internal gateway as platform SA; acting_uid is the realtor Firebase uid for authz."""
+    token = gcp_identity.id_token_for_db_gateway()
+    body = json.dumps(payload).encode("utf-8")
+    req_headers = {
+        "Content-Type": "application/json",
+        HEADER_ACTING: acting_uid,
+        f"{HEADER_PLATFORM_AUTH}": f"Bearer {token}",
+    }
     req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)
     return _exec(req, timeout=timeout)
 
