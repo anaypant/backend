@@ -22,17 +22,17 @@ def now_epoch() -> int:
 
 
 def db_origin() -> str:
-    host = (os.environ.get("DB_INTERNAL_GATEWAY_HOSTNAME") or "").strip()
+    host = gcp_identity.normalize_internal_gateway_hostname(os.environ.get("DB_INTERNAL_GATEWAY_HOSTNAME") or "")
     if not host:
         raise RuntimeError("DB_INTERNAL_GATEWAY_HOSTNAME is not set")
-    return f"https://{host.rstrip('/')}"
+    return f"https://{host}"
 
 
 def core_origin() -> str:
-    host = (os.environ.get("CORE_INTERNAL_GATEWAY_HOSTNAME") or "").strip()
+    host = gcp_identity.normalize_internal_gateway_hostname(os.environ.get("CORE_INTERNAL_GATEWAY_HOSTNAME") or "")
     if not host:
         raise RuntimeError("CORE_INTERNAL_GATEWAY_HOSTNAME is not set")
-    return f"https://{host.rstrip('/')}"
+    return f"https://{host}"
 
 
 def public_integration_base_url(request) -> str:
