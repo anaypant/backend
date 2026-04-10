@@ -7,7 +7,7 @@ prod_project_id    = "dynamic-heading-492620-m0"
 environment = "dev"
 region      = "us-central1"
 
-# After first apply: terraform output db_gateway_hostname — set to that exact value (plan checks it matches the deployed gateway).
+# After first apply: terraform output db_gateway_hostname — paste hostname or full https:// URL (normalized in main.tf).
 db_internal_gateway_hostname = ""
 
 # Firebase Console → Project settings → Your apps → Web API key (required for auth functions).

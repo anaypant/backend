@@ -9,15 +9,7 @@ variable "environment" {
 variable "db_internal_gateway_hostname" {
   type        = string
   default     = ""
-  description = "Hostname only (no scheme) for the internal DB API Gateway — must match terraform output db_gateway_hostname exactly when non-empty; plan fails otherwise. Gateway URL shape is fixed-prefix https://acs-db-internal-*.REGION.gateway.dev"
-
-  validation {
-    condition = (
-      var.db_internal_gateway_hostname == "" ||
-      (!strcontains(var.db_internal_gateway_hostname, "://") && !strcontains(var.db_internal_gateway_hostname, "/"))
-    )
-    error_message = "db_internal_gateway_hostname must be hostname only (e.g. acs-db-internal-abc.uc.gateway.dev), not a URL with https:// or a path."
-  }
+  description = "Internal DB API Gateway host or full https URL; root module normalizes to hostname. When non-empty, must match output db_gateway_hostname (check in db module). Leave empty to use module.db output for integration only."
 }
 
 variable "dev_project_id" {

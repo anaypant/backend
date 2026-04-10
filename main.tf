@@ -18,6 +18,13 @@ locals {
     staging = var.staging_project_id
     prod    = var.prod_project_id
   }[var.environment]
+
+  # Accept hostname or full URL in tfvars/HCP; db + integration need hostname only (no cycle: no module.db ref).
+  _db_gw_raw                              = trimspace(var.db_internal_gateway_hostname)
+  _db_gw_after_https                      = local._db_gw_raw != "" && startswith(lower(local._db_gw_raw), "https://") ? trimspace(trim(substr(local._db_gw_raw, 8, length(local._db_gw_raw) - 8), "/")) : local._db_gw_raw
+  _db_gw_after_http                       = local._db_gw_after_https != "" && startswith(lower(local._db_gw_after_https), "http://") ? trimspace(trim(substr(local._db_gw_after_https, 7, length(local._db_gw_after_https) - 7), "/")) : local._db_gw_after_https
+  _db_gw_host_only                        = local._db_gw_after_http != "" ? split("/", local._db_gw_after_http)[0] : ""
+  db_internal_gateway_hostname_normalized = local._db_gw_raw == "" ? "" : local._db_gw_host_only
 }
 
 provider "google" {
@@ -35,7 +42,7 @@ module "db" {
   project_id                   = local.project_id
   region                       = var.region
   platform_sa_email            = google_service_account.platform.email
-  db_internal_gateway_hostname = var.db_internal_gateway_hostname
+  db_internal_gateway_hostname = local.db_internal_gateway_hostname_normalized
   providers = {
     google      = google
     google-beta = google-beta
@@ -76,7 +83,7 @@ module "integration" {
   project_id                      = local.project_id
   region                          = var.region
   platform_sa_email               = google_service_account.platform.email
-  db_internal_gateway_hostname    = var.db_internal_gateway_hostname != "" ? var.db_internal_gateway_hostname : module.db.db_gateway_hostname
+  db_internal_gateway_hostname    = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
   core_internal_gateway_hostname  = module.core.core_gateway_hostname
   fub_oauth_authorize_url         = var.fub_oauth_authorize_url
   fub_oauth_token_url             = var.fub_oauth_token_url
