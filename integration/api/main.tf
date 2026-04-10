@@ -43,11 +43,11 @@ locals {
   integration_paths = {
     "/integrations/webhooks/followupboss" = {
       post = {
-        summary         = "Integration webhooks/followupboss"
-        operationId     = "integrations_webhooks_followupboss"
-        consumes        = ["application/json"]
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration webhooks/followupboss"
+        operationId        = "integrations_webhooks_followupboss"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -63,10 +63,10 @@ locals {
     }
     "/integrations/followupboss/oauth/start" = {
       get = {
-        summary         = "Integration followupboss/oauth/start"
-        operationId     = "integrations_followupboss_oauth_start"
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/oauth/start"
+        operationId        = "integrations_followupboss_oauth_start"
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -82,10 +82,10 @@ locals {
     }
     "/integrations/followupboss/oauth/callback" = {
       get = {
-        summary         = "Integration followupboss/oauth/callback"
-        operationId     = "integrations_followupboss_oauth_callback"
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/oauth/callback"
+        operationId        = "integrations_followupboss_oauth_callback"
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -99,11 +99,11 @@ locals {
     }
     "/integrations/followupboss/refresh" = {
       post = {
-        summary         = "Integration followupboss/refresh"
-        operationId     = "integrations_followupboss_refresh"
-        consumes        = ["application/json"]
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/refresh"
+        operationId        = "integrations_followupboss_refresh"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -119,11 +119,11 @@ locals {
     }
     "/integrations/followupboss/resync_webhooks" = {
       post = {
-        summary         = "Integration followupboss/resync_webhooks"
-        operationId     = "integrations_followupboss_resync_webhooks"
-        consumes        = ["application/json"]
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/resync_webhooks"
+        operationId        = "integrations_followupboss_resync_webhooks"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -139,10 +139,10 @@ locals {
     }
     "/integrations/followupboss/webhooks" = {
       get = {
-        summary         = "Integration followupboss/webhooks"
-        operationId     = "integrations_followupboss_webhooks_list"
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/webhooks"
+        operationId        = "integrations_followupboss_webhooks_list"
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -158,11 +158,11 @@ locals {
     }
     "/integrations/followupboss/webhook_test" = {
       post = {
-        summary         = "Integration followupboss/webhook_test"
-        operationId     = "integrations_followupboss_webhook_test"
-        consumes        = ["application/json"]
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/webhook_test"
+        operationId        = "integrations_followupboss_webhook_test"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -178,11 +178,11 @@ locals {
     }
     "/integrations/followupboss/disconnect" = {
       post = {
-        summary         = "Integration followupboss/disconnect"
-        operationId     = "integrations_followupboss_disconnect"
-        consumes        = ["application/json"]
-        produces        = ["application/json"]
-        security        = []
+        summary            = "Integration followupboss/disconnect"
+        operationId        = "integrations_followupboss_disconnect"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
@@ -208,7 +208,7 @@ locals {
     paths   = merge(local.health_path, local.integration_paths)
   }
 
-  openapi_yaml        = yamlencode(local.openapi_struct)
+  openapi_yaml = yamlencode(local.openapi_struct)
   api_config_revision = sha256(jsonencode({
     spec       = local.openapi_struct
     backend_sa = var.backend_service_account_email

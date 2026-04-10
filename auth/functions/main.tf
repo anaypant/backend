@@ -53,10 +53,10 @@ resource "google_cloudfunctions2_function" "fn" {
   }
 
   service_config {
-    max_instance_count               = 10
-    available_memory                 = "256Mi"
-    timeout_seconds                  = 60
-    ingress_settings                 = "ALLOW_ALL"
+    max_instance_count = 10
+    available_memory   = "256Mi"
+    timeout_seconds    = 60
+    ingress_settings   = "ALLOW_ALL"
     # Default CPU for 256Mi is <1; Cloud Run rejects concurrency > 1 unless CPU >= 1.
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email

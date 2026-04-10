@@ -9,7 +9,7 @@ variable "environment" {
 variable "db_internal_gateway_hostname" {
   type        = string
   default     = ""
-  description = "Hostname only for acs-db-internal (platform OIDC audience https://HOST). Leave empty until first apply; then set from terraform output db_gateway_hostname."
+  description = "Hostname only (no scheme) for the internal DB API Gateway — must match terraform output db_gateway_hostname exactly when non-empty; plan fails otherwise. Gateway URL shape is fixed-prefix https://acs-db-internal-*.REGION.gateway.dev"
 }
 
 variable "dev_project_id" {

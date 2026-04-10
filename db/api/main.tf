@@ -16,6 +16,10 @@ terraform {
 }
 
 locals {
+  # Stable API + gateway identifiers. default_hostname is then
+  # "{gateway_id}-{service_uid}.{region_code}.gateway.dev" (service_uid assigned by GCP for this gateway).
+  gateway_id = "acs-db-internal"
+
   health_path = {
     "/health" = {
       get = {
@@ -83,7 +87,7 @@ locals {
 
 resource "google_api_gateway_api" "internal" {
   provider = google-beta
-  api_id   = "acs-db-internal"
+  api_id   = local.gateway_id
 }
 
 resource "google_api_gateway_api_config" "internal" {
@@ -113,12 +117,32 @@ resource "google_api_gateway_gateway" "internal" {
   provider   = google-beta
   region     = var.region
   api_config = google_api_gateway_api_config.internal.id
-  gateway_id = "acs-db-internal"
+  gateway_id = local.gateway_id
 
   depends_on = [google_api_gateway_api_config.internal]
+
+  lifecycle {
+    postcondition {
+      condition = (
+        startswith(self.default_hostname, "${local.gateway_id}-") &&
+        endswith(self.default_hostname, ".gateway.dev")
+      )
+      error_message = "API Gateway default_hostname must be {gateway_id}-*.*.gateway.dev so platform OIDC audience https://HOST stays predictable; verify GCP API Gateway behavior if this fails."
+    }
+  }
 }
 
 output "gateway_hostname" {
   description = "POST https://<hostname>/db/read|upsert|delete|query — same JSON bodies as calling each function URL."
   value       = google_api_gateway_gateway.internal.default_hostname
+}
+
+output "gateway_audience" {
+  description = "Google ID token audience for calls to this gateway (https:// + gateway_hostname). Must match ACS_DB_GATEWAY_HOSTNAME-derived audience on db-read/db-upsert."
+  value       = "https://${google_api_gateway_gateway.internal.default_hostname}"
+}
+
+output "gateway_id" {
+  description = "Fixed gateway id; hostname always starts with this prefix."
+  value       = local.gateway_id
 }

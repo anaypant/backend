@@ -13,5 +13,5 @@ variable "platform_sa_email" {
 variable "db_internal_gateway_hostname" {
   type        = string
   default     = ""
-  description = "acs-db-internal gateway hostname (no scheme). Set after first apply from output db_gateway_hostname to enable platform SA + X-ACS-Acting-Uid on read/upsert."
+  description = "Internal DB gateway hostname (no scheme). When non-empty, must equal output db_gateway_hostname (plan check). OIDC audience is https://HOST."
 }

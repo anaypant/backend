@@ -7,7 +7,7 @@ prod_project_id    = "dynamic-heading-492620-m0"
 environment = "dev"
 region      = "us-central1"
 
-# Optional: set to terraform output db_gateway_hostname so db-read/db-upsert enable platform OIDC (X-ACS-Acting-Uid). Integration uses output automatically when this is empty.
+# After first apply: terraform output db_gateway_hostname — set to that exact value (plan checks it matches the deployed gateway).
 db_internal_gateway_hostname = ""
 
 # Firebase Console → Project settings → Your apps → Web API key (required for auth functions).
@@ -37,5 +37,5 @@ fub_x_system_key = "2b615f84728548771e7b4dd45277852e"
 # After first apply: terraform output public_gateway_base_url — set this (and HCP) to that value exactly for zero drift (enforced on gateway).
 acs_public_integration_base_url = ""
 
-# Not present in old-acs; generate (e.g. openssl rand -hex 32) and set in HCP as sensitive.
+#  generate (e.g. openssl rand -hex 32) and set in HCP as sensitive.
 acs_oauth_state_secret = ""

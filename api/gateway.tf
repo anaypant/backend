@@ -1,9 +1,9 @@
 # Public API Gateway — /health plus /db/* proxied to the internal DB API Gateway (same paths and JSON bodies).
 
 locals {
-  db_internal_base           = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
-  auth_internal_base         = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
-  integration_internal_base  = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
+  db_internal_base          = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
+  auth_internal_base        = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
+  integration_internal_base = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
 
   # Firebase Auth JWT validated at public ESP; payload forwarded as X-Endpoint-API-UserInfo to backends.
   firebase_security_definitions = {
@@ -268,8 +268,8 @@ locals {
   }
 
   openapi_struct = {
-    swagger               = "2.0"
-    securityDefinitions   = local.firebase_security_definitions
+    swagger             = "2.0"
+    securityDefinitions = local.firebase_security_definitions
     info = {
       title   = "acs-public"
       version = "1.0.0"

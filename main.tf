@@ -31,11 +31,11 @@ provider "google-beta" {
 }
 
 module "db" {
-  source                        = "./db"
-  project_id                    = local.project_id
-  region                        = var.region
-  platform_sa_email             = google_service_account.platform.email
-  db_internal_gateway_hostname  = var.db_internal_gateway_hostname
+  source                       = "./db"
+  project_id                   = local.project_id
+  region                       = var.region
+  platform_sa_email            = google_service_account.platform.email
+  db_internal_gateway_hostname = var.db_internal_gateway_hostname
   providers = {
     google      = google
     google-beta = google-beta
@@ -76,7 +76,7 @@ module "integration" {
   project_id                      = local.project_id
   region                          = var.region
   platform_sa_email               = google_service_account.platform.email
-  db_internal_gateway_hostname = var.db_internal_gateway_hostname != "" ? var.db_internal_gateway_hostname : module.db.db_gateway_hostname
+  db_internal_gateway_hostname    = var.db_internal_gateway_hostname != "" ? var.db_internal_gateway_hostname : module.db.db_gateway_hostname
   core_internal_gateway_hostname  = module.core.core_gateway_hostname
   fub_oauth_authorize_url         = var.fub_oauth_authorize_url
   fub_oauth_token_url             = var.fub_oauth_token_url
@@ -94,14 +94,14 @@ module "integration" {
 }
 
 module "api" {
-  source                               = "./api"
-  project_id                           = local.project_id
-  region                               = var.region
-  db_internal_gateway_hostname         = module.db.db_gateway_hostname
-  auth_internal_gateway_hostname       = module.auth.auth_gateway_hostname
+  source                                = "./api"
+  project_id                            = local.project_id
+  region                                = var.region
+  db_internal_gateway_hostname          = module.db.db_gateway_hostname
+  auth_internal_gateway_hostname        = module.auth.auth_gateway_hostname
   integration_internal_gateway_hostname = module.integration.integration_gateway_hostname
-  platform_service_account_email       = google_service_account.platform.email
-  acs_public_integration_base_url      = var.acs_public_integration_base_url
+  platform_service_account_email        = google_service_account.platform.email
+  acs_public_integration_base_url       = var.acs_public_integration_base_url
   providers = {
     google      = google
     google-beta = google-beta

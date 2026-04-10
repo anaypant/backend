@@ -36,11 +36,11 @@ locals {
   core_paths = {
     "/core/v1/run" = {
       post = {
-        summary         = "Run ACS workflow (stub)"
-        operationId     = "core_run"
-        consumes        = ["application/json"]
-        produces        = ["application/json"]
-        security        = []
+        summary     = "Run ACS workflow (stub)"
+        operationId = "core_run"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
         "x-google-backend" = {
           address          = "${trimsuffix(var.core_run_function.url, "/")}/"
           path_translation = "CONSTANT_ADDRESS"
@@ -68,7 +68,7 @@ locals {
     paths   = merge(local.health_path, local.core_paths)
   }
 
-  openapi_yaml        = yamlencode(local.openapi_struct)
+  openapi_yaml = yamlencode(local.openapi_struct)
   api_config_revision = sha256(jsonencode({
     spec       = local.openapi_struct
     backend_sa = var.backend_service_account_email

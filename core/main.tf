@@ -12,10 +12,10 @@ terraform {
 }
 
 module "functions" {
-  source                         = "./functions"
-  project_id                     = var.project_id
-  region                         = var.region
-  backend_service_account_email  = var.platform_sa_email
+  source                        = "./functions"
+  project_id                    = var.project_id
+  region                        = var.region
+  backend_service_account_email = var.platform_sa_email
 }
 
 module "api" {

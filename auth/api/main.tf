@@ -16,10 +16,10 @@ terraform {
 
 locals {
   auth_route_paths = {
-    realtor_signup   = "/auth/realtor/signup"
-    realtor_login    = "/auth/realtor/login"
-    internal_signup  = "/auth/internal/signup"
-    internal_login   = "/auth/internal/login"
+    realtor_signup  = "/auth/realtor/signup"
+    realtor_login   = "/auth/realtor/login"
+    internal_signup = "/auth/internal/signup"
+    internal_login  = "/auth/internal/login"
   }
 
   health_path = {

@@ -7,3 +7,8 @@ output "db_gateway_hostname" {
   description = "Internal DB API Gateway hostname (no scheme). Set root variable db_internal_gateway_hostname to this after first deploy to enable platform DB calls from integration."
   value       = module.db.db_gateway_hostname
 }
+
+output "db_gateway_audience" {
+  description = "OIDC audience (https://...) for platform identity tokens targeting the internal DB gateway."
+  value       = module.db.db_gateway_audience
+}
