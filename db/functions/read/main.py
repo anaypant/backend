@@ -4,6 +4,7 @@ import acs_internal as acs
 
 import datetime
 import json
+import os
 
 import firebase_admin
 import functions_framework
@@ -17,18 +18,46 @@ def _json_response(payload: dict, status: int):
 
 def _ensure_firebase():
     if not firebase_admin._apps:
-        firebase_admin.initialize_app()
+        pid = (os.environ.get("GCLOUD_PROJECT") or os.environ.get("GCP_PROJECT") or "").strip()
+        if pid:
+            firebase_admin.initialize_app(options={"projectId": pid})
+        else:
+            firebase_admin.initialize_app()
 
 
-def _bearer_token(request) -> str | None:
-    for h in (acs.USER_JWT_HEADER, "Authorization"):
-        raw = request.headers.get(h) or ""
-        parts = raw.split()
-        if len(parts) == 2 and parts[0].lower() == "bearer":
-            t = parts[1].strip()
-            if t:
-                return t
+def _parse_bearer(raw: str) -> str | None:
+    parts = (raw or "").split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        t = parts[1].strip()
+        return t or None
     return None
+
+
+def _decode_firebase_from_request(request):
+    """Public gateway validates JWT and sets X-Endpoint-API-UserInfo; else verify Bearer in legacy headers."""
+    ep = acs.decode_endpoint_user_info_claims(request)
+    if ep:
+        uid = ep.get("user_id") or ep.get("sub")
+        if not isinstance(uid, str) or not uid:
+            return None, "invalid gateway identity"
+        return {**ep, "uid": uid}, None
+    last_inv: str | None = None
+    for h in (acs.USER_JWT_HEADER, "X-Forwarded-Authorization"):
+        token = _parse_bearer(request.headers.get(h) or "")
+        if not token:
+            continue
+        try:
+            return auth.verify_id_token(token, check_revoked=True), None
+        except auth.RevokedIdTokenError:
+            return None, "token revoked"
+        except auth.ExpiredIdTokenError:
+            return None, "token expired"
+        except auth.InvalidIdTokenError:
+            last_inv = "invalid token"
+            continue
+        except auth.CertificateFetchError:
+            return None, "auth verification unavailable"
+    return None, last_inv or "missing Authorization bearer token"
 
 
 def _is_admin(decoded: dict) -> bool:
@@ -114,20 +143,10 @@ def main(request):
         body, st = plat_err
         return _json_response(body, st)
     if decoded is None:
-        token = _bearer_token(request)
-        if not token:
-            return _json_response({"error": "missing Authorization bearer token"}, 401)
-
-        try:
-            decoded = auth.verify_id_token(token, check_revoked=True)
-        except auth.RevokedIdTokenError:
-            return _json_response({"error": "token revoked"}, 401)
-        except auth.ExpiredIdTokenError:
-            return _json_response({"error": "token expired"}, 401)
-        except auth.InvalidIdTokenError:
-            return _json_response({"error": "invalid token"}, 401)
-        except auth.CertificateFetchError:
-            return _json_response({"error": "auth verification unavailable"}, 503)
+        decoded, verr = _decode_firebase_from_request(request)
+        if verr:
+            st = 503 if verr == "auth verification unavailable" else 401
+            return _json_response({"error": verr}, st)
 
     try:
         request_body = request.get_json(silent=True) or {}

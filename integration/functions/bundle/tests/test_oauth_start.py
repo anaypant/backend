@@ -15,7 +15,7 @@ class DummyReq:
 class OauthStartTest(unittest.TestCase):
     @patch(
         "providers.followupboss.oauth.resolve_realtor_bearer",
-        return_value=({"uid": "u1", "role": "realtor"}, None, "tok"),
+        return_value=({"uid": "u1", "role": "realtor"}, None, None),
     )
     @patch("providers.followupboss.oauth.save_fub_profile", return_value=({"ok": True}, 200))
     @patch("providers.followupboss.oauth.load_realtor_profile", return_value=({}, 404))

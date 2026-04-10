@@ -1,6 +1,6 @@
 from typing import Any
 
-from store.common import db_origin, post_json, post_json_platform
+from store.common import db_origin, post_json_platform
 
 
 def fub_config_from_profile(doc_data: dict) -> dict | None:
@@ -11,9 +11,13 @@ def fub_config_from_profile(doc_data: dict) -> dict | None:
     return fub if isinstance(fub, dict) else None
 
 
-def load_realtor_profile(uid: str, user_jwt: str) -> tuple[dict, int]:
+def load_realtor_profile(uid: str) -> tuple[dict, int]:
     doc_path = f"Realtors/{uid}"
-    body, status = post_json(db_origin() + "/db/read/", {"path": doc_path}, user_jwt=user_jwt)
+    body, status = post_json_platform(
+        db_origin() + "/db/read/",
+        {"path": doc_path},
+        acting_uid=uid,
+    )
     if status == 200 and isinstance(body.get("data"), dict):
         return body["data"], 200
     if status == 404:
@@ -21,14 +25,18 @@ def load_realtor_profile(uid: str, user_jwt: str) -> tuple[dict, int]:
     return {"error": "db read failed", "detail": body}, status
 
 
-def save_fub_profile(uid: str, user_jwt: str, fub_profile: dict) -> tuple[dict, int]:
-    existing, status = load_realtor_profile(uid, user_jwt)
+def save_fub_profile(uid: str, fub_profile: dict) -> tuple[dict, int]:
+    existing, status = load_realtor_profile(uid)
     if status not in (200, 404):
         return existing, status
     integrations = dict(existing.get("integrations") or {})
     integrations["followupboss"] = fub_profile
     payload = {"path": f"Realtors/{uid}", "data": {"integrations": integrations}, "merge": True}
-    return post_json(db_origin() + "/db/upsert/", payload, user_jwt=user_jwt)
+    return post_json_platform(
+        db_origin() + "/db/upsert/",
+        payload,
+        acting_uid=uid,
+    )
 
 
 def load_fub_profile_by_connection_id(connection_id: str) -> tuple[dict | None, dict | None]:

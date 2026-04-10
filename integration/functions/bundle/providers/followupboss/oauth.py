@@ -21,6 +21,21 @@ from store.secret_repo import get_secret, put_secret
 _STATE_RE = re.compile(r"^[a-zA-Z0-9._-]{8,512}$")
 
 
+def _maybe_return_profile_load_error(existing, status):
+    """Tag 401 from internal DB gateway so logs distinguish auth vs realtor profile read."""
+    if status in (200, 404):
+        return None
+    err_status = 502 if status >= 500 else status
+    if status == 401:
+        if isinstance(existing, dict):
+            return json_response({**existing, "phase": "db_read"}, err_status)
+        return json_response(
+            {"error": "db read unauthorized", "detail": existing, "phase": "db_read"},
+            err_status,
+        )
+    return json_response(existing, err_status)
+
+
 def _state_sign(uid: str, nonce: str) -> str:
     secret = (os.environ.get("ACS_OAUTH_STATE_SECRET") or "").strip()
     if not secret:
@@ -133,9 +148,12 @@ def _ensure_all_webhooks(client: FubClient, connection_id: str, callback_base: s
 
 
 def oauth_start(request):
-    decoded, err, token = resolve_realtor_bearer(request)
+    decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+        return json_response(
+            {"error": err, "phase": "integration_auth"},
+            401 if err != "forbidden" else 403,
+        )
 
     uid = decoded["uid"]
     nonce = uuid.uuid4().hex
@@ -143,9 +161,10 @@ def oauth_start(request):
     now = now_epoch()
     callback_url = _fub_callback_url(request)
 
-    existing, status = load_realtor_profile(uid, token)
-    if status not in (200, 404):
-        return json_response(existing, 502 if status >= 500 else status)
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
 
     fub = fub_config_from_profile(existing) or {}
     fub["connection"] = {
@@ -165,7 +184,7 @@ def oauth_start(request):
     fub.setdefault("audit", {})
     fub["audit"]["lastOauthStartAtEpoch"] = now
 
-    db_body, db_status = save_fub_profile(uid, token, fub)
+    db_body, db_status = save_fub_profile(uid, fub)
     if db_status >= 400:
         return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
 
@@ -254,14 +273,15 @@ def oauth_callback(request):
 
 
 def refresh(request):
-    decoded, err, token = resolve_realtor_bearer(request)
+    decoded, err, _token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
 
-    existing, status = load_realtor_profile(uid, token)
-    if status not in (200, 404):
-        return json_response(existing, 502 if status >= 500 else status)
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
     fub = fub_config_from_profile(existing)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
@@ -294,7 +314,7 @@ def refresh(request):
     fub.setdefault("audit", {})
     fub["audit"]["lastRefreshAtEpoch"] = now_epoch()
 
-    db_body, db_status = save_fub_profile(uid, token, fub)
+    db_body, db_status = save_fub_profile(uid, fub)
     if db_status >= 400:
         return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
 
@@ -302,14 +322,15 @@ def refresh(request):
 
 
 def disconnect(request):
-    decoded, err, token = resolve_realtor_bearer(request)
+    decoded, err, _token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
 
-    existing, status = load_realtor_profile(uid, token)
-    if status not in (200, 404):
-        return json_response(existing, 502 if status >= 500 else status)
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
     fub = fub_config_from_profile(existing)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
@@ -340,21 +361,22 @@ def disconnect(request):
     fub.setdefault("audit", {})
     fub["audit"]["lastDisconnectAtEpoch"] = now_epoch()
 
-    db_body, db_status = save_fub_profile(uid, token, fub)
+    db_body, db_status = save_fub_profile(uid, fub)
     if db_status >= 400:
         return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
     return json_response({"ok": True, "uid": uid, "db": db_body, "webhooksBefore": webhooks}, 200)
 
 
 def resync_webhooks(request):
-    decoded, err, token = resolve_realtor_bearer(request)
+    decoded, err, _token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
 
-    existing, status = load_realtor_profile(uid, token)
-    if status not in (200, 404):
-        return json_response(existing, 502 if status >= 500 else status)
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
     fub = fub_config_from_profile(existing)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
@@ -372,20 +394,21 @@ def resync_webhooks(request):
     fub["webhooks"] = result
     fub.setdefault("audit", {})
     fub["audit"]["lastWebhookResyncAtEpoch"] = now_epoch()
-    save_fub_profile(uid, token, fub)
+    save_fub_profile(uid, fub)
     return json_response({"ok": sync_status in (200, 207), "uid": uid, "webhooks": result}, 200 if sync_status in (200, 207) else sync_status)
 
 
 def list_registered_webhooks(request):
     """GET raw FUB /v1/webhooks for the connected realtor (read-only)."""
-    decoded, err, token = resolve_realtor_bearer(request)
+    decoded, err, _token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
 
-    existing, status = load_realtor_profile(uid, token)
-    if status not in (200, 404):
-        return json_response(existing, 502 if status >= 500 else status)
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
     fub = fub_config_from_profile(existing)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)

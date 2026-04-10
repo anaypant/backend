@@ -5,6 +5,19 @@ locals {
   auth_internal_base         = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
   integration_internal_base  = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
 
+  # Firebase Auth JWT validated at public ESP; payload forwarded as X-Endpoint-API-UserInfo to backends.
+  firebase_security_definitions = {
+    firebase = {
+      authorizationUrl   = ""
+      flow               = "implicit"
+      type               = "oauth2"
+      x-google-issuer    = "https://securetoken.google.com/${var.project_id}"
+      x-google-jwks_uri  = "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+      x-google-audiences = var.project_id
+    }
+  }
+  firebase_sec = [{ firebase = [] }]
+
   db_proxy_paths = {
     for key in ["read", "upsert", "delete", "query"] : "/db/${key}" => {
       post = {
@@ -12,7 +25,7 @@ locals {
         operationId = "db_${key}"
         consumes    = ["application/json"]
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.db_internal_base}/db/${key}/"
           path_translation = "CONSTANT_ADDRESS"
@@ -94,7 +107,7 @@ locals {
         summary     = "Integration followupboss/oauth/start (proxied to internal integration gateway)"
         operationId = "integrations_followupboss_oauth_start"
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
           path_translation = "CONSTANT_ADDRESS"
@@ -139,7 +152,7 @@ locals {
         operationId = "integrations_followupboss_refresh"
         consumes    = ["application/json"]
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/refresh/"
           path_translation = "CONSTANT_ADDRESS"
@@ -163,7 +176,7 @@ locals {
         operationId = "integrations_followupboss_resync_webhooks"
         consumes    = ["application/json"]
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/resync_webhooks/"
           path_translation = "CONSTANT_ADDRESS"
@@ -186,7 +199,7 @@ locals {
         summary     = "Integration followupboss/webhooks list (proxied to internal integration gateway)"
         operationId = "integrations_followupboss_webhooks_list"
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/webhooks/"
           path_translation = "CONSTANT_ADDRESS"
@@ -210,7 +223,7 @@ locals {
         operationId = "integrations_followupboss_webhook_test"
         consumes    = ["application/json"]
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/webhook_test/"
           path_translation = "CONSTANT_ADDRESS"
@@ -234,7 +247,7 @@ locals {
         operationId = "integrations_followupboss_disconnect"
         consumes    = ["application/json"]
         produces    = ["application/json"]
-        security    = []
+        security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/disconnect/"
           path_translation = "CONSTANT_ADDRESS"
@@ -255,7 +268,8 @@ locals {
   }
 
   openapi_struct = {
-    swagger = "2.0"
+    swagger               = "2.0"
+    securityDefinitions   = local.firebase_security_definitions
     info = {
       title   = "acs-public"
       version = "1.0.0"

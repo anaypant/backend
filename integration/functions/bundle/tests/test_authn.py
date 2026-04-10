@@ -1,8 +1,8 @@
-"""store.authn — multi-header Bearer resolution through API Gateway hops."""
+"""store.authn — gateway claims vs Bearer fallback."""
 
 from unittest.mock import patch
 
-from store.authn import _unique_bearer_tokens, resolve_realtor_bearer
+from store.authn import resolve_realtor_bearer
 
 
 class _Req:
@@ -10,44 +10,41 @@ class _Req:
         self.headers = headers
 
 
-def test_unique_bearer_tokens_order_and_dedupe():
-    req = _Req(
-        {
-            "X-Firebase-Authorization": "Bearer a",
-            "X-Forwarded-Authorization": "Bearer b",
-            "Authorization": "Bearer a",
-        }
-    )
-    assert _unique_bearer_tokens(req) == ["a", "b"]
+def test_gateway_user_info_realtor_ok():
+    import base64
+    import json
+
+    payload = {"user_id": "u1", "role": "realtor"}
+    b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    req = _Req({"X-Endpoint-API-UserInfo": b64})
+    d, err, tok = resolve_realtor_bearer(req)
+    assert err is None and tok is None and d["uid"] == "u1"
 
 
-def test_resolve_skips_oidc_like_first_token():
+def test_gateway_user_info_forbidden():
+    import base64
+    import json
+
+    payload = {"user_id": "u1", "role": "internal"}
+    b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    req = _Req({"X-Endpoint-API-UserInfo": b64})
+    d, err, tok = resolve_realtor_bearer(req)
+    assert d is None and err == "forbidden" and tok is None
+
+
+def test_fallback_x_forwarded_firebase():
     req = _Req(
         {
-            "X-Forwarded-Authorization": "Bearer oidc-from-hop-one",
-            "Authorization": "Bearer firebase-id-token",
+            "X-Forwarded-Authorization": "Bearer firebase-token",
+            "Authorization": "Bearer google-oidc",
         }
     )
 
     def fake_verify(token: str):
-        if token == "oidc-from-hop-one":
-            return None, "invalid token"
-        if token == "firebase-id-token":
+        if token == "firebase-token":
             return {"uid": "u1", "role": "realtor"}, None
         return None, "invalid token"
 
     with patch("store.authn.verify_realtor", side_effect=fake_verify):
-        decoded, err, used = resolve_realtor_bearer(req)
-    assert err is None
-    assert decoded == {"uid": "u1", "role": "realtor"}
-    assert used == "firebase-id-token"
-
-
-def test_resolve_forbidden_short_circuits():
-    req = _Req({"Authorization": "Bearer t"})
-
-    with patch("store.authn.verify_realtor", return_value=(None, "forbidden")):
-        decoded, err, used = resolve_realtor_bearer(req)
-    assert decoded is None
-    assert err == "forbidden"
-    assert used is None
+        d, err, tok = resolve_realtor_bearer(req)
+    assert err is None and d["uid"] == "u1" and tok == "firebase-token"
