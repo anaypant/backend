@@ -10,7 +10,9 @@ def ensure_firebase():
 
 
 def bearer_token(request) -> str | None:
-    for h in (acs.USER_JWT_HEADER, "Authorization"):
+    # After ESP with jwt_audience, Authorization is the Google OIDC token for Run;
+    # the client's Bearer (Firebase) is copied to X-Forwarded-Authorization.
+    for h in (acs.USER_JWT_HEADER, "X-Forwarded-Authorization", "Authorization"):
         raw = request.headers.get(h) or ""
         parts = raw.split()
         if len(parts) == 2 and parts[0].lower() == "bearer":
