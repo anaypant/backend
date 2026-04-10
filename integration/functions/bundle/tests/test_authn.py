@@ -1,6 +1,8 @@
-"""store.authn — bearer extraction (ESP vs direct Run)."""
+"""store.authn — multi-header Bearer resolution through API Gateway hops."""
 
-from store.authn import bearer_token
+from unittest.mock import patch
+
+from store.authn import _unique_bearer_tokens, resolve_realtor_bearer
 
 
 class _Req:
@@ -8,17 +10,44 @@ class _Req:
         self.headers = headers
 
 
-def test_bearer_prefers_x_forwarded_over_authorization():
-    """ESP sets Authorization to Google OIDC; original Firebase Bearer is in X-Forwarded-Authorization."""
+def test_unique_bearer_tokens_order_and_dedupe():
     req = _Req(
         {
-            "X-Forwarded-Authorization": "Bearer firebase-token",
-            "Authorization": "Bearer google-oidc-token",
+            "X-Firebase-Authorization": "Bearer a",
+            "X-Forwarded-Authorization": "Bearer b",
+            "Authorization": "Bearer a",
         }
     )
-    assert bearer_token(req) == "firebase-token"
+    assert _unique_bearer_tokens(req) == ["a", "b"]
 
 
-def test_bearer_falls_back_to_authorization():
-    req = _Req({"Authorization": "Bearer direct-only"})
-    assert bearer_token(req) == "direct-only"
+def test_resolve_skips_oidc_like_first_token():
+    req = _Req(
+        {
+            "X-Forwarded-Authorization": "Bearer oidc-from-hop-one",
+            "Authorization": "Bearer firebase-id-token",
+        }
+    )
+
+    def fake_verify(token: str):
+        if token == "oidc-from-hop-one":
+            return None, "invalid token"
+        if token == "firebase-id-token":
+            return {"uid": "u1", "role": "realtor"}, None
+        return None, "invalid token"
+
+    with patch("store.authn.verify_realtor", side_effect=fake_verify):
+        decoded, err, used = resolve_realtor_bearer(req)
+    assert err is None
+    assert decoded == {"uid": "u1", "role": "realtor"}
+    assert used == "firebase-id-token"
+
+
+def test_resolve_forbidden_short_circuits():
+    req = _Req({"Authorization": "Bearer t"})
+
+    with patch("store.authn.verify_realtor", return_value=(None, "forbidden")):
+        decoded, err, used = resolve_realtor_bearer(req)
+    assert decoded is None
+    assert err == "forbidden"
+    assert used is None

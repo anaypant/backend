@@ -7,7 +7,7 @@ import uuid
 
 from providers.followupboss.client import FubClient
 from providers.followupboss.constants import ALL_WEBHOOK_EVENTS
-from store.authn import bearer_token, verify_realtor
+from store.authn import resolve_realtor_bearer
 from store.common import json_response, now_epoch, public_integration_base_url
 from store.profile_repo import (
     fub_config_from_profile,
@@ -133,10 +133,7 @@ def _ensure_all_webhooks(client: FubClient, connection_id: str, callback_base: s
 
 
 def oauth_start(request):
-    token = bearer_token(request)
-    if not token:
-        return json_response({"error": "missing bearer token"}, 401)
-    decoded, err = verify_realtor(token)
+    decoded, err, token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
 
@@ -257,10 +254,7 @@ def oauth_callback(request):
 
 
 def refresh(request):
-    token = bearer_token(request)
-    if not token:
-        return json_response({"error": "missing bearer token"}, 401)
-    decoded, err = verify_realtor(token)
+    decoded, err, token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
@@ -308,10 +302,7 @@ def refresh(request):
 
 
 def disconnect(request):
-    token = bearer_token(request)
-    if not token:
-        return json_response({"error": "missing bearer token"}, 401)
-    decoded, err = verify_realtor(token)
+    decoded, err, token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
@@ -356,10 +347,7 @@ def disconnect(request):
 
 
 def resync_webhooks(request):
-    token = bearer_token(request)
-    if not token:
-        return json_response({"error": "missing bearer token"}, 401)
-    decoded, err = verify_realtor(token)
+    decoded, err, token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
@@ -390,10 +378,7 @@ def resync_webhooks(request):
 
 def list_registered_webhooks(request):
     """GET raw FUB /v1/webhooks for the connected realtor (read-only)."""
-    token = bearer_token(request)
-    if not token:
-        return json_response({"error": "missing bearer token"}, 401)
-    decoded, err = verify_realtor(token)
+    decoded, err, token = resolve_realtor_bearer(request)
     if err:
         return json_response({"error": err}, 401 if err != "forbidden" else 403)
     uid = decoded["uid"]
