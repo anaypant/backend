@@ -66,6 +66,19 @@ def put_secret(reference_id: str, value: str) -> str:
                         "secret": {"replication": {"automatic": {}}},
                     }
                 )
+                client.add_secret_version(
+                    request={"parent": secret_path, "payload": {"data": value.encode("utf-8")}}
+                )
+                return f"sm://{secret_name}"
+
+            try:
+                cur = client.access_secret_version(
+                    request={"name": f"{secret_path}/versions/latest"}
+                )
+                if cur.payload.data.decode("utf-8") == value:
+                    return f"sm://{secret_name}"
+            except Exception:
+                pass
             client.add_secret_version(
                 request={"parent": secret_path, "payload": {"data": value.encode("utf-8")}}
             )

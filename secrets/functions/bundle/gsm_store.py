@@ -12,7 +12,11 @@ def _project() -> str:
     return (os.environ.get("GCP_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT") or "").strip()
 
 
-def write_version(secret_id: str, value: str) -> str:
+def write_version(secret_id: str, value: str) -> tuple[str, bool]:
+    """Persist a secret version; skips add when latest already equals value.
+
+    Returns (full secret resource name, True when no new version was written).
+    """
     project = _project()
     if not project:
         raise RuntimeError("GCP project not set")
@@ -29,8 +33,15 @@ def write_version(secret_id: str, value: str) -> str:
                 "secret": {"replication": {"automatic": {}}},
             }
         )
+        client.add_secret_version(request={"parent": name, "payload": {"data": value.encode("utf-8")}})
+        return name, False
+
+    existing = read_latest(secret_id)
+    if existing is not None and existing == value:
+        return name, True
+
     client.add_secret_version(request={"parent": name, "payload": {"data": value.encode("utf-8")}})
-    return name
+    return name, False
 
 
 def read_latest(secret_id: str) -> str | None:

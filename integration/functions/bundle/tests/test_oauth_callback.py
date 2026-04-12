@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch
 
@@ -22,6 +23,32 @@ class OauthCallbackSyncTest(unittest.TestCase):
         body, status, _ = oauth.oauth_callback(req)
         self.assertEqual(status, 200)
         self.assertIn("webhooks", body)
+
+
+class OauthCallbackIdempotentTest(unittest.TestCase):
+    @patch("providers.followupboss.oauth.save_fub_profile_by_connection_id")
+    @patch(
+        "providers.followupboss.oauth.load_fub_profile_by_connection_id",
+        return_value=(
+            {},
+            {
+                "auth": {
+                    "accessTokenRef": "acs-sec://v1/x",
+                    "oauthPending": {},
+                },
+                "connection": {"status": "connected"},
+                "webhooks": {"registered": True},
+            },
+        ),
+    )
+    @patch("providers.followupboss.oauth._state_parse", return_value=("u1", "n1", True))
+    def test_callback_idempotent_when_already_connected(self, *_mocks):
+        req = DummyReq(args={"state": "u1.n1", "code": "would_fail_if_exchanged"})
+        body, status, _ = oauth.oauth_callback(req)
+        self.assertEqual(status, 200)
+        payload = json.loads(body)
+        self.assertTrue(payload.get("idempotent"))
+        self.assertEqual(payload.get("webhooks"), {"registered": True})
 
 
 if __name__ == "__main__":

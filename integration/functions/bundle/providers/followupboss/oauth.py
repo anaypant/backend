@@ -156,8 +156,6 @@ def oauth_start(request):
         )
 
     uid = decoded["uid"]
-    nonce = uuid.uuid4().hex
-    state = _state_sign(uid, nonce)
     now = now_epoch()
     callback_url = _fub_callback_url(request)
 
@@ -167,18 +165,38 @@ def oauth_start(request):
         return maybe_err
 
     fub = fub_config_from_profile(existing) or {}
+    prior_auth = dict(fub.get("auth") or {})
+    pending_existing = dict(prior_auth.get("oauthPending") or {})
+    reuse_pending = False
+    state: str
+    nonce: str
+    if pending_existing.get("state") and int(pending_existing.get("expiresAtEpoch") or 0) > now:
+        p_uid, p_nonce, p_ok = _state_parse(str(pending_existing.get("state") or ""))
+        if (
+            p_ok
+            and p_uid == uid
+            and p_nonce
+            and str(pending_existing.get("nonce") or "") == p_nonce
+        ):
+            reuse_pending = True
+            state = str(pending_existing["state"])
+            nonce = p_nonce
+            auth_block = prior_auth
+    if not reuse_pending:
+        nonce = uuid.uuid4().hex
+        state = _state_sign(uid, nonce)
+        auth_block = dict(fub.get("auth") or {})
+        auth_block["oauthPending"] = {
+            "state": state,
+            "nonce": nonce,
+            "createdAtEpoch": now,
+            "expiresAtEpoch": now + 900,
+        }
     fub["connection"] = {
         "provider": "followupboss",
         "status": "oauth_pending",
         "mode": "oauth",
         "updatedAtEpoch": now,
-    }
-    auth_block = dict(fub.get("auth") or {})
-    auth_block["oauthPending"] = {
-        "state": state,
-        "nonce": nonce,
-        "createdAtEpoch": now,
-        "expiresAtEpoch": now + 900,
     }
     fub["auth"] = auth_block
     fub.setdefault("audit", {})
@@ -191,7 +209,10 @@ def oauth_start(request):
     authorize_url, err_obj = _resolve_authorize_url(state, callback_url)
     if err_obj:
         return json_response({"ok": False, "state": state, "callbackUrl": callback_url, **err_obj}, 501)
-    return json_response({"ok": True, "state": state, "authorizeUrl": authorize_url, "db": db_body}, 200)
+    out = {"ok": True, "state": state, "authorizeUrl": authorize_url, "db": db_body}
+    if reuse_pending:
+        out["idempotent"] = True
+    return json_response(out, 200)
 
 
 def oauth_callback(request):
@@ -208,8 +229,29 @@ def oauth_callback(request):
     if fub is None:
         return json_response({"error": "followupboss not configured"}, 404)
 
-    pending = dict((fub.get("auth") or {}).get("oauthPending") or {})
-    if pending.get("state") != state or pending.get("nonce") != nonce:
+    auth_pre = dict(fub.get("auth") or {})
+    pending = dict(auth_pre.get("oauthPending") or {})
+    access_ref = auth_pre.get("accessTokenRef")
+    conn = dict(fub.get("connection") or {})
+    st = conn.get("status")
+    connected_like = st in ("connected", "connected_with_webhook_sync_issues", "needs_owner_for_webhooks")
+    pending_mismatch = pending.get("state") != state or pending.get("nonce") != nonce
+    if pending_mismatch:
+        if isinstance(access_ref, str) and access_ref and connected_like:
+            if provider_error:
+                return json_response({"error": "provider oauth error", "providerError": provider_error}, 400)
+            return json_response(
+                {
+                    "ok": True,
+                    "uid": uid,
+                    "state": state,
+                    "webhooks": dict(fub.get("webhooks") or {}),
+                    "idempotent": True,
+                },
+                200,
+            )
+        if pending and int(pending.get("expiresAtEpoch") or 0) < now_epoch():
+            return json_response({"error": "oauth state expired"}, 401)
         return json_response({"error": "oauth state mismatch"}, 401)
     if int(pending.get("expiresAtEpoch") or 0) < now_epoch():
         return json_response({"error": "oauth state expired"}, 401)
@@ -334,6 +376,18 @@ def disconnect(request):
     fub = fub_config_from_profile(existing)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
+
+    conn = dict(fub.get("connection") or {})
+    if conn.get("status") == "disconnected":
+        return json_response(
+            {
+                "ok": True,
+                "uid": uid,
+                "idempotent": True,
+                "webhooksBefore": dict(fub.get("webhooks") or {}),
+            },
+            200,
+        )
 
     auth_block = dict(fub.get("auth") or {})
     client = FubClient(access_token_ref=auth_block.get("accessTokenRef"), api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid)

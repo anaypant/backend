@@ -44,11 +44,14 @@ def handle_write(request):
     except ValueError as e:
         return json_response({"error": str(e)}, 400)
     try:
-        resource = gsm_store.write_version(secret_id, value)
+        resource, skipped = gsm_store.write_version(secret_id, value)
     except Exception as e:
         return json_response({"error": "secret write failed", "detail": str(e)}, 502)
     ref = naming.ref_for_secret_id(secret_id)
-    return json_response({"ref": ref, "secretResource": resource}, 200)
+    payload: dict[str, Any] = {"ref": ref, "secretResource": resource}
+    if skipped:
+        payload["idempotent"] = True
+    return json_response(payload, 200)
 
 
 def handle_read(request):
@@ -115,5 +118,5 @@ def handle_delete(request):
         return json_response(act_err[0], act_err[1])
     ok = gsm_store.delete_secret(secret_id)
     if not ok:
-        return json_response({"error": "not found"}, 404)
+        return json_response({"ok": True, "idempotent": True}, 200)
     return json_response({"ok": True}, 200)
