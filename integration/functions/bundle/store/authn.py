@@ -45,6 +45,15 @@ def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None
     (2) verify Bearer in X-Firebase-Authorization, X-Forwarded-Authorization, then Authorization
     (browser fetch uses Authorization; lite proxy duplicates into X-Firebase-Authorization).
     Returns (decoded_claims, error, id_token) — id_token set only for path (2).
+
+    Tracing HTTP 401 on integration routes (e.g. GET /integrations/followupboss/oauth/start):
+    - error "missing bearer token": no usable Bearer in the headers above and no gateway userinfo.
+    - "invalid token" / "token expired" / "token revoked": Firebase verify_id_token failed.
+    - "forbidden": token valid but custom claim role is not "realtor".
+    - "invalid gateway identity": gateway headers present but incomplete or wrong role.
+
+    A separate 401 with phase "db_read" comes from the internal DB gateway (acting_uid / platform auth),
+    not from this function.
     """
     claims = acs.decode_endpoint_user_info_claims(request)
     if claims:

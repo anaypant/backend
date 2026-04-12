@@ -9,7 +9,7 @@ from dispatcher.core_client import send_state_to_core
 from dispatcher.egress import dispatch_provider_actions, extract_actions_from_state, outbound_enabled
 from providers.followupboss.client import FubClient
 from store.authn import resolve_realtor_bearer
-from store.common import json_response
+from store.common import integration_auth_error_response, json_response
 from store.profile_repo import (
     load_fub_profile_by_connection_id,
     put_event_ledger,
@@ -117,7 +117,7 @@ def webhook_test(request):
     """POST same JSON body as FUB webhooks; requires Firebase realtor token; uses token uid as connectionId."""
     decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+        return integration_auth_error_response(err)
     uid = decoded["uid"]
 
     raw = request.get_data(cache=False, as_text=False) or b""

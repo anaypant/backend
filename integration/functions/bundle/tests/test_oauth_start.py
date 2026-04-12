@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from providers.followupboss import oauth
+from store import common
 
 
 class DummyReq:
@@ -62,6 +63,39 @@ class OauthStartTest(unittest.TestCase):
         payload = json.loads(body)
         self.assertEqual(payload.get("state"), "u1.reuseNonce")
         self.assertTrue(payload.get("idempotent"))
+
+    @patch(
+        "providers.followupboss.oauth.resolve_realtor_bearer",
+        return_value=({"uid": "u1", "role": "realtor"}, None, None),
+    )
+    @patch(
+        "providers.followupboss.oauth.load_realtor_profile",
+        return_value=(
+            {
+                "integrations": {
+                    "followupboss": {
+                        "connection": {"status": "connected", "provider": "followupboss"},
+                        "auth": {"accessTokenRef": "acs-sec://x"},
+                    }
+                }
+            },
+            200,
+        ),
+    )
+    def test_oauth_start_conflict_when_already_connected(self, *_mocks):
+        req = DummyReq("/integrations/followupboss/oauth/start", headers={"X-Forwarded-Host": "api.example.dev"})
+        body, status, _ = oauth.oauth_start(req)
+        self.assertEqual(status, 409)
+        payload = json.loads(body)
+        self.assertEqual(payload.get("error"), "already_connected")
+        self.assertEqual(payload.get("phase"), "fub_oauth")
+
+    def test_integration_auth_error_includes_phase_and_hint(self):
+        body, status, _ = common.integration_auth_error_response("missing bearer token")
+        self.assertEqual(status, 401)
+        p = json.loads(body)
+        self.assertEqual(p.get("phase"), "integration_auth")
+        self.assertIn("hint", p)
 
 
 if __name__ == "__main__":

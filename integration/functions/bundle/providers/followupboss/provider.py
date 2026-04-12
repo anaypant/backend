@@ -1,5 +1,6 @@
 from providers.followupboss.egress import apply_outbound_actions
 from providers.followupboss.oauth import (
+    connection_status,
     disconnect,
     list_registered_webhooks,
     oauth_callback,
@@ -15,6 +16,9 @@ class FollowUpBossProvider:
 
     def oauth_start(self, request):
         return oauth_start(request)
+
+    def connection_status(self, request):
+        return connection_status(request)
 
     def oauth_callback(self, request):
         return oauth_callback(request)

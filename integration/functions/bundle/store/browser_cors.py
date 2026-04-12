@@ -1,8 +1,13 @@
 import os
 
-"""Browser CORS for GET /integrations/followupboss/oauth/start (OAuth SPA → public gateway)."""
+"""Browser CORS for allowlisted SPA origins on selected integration paths."""
 
-_OAUTH_START_SUFFIX = "/integrations/followupboss/oauth/start"
+# (path suffix, HTTP methods that receive CORS response headers on success)
+_CORS_ROUTES: tuple[tuple[str, frozenset[str]], ...] = (
+    ("/integrations/followupboss/oauth/start", frozenset({"GET", "OPTIONS"})),
+    ("/integrations/followupboss/disconnect", frozenset({"POST", "OPTIONS"})),
+    ("/integrations/followupboss/status", frozenset({"GET", "OPTIONS"})),
+)
 
 
 def _allowed_origins() -> frozenset[str]:
@@ -13,17 +18,22 @@ def _allowed_origins() -> frozenset[str]:
     return frozenset(p for p in parts if p)
 
 
-def _path_is_oauth_start(path: str) -> bool:
+def _cors_route(path: str) -> tuple[str, frozenset[str]] | None:
     p = (path or "").rstrip("/")
-    return p.endswith(_OAUTH_START_SUFFIX.rstrip("/"))
+    for suffix, methods in _CORS_ROUTES:
+        if p.endswith(suffix.rstrip("/")):
+            return suffix, methods
+    return None
 
 
 def cors_preflight_response(request) -> tuple[str, int, dict[str, str]] | None:
-    """If this is OPTIONS for oauth/start, return (body, status, headers) or None to ignore."""
+    """OPTIONS preflight for allowlisted paths and origins."""
     if request.method != "OPTIONS":
         return None
-    if not _path_is_oauth_start(getattr(request, "path", "") or ""):
+    matched = _cors_route(getattr(request, "path", "") or "")
+    if not matched:
         return None
+    _suffix, methods = matched
     allowed = _allowed_origins()
     if not allowed:
         return None
@@ -33,9 +43,9 @@ def cors_preflight_response(request) -> tuple[str, int, dict[str, str]] | None:
 
     headers = {
         "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Methods": ", ".join(sorted(methods)),
         "Access-Control-Allow-Headers": (
-            "Authorization, Content-Type, X-Firebase-Authorization, X-Requested-With"
+            "Authorization, Content-Type, X-Firebase-Authorization, X-Forwarded-Authorization, X-Requested-With"
         ),
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin",
@@ -43,11 +53,16 @@ def cors_preflight_response(request) -> tuple[str, int, dict[str, str]] | None:
     return ("", 204, headers)
 
 
-def merge_cors_for_oauth_start_get(request, response: tuple) -> tuple:
-    """Attach CORS headers to oauth/start GET when Origin is allowlisted."""
-    if request.method != "GET":
+def merge_browser_cors(request, response: tuple) -> tuple:
+    """Attach Access-Control-Allow-Origin for GET/POST on allowlisted paths when Origin matches."""
+    method = getattr(request, "method", "") or ""
+    if method not in ("GET", "POST"):
         return response
-    if not _path_is_oauth_start(getattr(request, "path", "") or ""):
+    matched = _cors_route(getattr(request, "path", "") or "")
+    if not matched:
+        return response
+    _suffix, methods = matched
+    if method not in methods:
         return response
     allowed = _allowed_origins()
     if not allowed:
@@ -61,3 +76,8 @@ def merge_cors_for_oauth_start_get(request, response: tuple) -> tuple:
     h["Access-Control-Allow-Origin"] = origin
     h["Vary"] = "Origin"
     return (body, status, h)
+
+
+def merge_cors_for_oauth_start_get(request, response: tuple) -> tuple:
+    """Backward-compatible name for merge_browser_cors."""
+    return merge_browser_cors(request, response)

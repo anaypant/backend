@@ -17,6 +17,26 @@ def json_response(payload: dict, status: int):
     return (json.dumps(payload), status, {"Content-Type": "application/json"})
 
 
+def integration_auth_error_response(err: str):
+    """Standard JSON for Firebase / gateway identity failures on realtor-only routes (trace 401/403)."""
+    hints = {
+        "missing bearer token": (
+            "Send Authorization: Bearer <Firebase ID token> (or X-Firebase-Authorization). "
+            "If you use the public API Gateway, ensure ESP forwards identity or the client sends the token."
+        ),
+        "invalid token": "ID token failed verification (wrong project, malformed, or not a Firebase auth token).",
+        "token expired": "Refresh the Firebase session and retry with a new ID token.",
+        "token revoked": "User signed out or token was revoked; sign in again.",
+        "forbidden": "Authenticated user is not a realtor for this route.",
+        "invalid gateway identity": "X-Endpoint-API-UserInfo was present but missing user_id/sub or realtor role.",
+    }
+    payload: dict = {"error": err, "phase": "integration_auth"}
+    h = hints.get(err)
+    if h:
+        payload["hint"] = h
+    return json_response(payload, 401 if err != "forbidden" else 403)
+
+
 def now_epoch() -> int:
     return int(time.time())
 

@@ -8,7 +8,7 @@ import uuid
 from providers.followupboss.client import FubClient
 from providers.followupboss.constants import ALL_WEBHOOK_EVENTS
 from store.authn import resolve_realtor_bearer
-from store.common import json_response, now_epoch, public_integration_base_url
+from store.common import integration_auth_error_response, json_response, now_epoch, public_integration_base_url
 from store.profile_repo import (
     fub_config_from_profile,
     load_fub_profile_by_connection_id,
@@ -42,6 +42,20 @@ def _maybe_return_profile_load_error(existing, status):
             err_status,
         )
     return json_response(existing, err_status)
+
+
+_FUB_CONNECTED_STATUSES = frozenset(
+    {
+        "connected",
+        "connected_with_webhook_sync_issues",
+        "needs_owner_for_webhooks",
+    }
+)
+
+
+def _fub_is_integrated(fub: dict) -> bool:
+    st = dict(fub.get("connection") or {}).get("status")
+    return st in _FUB_CONNECTED_STATUSES
 
 
 def _state_sign(uid: str, nonce: str) -> str:
@@ -158,10 +172,7 @@ def _ensure_all_webhooks(client: FubClient, connection_id: str, callback_base: s
 def oauth_start(request):
     decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response(
-            {"error": err, "phase": "integration_auth"},
-            401 if err != "forbidden" else 403,
-        )
+        return integration_auth_error_response(err)
 
     uid = decoded["uid"]
     now = now_epoch()
@@ -173,6 +184,22 @@ def oauth_start(request):
         return maybe_err
 
     fub = fub_config_from_profile(existing) or {}
+    if _fub_is_integrated(fub):
+        conn = dict(fub.get("connection") or {})
+        return json_response(
+            {
+                "error": "already_connected",
+                "phase": "fub_oauth",
+                "connectionStatus": conn.get("status"),
+                "hint": (
+                    "Follow Up Boss is already linked. POST /integrations/followupboss/disconnect to unlink, "
+                    "then you may start OAuth again."
+                ),
+                "disconnectPath": "/integrations/followupboss/disconnect",
+                "statusPath": "/integrations/followupboss/status",
+            },
+            409,
+        )
     prior_auth = dict(fub.get("auth") or {})
     pending_existing = dict(prior_auth.get("oauthPending") or {})
     reuse_pending = False
@@ -337,7 +364,7 @@ def oauth_callback(request):
 def refresh(request):
     decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+        return integration_auth_error_response(err)
     uid = decoded["uid"]
 
     existing, status = load_realtor_profile(uid)
@@ -383,10 +410,40 @@ def refresh(request):
     return json_response({"ok": True, "uid": uid, "db": db_body}, 200)
 
 
+def connection_status(request):
+    """GET — whether FUB is linked; use to hide OAuth start when already integrated."""
+    decoded, err, _token = resolve_realtor_bearer(request)
+    if err:
+        return integration_auth_error_response(err)
+    uid = decoded["uid"]
+
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
+
+    fub = fub_config_from_profile(existing) or {}
+    conn = dict(fub.get("connection") or {})
+    st = conn.get("status")
+    integrated = _fub_is_integrated(fub)
+    return json_response(
+        {
+            "ok": True,
+            "uid": uid,
+            "connectionStatus": st,
+            "integrated": integrated,
+            "canOauthStart": not integrated,
+            "oauthStartPath": "/integrations/followupboss/oauth/start",
+            "disconnectPath": "/integrations/followupboss/disconnect",
+        },
+        200,
+    )
+
+
 def disconnect(request):
     decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+        return integration_auth_error_response(err)
     uid = decoded["uid"]
 
     existing, status = load_realtor_profile(uid)
@@ -444,7 +501,7 @@ def disconnect(request):
 def resync_webhooks(request):
     decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+        return integration_auth_error_response(err)
     uid = decoded["uid"]
 
     existing, status = load_realtor_profile(uid)
@@ -476,7 +533,7 @@ def list_registered_webhooks(request):
     """GET raw FUB /v1/webhooks for the connected realtor (read-only)."""
     decoded, err, _token = resolve_realtor_bearer(request)
     if err:
-        return json_response({"error": err}, 401 if err != "forbidden" else 403)
+        return integration_auth_error_response(err)
     uid = decoded["uid"]
 
     existing, status = load_realtor_profile(uid)

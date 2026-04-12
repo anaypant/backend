@@ -42,5 +42,22 @@ def test_merge_get_adds_headers(monkeypatch):
     monkeypatch.setenv("ACS_BROWSER_CORS_ORIGINS", "https://oauth.automatedconsultancy.com")
     r = _Req("GET", "/integrations/followupboss/oauth/start", "https://oauth.automatedconsultancy.com")
     base = ('{"ok":true}', 200, {"Content-Type": "application/json"})
-    out = browser_cors.merge_cors_for_oauth_start_get(r, base)
+    out = browser_cors.merge_browser_cors(r, base)
+    assert out[2]["Access-Control-Allow-Origin"] == "https://oauth.automatedconsultancy.com"
+
+
+def test_preflight_disconnect_allowed(monkeypatch):
+    monkeypatch.setenv("ACS_BROWSER_CORS_ORIGINS", "https://oauth.automatedconsultancy.com")
+    r = _Req("OPTIONS", "/integrations/followupboss/disconnect", "https://oauth.automatedconsultancy.com")
+    out = browser_cors.cors_preflight_response(r)
+    assert out is not None
+    assert out[1] == 204
+    assert "POST" in out[2]["Access-Control-Allow-Methods"]
+
+
+def test_merge_post_disconnect_adds_headers(monkeypatch):
+    monkeypatch.setenv("ACS_BROWSER_CORS_ORIGINS", "https://oauth.automatedconsultancy.com")
+    r = _Req("POST", "/integrations/followupboss/disconnect", "https://oauth.automatedconsultancy.com")
+    base = ('{"ok":true}', 200, {"Content-Type": "application/json"})
+    out = browser_cors.merge_browser_cors(r, base)
     assert out[2]["Access-Control-Allow-Origin"] == "https://oauth.automatedconsultancy.com"
