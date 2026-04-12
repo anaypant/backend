@@ -21,6 +21,14 @@ from store.secret_repo import get_secret, put_secret
 _STATE_RE = re.compile(r"^[a-zA-Z0-9._-]{8,512}$")
 
 
+def _normalize_oauth_state_param(raw: str | None) -> str:
+    """Decode query `state` once; providers sometimes leave percent-encoding in place."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    return urllib.parse.unquote(s)
+
+
 def _maybe_return_profile_load_error(existing, status):
     """Tag 401 from internal DB gateway so logs distinguish auth vs realtor profile read."""
     if status in (200, 404):
@@ -176,12 +184,15 @@ def oauth_start(request):
             p_ok
             and p_uid == uid
             and p_nonce
-            and str(pending_existing.get("nonce") or "") == p_nonce
+            and str(pending_existing.get("nonce") or "") == str(p_nonce)
         ):
             reuse_pending = True
             state = str(pending_existing["state"])
-            nonce = p_nonce
-            auth_block = prior_auth
+            nonce = str(p_nonce)
+            refreshed_pending = dict(prior_auth.get("oauthPending") or {})
+            refreshed_pending["expiresAtEpoch"] = now + 900
+            refreshed_pending["createdAtEpoch"] = now
+            auth_block = {**prior_auth, "oauthPending": refreshed_pending}
     if not reuse_pending:
         nonce = uuid.uuid4().hex
         state = _state_sign(uid, nonce)
@@ -216,14 +227,14 @@ def oauth_start(request):
 
 
 def oauth_callback(request):
-    state = (request.args.get("state") or "").strip()
+    state = _normalize_oauth_state_param(request.args.get("state"))
     code = (request.args.get("code") or "").strip()
     provider_error = (request.args.get("error") or "").strip()
     if not state:
         return json_response({"error": "missing state"}, 400)
     uid, nonce, state_ok = _state_parse(state)
     if not uid or not nonce or not state_ok:
-        return json_response({"error": "invalid state"}, 401)
+        return json_response({"error": "invalid state", "phase": "oauth_state_parse"}, 401)
 
     _, fub = load_fub_profile_by_connection_id(uid)
     if fub is None:
@@ -235,7 +246,9 @@ def oauth_callback(request):
     conn = dict(fub.get("connection") or {})
     st = conn.get("status")
     connected_like = st in ("connected", "connected_with_webhook_sync_issues", "needs_owner_for_webhooks")
-    pending_mismatch = pending.get("state") != state or pending.get("nonce") != nonce
+    pending_state = str(pending.get("state") or "")
+    pending_nonce = str(pending.get("nonce") or "")
+    pending_mismatch = pending_state != state or pending_nonce != str(nonce)
     if pending_mismatch:
         if isinstance(access_ref, str) and access_ref and connected_like:
             if provider_error:
@@ -251,8 +264,15 @@ def oauth_callback(request):
                 200,
             )
         if pending and int(pending.get("expiresAtEpoch") or 0) < now_epoch():
-            return json_response({"error": "oauth state expired"}, 401)
-        return json_response({"error": "oauth state mismatch"}, 401)
+            return json_response({"error": "oauth state expired", "phase": "oauth_pending"}, 401)
+        return json_response(
+            {
+                "error": "oauth state mismatch",
+                "phase": "oauth_pending",
+                "hint": "Restart connect from your app; an older authorize link or another tab may have replaced this session.",
+            },
+            401,
+        )
     if int(pending.get("expiresAtEpoch") or 0) < now_epoch():
         return json_response({"error": "oauth state expired"}, 401)
 
