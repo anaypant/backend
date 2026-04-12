@@ -17,6 +17,28 @@ data "archive_file" "bundle" {
   output_path = "${path.module}/.build/integration-bridge.zip"
 }
 
+# Public env must be nonsensitive so values learned at apply (e.g. secrets gateway hostname)
+# do not trip "inconsistent values for sensitive attribute" on google_cloudfunctions2_function.
+locals {
+  integration_env_public = {
+    DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
+    CORE_INTERNAL_GATEWAY_HOSTNAME    = var.core_internal_gateway_hostname
+    FUB_OAUTH_AUTHORIZE_URL           = var.fub_oauth_authorize_url
+    FUB_OAUTH_TOKEN_URL               = var.fub_oauth_token_url
+    FUB_OAUTH_CLIENT_ID               = var.fub_oauth_client_id
+    FUB_SYSTEM_NAME                   = var.fub_system_name
+    ACS_PUBLIC_INTEGRATION_BASE_URL   = var.acs_public_integration_base_url
+    ACS_USE_SECRET_MANAGER            = "1"
+    ACS_BROWSER_CORS_ORIGINS          = var.browser_cors_origins
+    SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
+  }
+  integration_env_secret = {
+    FUB_OAUTH_CLIENT_SECRET = var.fub_oauth_client_secret
+    FUB_X_SYSTEM_KEY        = var.fub_x_system_key
+    ACS_OAUTH_STATE_SECRET  = var.acs_oauth_state_secret
+  }
+}
+
 resource "google_storage_bucket" "gcf_source" {
   name                        = "${var.project_id}-integration-fn"
   location                    = var.region
@@ -53,21 +75,10 @@ resource "google_cloudfunctions2_function" "bridge" {
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email
-    environment_variables = {
-      DB_INTERNAL_GATEWAY_HOSTNAME    = var.db_internal_gateway_hostname
-      CORE_INTERNAL_GATEWAY_HOSTNAME  = var.core_internal_gateway_hostname
-      FUB_OAUTH_AUTHORIZE_URL         = var.fub_oauth_authorize_url
-      FUB_OAUTH_TOKEN_URL             = var.fub_oauth_token_url
-      FUB_OAUTH_CLIENT_ID             = var.fub_oauth_client_id
-      FUB_OAUTH_CLIENT_SECRET         = var.fub_oauth_client_secret
-      FUB_SYSTEM_NAME                 = var.fub_system_name
-      FUB_X_SYSTEM_KEY                = var.fub_x_system_key
-      ACS_PUBLIC_INTEGRATION_BASE_URL = var.acs_public_integration_base_url
-      ACS_OAUTH_STATE_SECRET          = var.acs_oauth_state_secret
-      ACS_USE_SECRET_MANAGER              = "1"
-      ACS_BROWSER_CORS_ORIGINS            = var.browser_cors_origins
-      SECRETS_INTERNAL_GATEWAY_HOSTNAME   = var.secrets_internal_gateway_hostname
-    }
+    environment_variables = merge(
+      nonsensitive(local.integration_env_public),
+      local.integration_env_secret,
+    )
   }
 }
 

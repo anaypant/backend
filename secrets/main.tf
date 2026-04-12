@@ -48,12 +48,12 @@ check "secrets_internal_gateway_hostname_matches_deployed" {
 
 output "secrets_gateway_hostname" {
   description = "Internal secrets API Gateway hostname (no scheme)."
-  value       = module.api.gateway_hostname
+  value       = nonsensitive(module.api.gateway_hostname)
 }
 
 output "secrets_gateway_audience" {
   description = "Google ID token audience for calls to the internal secrets gateway."
-  value       = module.api.gateway_audience
+  value       = nonsensitive(module.api.gateway_audience)
 }
 
 output "secrets_gateway_id" {

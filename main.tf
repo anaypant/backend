@@ -107,7 +107,9 @@ module "integration" {
   acs_public_integration_base_url        = var.acs_public_integration_base_url
   acs_oauth_state_secret                 = var.acs_oauth_state_secret
   integration_oauth_browser_cors_origins = var.integration_oauth_browser_cors_origins
-  secrets_internal_gateway_hostname      = module.secrets.secrets_gateway_hostname
+  # Nonsensitive: hostname is not secret; avoids Google provider "inconsistent sensitive" on
+  # integration function env when this value is (known after apply) on first full stack apply.
+  secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
   providers = {
     google      = google
     google-beta = google-beta
