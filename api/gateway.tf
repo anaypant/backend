@@ -123,7 +123,9 @@ locals {
         summary     = "Integration followupboss/oauth/start (proxied to internal integration gateway)"
         operationId = "integrations_followupboss_oauth_start"
         produces    = ["application/json"]
-        security    = local.firebase_sec
+        # No gateway Firebase check: ESP 401s omit CORS headers, so browser SPAs see a bogus CORS block.
+        # JWT is still required and verified inside integration-bridge (same pattern as oauth/callback).
+        security    = []
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
           path_translation = "CONSTANT_ADDRESS"
