@@ -38,16 +38,19 @@ class FubClient:
                 "error": "oauth_token_exchange_not_configured",
                 "todo": "Set FUB_OAUTH_TOKEN_URL, FUB_OAUTH_CLIENT_ID, FUB_OAUTH_CLIENT_SECRET",
             }, 501
+        # FUB token endpoint requires Basic Authorization (client_id:client_secret), not body secrets alone.
+        basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
         return post_form(
             token_url,
             {
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": redirect_uri,
-                "client_id": client_id,
-                "client_secret": client_secret,
             },
-            headers={"Accept": "application/json"},
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Basic {basic}",
+            },
             timeout=30,
         )
 
@@ -57,15 +60,17 @@ class FubClient:
         client_secret = (os.environ.get("FUB_OAUTH_CLIENT_SECRET") or "").strip()
         if not token_url or not client_id or not client_secret:
             return {"error": "oauth_refresh_not_configured"}, 501
+        basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
         return post_form(
             token_url,
             {
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token,
-                "client_id": client_id,
-                "client_secret": client_secret,
             },
-            headers={"Accept": "application/json"},
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Basic {basic}",
+            },
             timeout=30,
         )
 
