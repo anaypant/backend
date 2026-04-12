@@ -48,3 +48,16 @@ def test_fallback_x_forwarded_firebase():
     with patch("store.authn.verify_realtor", side_effect=fake_verify):
         d, err, tok = resolve_realtor_bearer(req)
     assert err is None and d["uid"] == "u1" and tok == "firebase-token"
+
+
+def test_fallback_authorization_only_browser():
+    req = _Req({"Authorization": "Bearer firebase-only"})
+
+    def fake_verify(token: str):
+        if token == "firebase-only":
+            return {"uid": "u1", "role": "realtor"}, None
+        return None, "invalid token"
+
+    with patch("store.authn.verify_realtor", side_effect=fake_verify):
+        d, err, tok = resolve_realtor_bearer(req)
+    assert err is None and d["uid"] == "u1" and tok == "firebase-only"

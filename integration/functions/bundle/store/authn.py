@@ -42,7 +42,8 @@ def verify_realtor(id_token: str) -> tuple[dict | None, str | None]:
 def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None]:
     """
     Identity: (1) ESP-validated Firebase claims in X-Endpoint-API-UserInfo (public gateway), or
-    (2) verify Bearer in X-Firebase-Authorization / X-Forwarded-Authorization (direct Run / tests).
+    (2) verify Bearer in X-Firebase-Authorization, X-Forwarded-Authorization, then Authorization
+    (browser fetch uses Authorization; lite proxy duplicates into X-Firebase-Authorization).
     Returns (decoded_claims, error, id_token) — id_token set only for path (2).
     """
     claims = acs.decode_endpoint_user_info_claims(request)
@@ -54,7 +55,7 @@ def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None
             return None, "forbidden", None
         return {**claims, "uid": uid}, None, None
 
-    for h in (acs.USER_JWT_HEADER, "X-Forwarded-Authorization"):
+    for h in (acs.USER_JWT_HEADER, "X-Forwarded-Authorization", "Authorization"):
         token = _bearer_from_header(request, h)
         if not token:
             continue
