@@ -8,7 +8,11 @@ def _client_for_connection(connection_id: str) -> FubClient:
     if not fub:
         return FubClient()
     auth = dict(fub.get("auth") or {})
-    return FubClient(access_token_ref=auth.get("accessTokenRef"), api_key_ref=auth.get("apiKeyRef"))
+    return FubClient(
+        access_token_ref=auth.get("accessTokenRef"),
+        api_key_ref=auth.get("apiKeyRef"),
+        acting_uid=connection_id,
+    )
 
 
 def apply_outbound_actions(connection_id: str, actions: list[dict]) -> dict:

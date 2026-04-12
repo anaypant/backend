@@ -249,7 +249,7 @@ def oauth_callback(request):
 
     callback_base = public_integration_base_url(request)
     webhook_sync, sync_status = _ensure_all_webhooks(
-        FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef")),
+        FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid),
         uid,
         callback_base,
     )
@@ -288,7 +288,7 @@ def refresh(request):
 
     auth_block = dict(fub.get("auth") or {})
     refresh_ref = auth_block.get("refreshTokenRef")
-    refresh_token = get_secret(refresh_ref or "")
+    refresh_token = get_secret(refresh_ref or "", acting_uid=uid)
     if not refresh_token:
         return json_response(
             {
@@ -336,7 +336,7 @@ def disconnect(request):
         return json_response({"error": "followupboss not configured"}, 404)
 
     auth_block = dict(fub.get("auth") or {})
-    client = FubClient(access_token_ref=auth_block.get("accessTokenRef"), api_key_ref=auth_block.get("apiKeyRef"))
+    client = FubClient(access_token_ref=auth_block.get("accessTokenRef"), api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid)
     webhooks = dict(fub.get("webhooks") or {})
     # best effort cleanup
     listed, ls = client.list_webhooks()
@@ -387,7 +387,7 @@ def resync_webhooks(request):
 
     callback_base = public_integration_base_url(request)
     result, sync_status = _ensure_all_webhooks(
-        FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef")),
+        FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid),
         uid,
         callback_base,
     )
@@ -417,5 +417,5 @@ def list_registered_webhooks(request):
     if not isinstance(access_ref, str) or not access_ref:
         return json_response({"error": "access token ref missing", "todo": "Complete OAuth connect first."}, 400)
 
-    raw, st = FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef")).list_webhooks()
+    raw, st = FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid).list_webhooks()
     return json_response({"ok": st < 400, "httpStatus": st, "fub": raw}, 200 if st < 400 else st)

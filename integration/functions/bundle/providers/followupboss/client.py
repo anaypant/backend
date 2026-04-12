@@ -6,10 +6,17 @@ from store.secret_repo import get_secret
 
 
 class FubClient:
-    def __init__(self, *, access_token_ref: str | None = None, api_key_ref: str | None = None):
+    def __init__(
+        self,
+        *,
+        access_token_ref: str | None = None,
+        api_key_ref: str | None = None,
+        acting_uid: str | None = None,
+    ):
         self.base = "https://api.followupboss.com/v1"
         self.access_token_ref = access_token_ref
         self.api_key_ref = api_key_ref
+        self.acting_uid = acting_uid
         self.system_name = (os.environ.get("FUB_SYSTEM_NAME") or "ACS").strip()
 
     def _headers(self) -> dict:
@@ -17,13 +24,13 @@ class FubClient:
             "Content-Type": "application/json",
             "X-System": self.system_name,
         }
-        token = get_secret(self.access_token_ref or "")
+        token = get_secret(self.access_token_ref or "", acting_uid=self.acting_uid)
         if token:
             headers["Authorization"] = f"Bearer {token}"
             return headers
 
         # TODO: Remove API-key fallback if OAuth bearer proves sufficient for all endpoints.
-        api_key = get_secret(self.api_key_ref or "")
+        api_key = get_secret(self.api_key_ref or "", acting_uid=self.acting_uid)
         if api_key:
             basic = base64.b64encode(f"{api_key}:".encode("utf-8")).decode("utf-8")
             headers["Authorization"] = f"Basic {basic}"

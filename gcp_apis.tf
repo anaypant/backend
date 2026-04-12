@@ -14,6 +14,7 @@ resource "google_project_service" "gcp" {
     "run.googleapis.com",
     "servicecontrol.googleapis.com",
     "servicemanagement.googleapis.com",
+    "secretmanager.googleapis.com",
     "securetoken.googleapis.com",
   ])
   project            = local.project_id

@@ -53,7 +53,11 @@ def _process_webhook_event(connection_id: str, fub: dict, event_body: dict):
 
     uri = event_body.get("uri")
     if isinstance(uri, str) and uri:
-        client = FubClient(access_token_ref=auth.get("accessTokenRef"), api_key_ref=auth.get("apiKeyRef"))
+        client = FubClient(
+            access_token_ref=auth.get("accessTokenRef"),
+            api_key_ref=auth.get("apiKeyRef"),
+            acting_uid=connection_id,
+        )
         _r, _s = client.get_by_uri(uri)
         update_event_status(connection_id, event_id, "processed", {"fetchedUri": _s < 400})
 

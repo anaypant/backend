@@ -78,6 +78,19 @@ module "core" {
   depends_on = [google_project_service.gcp, google_service_account.platform]
 }
 
+module "secrets" {
+  source                              = "./secrets"
+  project_id                          = local.project_id
+  region                              = var.region
+  platform_sa_email                   = google_service_account.platform.email
+  secrets_internal_gateway_hostname   = var.secrets_internal_gateway_hostname
+  providers = {
+    google      = google
+    google-beta = google-beta
+  }
+  depends_on = [google_project_service.gcp, google_service_account.platform]
+}
+
 module "integration" {
   source                                 = "./integration"
   project_id                             = local.project_id
@@ -94,11 +107,12 @@ module "integration" {
   acs_public_integration_base_url        = var.acs_public_integration_base_url
   acs_oauth_state_secret                 = var.acs_oauth_state_secret
   integration_oauth_browser_cors_origins = var.integration_oauth_browser_cors_origins
+  secrets_internal_gateway_hostname      = module.secrets.secrets_gateway_hostname
   providers = {
     google      = google
     google-beta = google-beta
   }
-  depends_on = [google_project_service.gcp, module.db, module.core, google_service_account.platform]
+  depends_on = [google_project_service.gcp, module.db, module.core, module.secrets, google_service_account.platform]
 }
 
 module "api" {
@@ -119,6 +133,7 @@ module "api" {
     module.db,
     module.auth,
     module.integration,
+    module.secrets,
     google_service_account.platform
   ]
 }

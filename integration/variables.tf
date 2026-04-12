@@ -66,3 +66,8 @@ variable "integration_oauth_browser_cors_origins" {
   default     = ["https://oauth.automatedconsultancy.com"]
   description = "Origins allowed to call GET/OPTIONS oauth/start from a browser (public gateway CORS). Override or set [] to disable."
 }
+
+variable "secrets_internal_gateway_hostname" {
+  type        = string
+  description = "Internal secrets API Gateway hostname (no scheme) for tenant secret reads/writes via secrets-bridge."
+}

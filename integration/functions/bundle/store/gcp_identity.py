@@ -33,3 +33,12 @@ def id_token_for_db_gateway() -> str:
         raise RuntimeError("DB_INTERNAL_GATEWAY_HOSTNAME is not set")
     audience = f"https://{host}"
     return oauth_id_token.fetch_id_token(Request(), audience)
+
+
+def id_token_for_secrets_gateway() -> str:
+    """Google ID token for calling acs-secrets-internal; audience must match secrets platform_auth."""
+    host = normalize_internal_gateway_hostname(os.environ.get("SECRETS_INTERNAL_GATEWAY_HOSTNAME") or "")
+    if not host:
+        raise RuntimeError("SECRETS_INTERNAL_GATEWAY_HOSTNAME is not set")
+    audience = f"https://{host}"
+    return oauth_id_token.fetch_id_token(Request(), audience)

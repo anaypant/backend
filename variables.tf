@@ -12,6 +12,12 @@ variable "db_internal_gateway_hostname" {
   description = "Internal DB API Gateway host or full https URL; root module normalizes to hostname. When non-empty, must match output db_gateway_hostname (check in db module). Leave empty to use module.db output for integration only."
 }
 
+variable "secrets_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = "Internal secrets API Gateway hostname (no scheme). When non-empty, must match terraform output secrets_gateway_hostname (plan check in secrets module)."
+}
+
 variable "dev_project_id" {
   type = string
 }

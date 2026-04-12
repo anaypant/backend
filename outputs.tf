@@ -12,3 +12,13 @@ output "db_gateway_audience" {
   description = "OIDC audience (https://...) for platform identity tokens targeting the internal DB gateway."
   value       = module.db.db_gateway_audience
 }
+
+output "secrets_gateway_hostname" {
+  description = "Internal secrets API Gateway hostname (no scheme). Set secrets_internal_gateway_hostname to this after first deploy for drift checks."
+  value       = module.secrets.secrets_gateway_hostname
+}
+
+output "secrets_gateway_audience" {
+  description = "OIDC audience for platform calls to the internal secrets gateway."
+  value       = module.secrets.secrets_gateway_audience
+}

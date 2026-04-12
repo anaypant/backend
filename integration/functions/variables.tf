@@ -76,3 +76,8 @@ variable "browser_cors_origins" {
   default     = ""
   description = "Comma-separated origins for browser CORS on GET/OPTIONS /integrations/followupboss/oauth/start (ACS_BROWSER_CORS_ORIGINS)."
 }
+
+variable "secrets_internal_gateway_hostname" {
+  type        = string
+  description = "Internal secrets API Gateway hostname (no scheme); SECRETS_INTERNAL_GATEWAY_HOSTNAME on the bridge."
+}

@@ -68,6 +68,19 @@ def post_json_platform(url: str, payload: dict, *, acting_uid: str, timeout: int
     return _exec(req, timeout=timeout)
 
 
+def post_json_secrets_platform(url: str, payload: dict, *, acting_uid: str, timeout: int = 60) -> tuple[dict, int]:
+    """Secrets internal gateway as platform SA; acting_uid must match the secret's realtor scope."""
+    token = gcp_identity.id_token_for_secrets_gateway()
+    body = json.dumps(payload).encode("utf-8")
+    req_headers = {
+        "Content-Type": "application/json",
+        HEADER_ACTING: acting_uid,
+        HEADER_PLATFORM_AUTH: f"Bearer {token}",
+    }
+    req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)
+    return _exec(req, timeout=timeout)
+
+
 def get_json(url: str, *, headers: dict | None = None, timeout: int = 60) -> tuple[dict, int]:
     req_headers = headers or {}
     req = urllib.request.Request(url, method="GET", headers=req_headers)
