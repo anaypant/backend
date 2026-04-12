@@ -221,7 +221,7 @@ def oauth_callback(request):
 
     callback_url = _fub_callback_url(request)
     client = FubClient()
-    token_body, token_status = client.exchange_code(code, callback_url)
+    token_body, token_status = client.exchange_code(code, callback_url, state)
     if token_status >= 400:
         return json_response({"error": "token_exchange_failed", "detail": token_body}, 502 if token_status >= 500 else token_status)
 

@@ -17,7 +17,7 @@ class FubClientOauthTest(unittest.TestCase):
     @patch("providers.followupboss.client.post_form", return_value=({"access_token": "a"}, 200))
     def test_exchange_code_uses_basic_auth_not_body_secrets(self, mock_post):
         with patch.dict(os.environ, self.env, clear=False):
-            body, status = FubClient().exchange_code("thecode", "https://example/cb")
+            body, status = FubClient().exchange_code("thecode", "https://example/cb", "uid.nonce.sig")
         self.assertEqual(status, 200)
         self.assertEqual(body.get("access_token"), "a")
         mock_post.assert_called_once()
@@ -30,6 +30,7 @@ class FubClientOauthTest(unittest.TestCase):
                 "grant_type": "authorization_code",
                 "code": "thecode",
                 "redirect_uri": "https://example/cb",
+                "state": "uid.nonce.sig",
             },
         )
         headers = kwargs.get("headers") or {}
@@ -37,6 +38,12 @@ class FubClientOauthTest(unittest.TestCase):
         self.assertEqual(headers.get("Authorization"), f"Basic {expected_basic}")
         self.assertNotIn("client_id", form)
         self.assertNotIn("client_secret", form)
+
+    def test_exchange_code_rejects_empty_state(self):
+        with patch.dict(os.environ, self.env, clear=False):
+            body, status = FubClient().exchange_code("c", "https://cb", "")
+        self.assertEqual(status, 400)
+        self.assertIn("missing_state", body.get("error", ""))
 
     @patch("providers.followupboss.client.post_form", return_value=({"access_token": "n"}, 200))
     def test_refresh_token_uses_basic_auth(self, mock_post):

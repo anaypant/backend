@@ -29,7 +29,7 @@ class FubClient:
             headers["Authorization"] = f"Basic {basic}"
         return headers
 
-    def exchange_code(self, code: str, redirect_uri: str) -> tuple[dict, int]:
+    def exchange_code(self, code: str, redirect_uri: str, state: str) -> tuple[dict, int]:
         token_url = (os.environ.get("FUB_OAUTH_TOKEN_URL") or "").strip()
         client_id = (os.environ.get("FUB_OAUTH_CLIENT_ID") or "").strip()
         client_secret = (os.environ.get("FUB_OAUTH_CLIENT_SECRET") or "").strip()
@@ -38,7 +38,10 @@ class FubClient:
                 "error": "oauth_token_exchange_not_configured",
                 "todo": "Set FUB_OAUTH_TOKEN_URL, FUB_OAUTH_CLIENT_ID, FUB_OAUTH_CLIENT_SECRET",
             }, 501
-        # FUB token endpoint requires Basic Authorization (client_id:client_secret), not body secrets alone.
+        if not (state or "").strip():
+            return {"error": "oauth_token_exchange_missing_state", "todo": "FUB token exchange requires state in form body"}, 400
+        # FUB token endpoint: Basic Authorization (client_id:client_secret) plus grant params including state.
+        # https://docs.followupboss.com/guides/oauth#step-3-exchanging-auth_code-for-tokens
         basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
         return post_form(
             token_url,
@@ -46,6 +49,7 @@ class FubClient:
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": redirect_uri,
+                "state": state.strip(),
             },
             headers={
                 "Accept": "application/json",
