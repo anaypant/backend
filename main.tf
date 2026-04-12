@@ -79,20 +79,21 @@ module "core" {
 }
 
 module "integration" {
-  source                          = "./integration"
-  project_id                      = local.project_id
-  region                          = var.region
-  platform_sa_email               = google_service_account.platform.email
-  db_internal_gateway_hostname    = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
-  core_internal_gateway_hostname  = module.core.core_gateway_hostname
-  fub_oauth_authorize_url         = var.fub_oauth_authorize_url
-  fub_oauth_token_url             = var.fub_oauth_token_url
-  fub_oauth_client_id             = var.fub_oauth_client_id
-  fub_oauth_client_secret         = var.fub_oauth_client_secret
-  fub_system_name                 = var.fub_system_name
-  fub_x_system_key                = var.fub_x_system_key
-  acs_public_integration_base_url = var.acs_public_integration_base_url
-  acs_oauth_state_secret          = var.acs_oauth_state_secret
+  source                                 = "./integration"
+  project_id                             = local.project_id
+  region                                 = var.region
+  platform_sa_email                      = google_service_account.platform.email
+  db_internal_gateway_hostname           = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
+  core_internal_gateway_hostname         = module.core.core_gateway_hostname
+  fub_oauth_authorize_url                = var.fub_oauth_authorize_url
+  fub_oauth_token_url                    = var.fub_oauth_token_url
+  fub_oauth_client_id                    = var.fub_oauth_client_id
+  fub_oauth_client_secret                = var.fub_oauth_client_secret
+  fub_system_name                        = var.fub_system_name
+  fub_x_system_key                       = var.fub_x_system_key
+  acs_public_integration_base_url        = var.acs_public_integration_base_url
+  acs_oauth_state_secret                 = var.acs_oauth_state_secret
+  integration_oauth_browser_cors_origins = var.integration_oauth_browser_cors_origins
   providers = {
     google      = google
     google-beta = google-beta

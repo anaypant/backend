@@ -62,6 +62,18 @@ locals {
       }
     }
     "/integrations/followupboss/oauth/start" = {
+      options = {
+        summary            = "CORS preflight for oauth/start"
+        operationId        = "integrations_followupboss_oauth_start_options"
+        consumes           = ["text/plain"]
+        produces           = ["text/plain"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
       get = {
         summary            = "Integration followupboss/oauth/start"
         operationId        = "integrations_followupboss_oauth_start"

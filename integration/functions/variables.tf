@@ -70,3 +70,9 @@ variable "acs_oauth_state_secret" {
   description = "HMAC secret used to sign oauth state."
   default     = ""
 }
+
+variable "browser_cors_origins" {
+  type        = string
+  default     = ""
+  description = "Comma-separated origins for browser CORS on GET/OPTIONS /integrations/followupboss/oauth/start (ACS_BROWSER_CORS_ORIGINS)."
+}

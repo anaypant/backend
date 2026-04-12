@@ -65,6 +65,7 @@ resource "google_cloudfunctions2_function" "bridge" {
       ACS_PUBLIC_INTEGRATION_BASE_URL = var.acs_public_integration_base_url
       ACS_OAUTH_STATE_SECRET          = var.acs_oauth_state_secret
       ACS_USE_SECRET_MANAGER          = "1"
+      ACS_BROWSER_CORS_ORIGINS        = var.browser_cors_origins
     }
   }
 }

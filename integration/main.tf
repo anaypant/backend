@@ -26,6 +26,7 @@ module "functions" {
   fub_x_system_key                = var.fub_x_system_key
   acs_public_integration_base_url = var.acs_public_integration_base_url
   acs_oauth_state_secret          = var.acs_oauth_state_secret
+  browser_cors_origins            = join(",", var.integration_oauth_browser_cors_origins)
 }
 
 module "api" {

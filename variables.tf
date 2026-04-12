@@ -98,3 +98,9 @@ variable "acs_oauth_state_secret" {
   default     = ""
   description = "HMAC secret used to sign OAuth state."
 }
+
+variable "integration_oauth_browser_cors_origins" {
+  type        = list(string)
+  default     = ["https://oauth.automatedconsultancy.com"]
+  description = "Browser origins allowed CORS on public GET/OPTIONS /integrations/followupboss/oauth/start. Set [] to disable; add http://localhost:3000 for local OAuth UI."
+}

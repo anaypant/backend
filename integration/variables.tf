@@ -60,3 +60,9 @@ variable "acs_oauth_state_secret" {
   sensitive = true
   default   = ""
 }
+
+variable "integration_oauth_browser_cors_origins" {
+  type        = list(string)
+  default     = ["https://oauth.automatedconsultancy.com"]
+  description = "Origins allowed to call GET/OPTIONS oauth/start from a browser (public gateway CORS). Override or set [] to disable."
+}

@@ -103,6 +103,22 @@ locals {
       }
     }
     "/integrations/followupboss/oauth/start" = {
+      options = {
+        summary     = "CORS preflight for oauth/start (browser OAuth SPA; no Firebase on OPTIONS)"
+        operationId = "integrations_followupboss_oauth_start_options"
+        consumes    = ["text/plain"]
+        produces    = ["text/plain"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
       get = {
         summary     = "Integration followupboss/oauth/start (proxied to internal integration gateway)"
         operationId = "integrations_followupboss_oauth_start"

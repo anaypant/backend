@@ -1,4 +1,5 @@
 from providers.provider_registry import PROVIDER_REGISTRY
+from store.browser_cors import cors_preflight_response, merge_cors_for_oauth_start_get
 from store.common import json_response
 
 
@@ -23,9 +24,14 @@ def _route(path: str) -> tuple[str, str, set[str]] | None:
 
 
 def handle_request(request):
-    routed = _route(getattr(request, "path", "") or "")
+    path = getattr(request, "path", "") or ""
+    pre = cors_preflight_response(request)
+    if pre is not None:
+        return pre
+
+    routed = _route(path)
     if not routed:
-        return json_response({"error": "not found", "path": getattr(request, "path", "")}, 404)
+        return json_response({"error": "not found", "path": path}, 404)
 
     provider_key, handler_name, methods = routed
     if request.method not in methods:
@@ -38,4 +44,5 @@ def handle_request(request):
     handler = getattr(provider, handler_name, None)
     if handler is None:
         return json_response({"error": "handler not implemented"}, 500)
-    return handler(request)
+    out = handler(request)
+    return merge_cors_for_oauth_start_get(request, out)
