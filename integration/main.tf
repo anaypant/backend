@@ -29,6 +29,7 @@ module "functions" {
   acs_callback_bridge_secret      = var.acs_callback_bridge_secret
   browser_cors_origins            = join(",", var.integration_oauth_browser_cors_origins)
   secrets_internal_gateway_hostname = var.secrets_internal_gateway_hostname
+  secrets_internal_jwt_audience     = var.secrets_internal_jwt_audience
 }
 
 module "api" {

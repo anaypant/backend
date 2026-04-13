@@ -31,6 +31,7 @@ locals {
     ACS_USE_SECRET_MANAGER            = "1"
     ACS_BROWSER_CORS_ORIGINS          = var.browser_cors_origins
     SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
+    SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
   }
   integration_env_secret = {
     FUB_OAUTH_CLIENT_SECRET       = var.fub_oauth_client_secret

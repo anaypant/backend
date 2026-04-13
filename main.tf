@@ -111,6 +111,7 @@ module "integration" {
   # Nonsensitive: hostname is not secret; avoids Google provider "inconsistent sensitive" on
   # integration function env when this value is (known after apply) on first full stack apply.
   secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
+  secrets_internal_jwt_audience     = nonsensitive(module.secrets.secrets_bridge_invoker_audience)
   providers = {
     google      = google
     google-beta = google-beta

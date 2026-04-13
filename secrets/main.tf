@@ -53,8 +53,13 @@ output "secrets_gateway_hostname" {
 }
 
 output "secrets_gateway_audience" {
-  description = "Google ID token audience for calls to the internal secrets gateway."
+  description = "https://{gateway_hostname} — useful for docs; platform callers must use secrets_bridge_invoker_audience for OIDC."
   value       = nonsensitive(module.api.gateway_audience)
+}
+
+output "secrets_bridge_invoker_audience" {
+  description = "OIDC audience for platform ID tokens (secrets-bridge Cloud Function URL; matches API Gateway jwt_audience)."
+  value       = nonsensitive(trimsuffix(module.functions.bridge_function.url, "/"))
 }
 
 output "secrets_gateway_id" {

@@ -36,9 +36,18 @@ def id_token_for_db_gateway() -> str:
 
 
 def id_token_for_secrets_gateway() -> str:
-    """Google ID token for calling acs-secrets-internal; audience must match secrets platform_auth."""
+    """
+    Google ID token for calling the internal secrets API Gateway.
+
+    The gateway's x-google-backend `jwt_audience` is the **secrets-bridge Cloud Function URL**, not the
+    gateway hostname. `fetch_id_token` must use that same audience or the gateway rejects the request.
+    """
+    aud = (os.environ.get("SECRETS_INTERNAL_JWT_AUDIENCE") or "").strip().rstrip("/")
+    if aud:
+        return oauth_id_token.fetch_id_token(Request(), aud)
     host = normalize_internal_gateway_hostname(os.environ.get("SECRETS_INTERNAL_GATEWAY_HOSTNAME") or "")
     if not host:
-        raise RuntimeError("SECRETS_INTERNAL_GATEWAY_HOSTNAME is not set")
-    audience = f"https://{host}"
-    return oauth_id_token.fetch_id_token(Request(), audience)
+        raise RuntimeError(
+            "SECRETS_INTERNAL_JWT_AUDIENCE (preferred) or SECRETS_INTERNAL_GATEWAY_HOSTNAME must be set"
+        )
+    return oauth_id_token.fetch_id_token(Request(), f"https://{host}")

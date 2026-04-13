@@ -78,3 +78,8 @@ variable "secrets_internal_gateway_hostname" {
   type        = string
   description = "Internal secrets API Gateway hostname (no scheme) for tenant secret reads/writes via secrets-bridge."
 }
+
+variable "secrets_internal_jwt_audience" {
+  type        = string
+  description = "OIDC audience for platform calls to the secrets internal API (secrets-bridge function URL, not the gateway hostname)."
+}

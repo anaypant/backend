@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import os
 import re
 
@@ -28,13 +30,38 @@ def _candidate_audiences(request) -> list[str]:
     env_host = (os.environ.get("ACS_SECRETS_GATEWAY_HOSTNAME") or "").strip().rstrip("/")
     if env_host:
         out.append(f"https://{env_host}")
+    bridge = (os.environ.get("ACS_SECRETS_BRIDGE_INVOKER_AUDIENCE") or "").strip().rstrip("/")
+    if bridge:
+        u = bridge if bridge.startswith("http") else f"https://{bridge}"
+        if u not in out:
+            out.append(u)
     xfh = (request.headers.get("X-Forwarded-Host") or "").split(",")[0].strip().rstrip("/")
     if xfh and f"https://{xfh}" not in out:
         out.append(f"https://{xfh}")
     host = (request.headers.get("Host") or "").split(",")[0].strip().rstrip("/")
-    if host and not host.endswith(".run.app") and f"https://{host}" not in out:
+    if host and f"https://{host}" not in out:
         out.append(f"https://{host}")
     return out
+
+
+def _unverified_aud_claim(token: str) -> str | None:
+    """Read JWT `aud` without verifying signature (signature is checked by verify_oauth2_token)."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        payload_b64 = parts[1]
+        pad = "=" * (-len(payload_b64) % 4)
+        raw = base64.urlsafe_b64decode((payload_b64 + pad).encode("ascii"))
+        data = json.loads(raw.decode("utf-8"))
+        aud = data.get("aud")
+        if isinstance(aud, str):
+            return aud
+        if isinstance(aud, list) and aud and isinstance(aud[0], str):
+            return aud[0]
+    except Exception:
+        return None
+    return None
 
 
 def acting_uid_valid(uid: str) -> bool:
@@ -49,13 +76,17 @@ def verify_platform_request(request) -> tuple[dict | None, tuple[dict, int] | No
     if not expected_email:
         return None, ({"error": "ACS_PLATFORM_SERVICE_ACCOUNT_EMAIL not configured"}, 503)
 
-    audiences = _candidate_audiences(request)
-    if not audiences:
-        return None, ({"error": "secrets gateway audience not configured"}, 503)
-
     token = _bearer_from_header(request, HEADER_PLATFORM_AUTH) or _bearer_from_header(request, "Authorization")
     if not token:
         return None, ({"error": "missing platform bearer token"}, 401)
+
+    audiences = _candidate_audiences(request)
+    token_aud = _unverified_aud_claim(token)
+    if token_aud and token_aud not in audiences:
+        audiences.insert(0, token_aud)
+
+    if not audiences:
+        return None, ({"error": "secrets gateway audience not configured"}, 503)
 
     req = google_requests.Request()
     claims = None
