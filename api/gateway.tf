@@ -22,6 +22,7 @@ locals {
     "POST /integrations/webhooks/followupboss",
     "GET /integrations/followupboss/oauth/start",
     "OPTIONS /integrations/followupboss/oauth/start",
+    "OPTIONS /integrations/followupboss/status",
     "GET /integrations/followupboss/oauth/callback",
   ]
 
@@ -274,6 +275,45 @@ locals {
         security    = []
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/webhooks/followupboss/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/status" = {
+      options = {
+        summary     = "CORS preflight for followupboss/status (browser integration UI)"
+        operationId = "integrations_followupboss_status_options"
+        consumes    = ["text/plain"]
+        produces    = ["text/plain"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/status/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
+      get = {
+        summary     = "Integration followupboss/status (proxied to internal integration gateway)"
+        operationId = "integrations_followupboss_status"
+        produces    = ["application/json"]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/status/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
         }
