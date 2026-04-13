@@ -24,14 +24,6 @@ def _ensure_firebase():
             firebase_admin.initialize_app()
 
 
-def _parse_bearer(raw: str) -> str | None:
-    parts = (raw or "").split()
-    if len(parts) == 2 and parts[0].lower() == "bearer":
-        t = parts[1].strip()
-        return t or None
-    return None
-
-
 def _decode_firebase_from_request(request):
     ep = acs.decode_endpoint_user_info_claims(request)
     if ep:
@@ -40,8 +32,8 @@ def _decode_firebase_from_request(request):
             return None, "invalid gateway identity"
         return {**ep, "uid": uid}, None
     last_inv: str | None = None
-    for h in (acs.USER_JWT_HEADER, "X-Forwarded-Authorization"):
-        token = _parse_bearer(request.headers.get(h) or "")
+    for h in acs.END_USER_BEARER_HEADER_ORDER:
+        token = acs.parse_bearer_header(request, h)
         if not token:
             continue
         try:
@@ -55,7 +47,7 @@ def _decode_firebase_from_request(request):
             continue
         except auth.CertificateFetchError:
             return None, "auth verification unavailable"
-    return None, last_inv or "missing Authorization bearer token"
+    return None, last_inv or "missing user credentials"
 
 
 def _is_admin(decoded: dict) -> bool:

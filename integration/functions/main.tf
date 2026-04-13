@@ -33,9 +33,10 @@ locals {
     SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
   }
   integration_env_secret = {
-    FUB_OAUTH_CLIENT_SECRET = var.fub_oauth_client_secret
-    FUB_X_SYSTEM_KEY        = var.fub_x_system_key
-    ACS_OAUTH_STATE_SECRET  = var.acs_oauth_state_secret
+    FUB_OAUTH_CLIENT_SECRET       = var.fub_oauth_client_secret
+    FUB_X_SYSTEM_KEY              = var.fub_x_system_key
+    ACS_OAUTH_STATE_SECRET        = var.acs_oauth_state_secret
+    ACS_CALLBACK_BRIDGE_SECRET   = var.acs_callback_bridge_secret
   }
 }
 

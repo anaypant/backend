@@ -8,6 +8,8 @@ _ACTING_UID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 
 HEADER_ACTING = "X-ACS-Acting-Uid"
 HEADER_PLATFORM_AUTH = "X-ACS-Platform-Authorization"
+# Google OIDC for Cloud Run / gateway invoker (may accompany Authorization = end-user Firebase JWT).
+HEADER_GCP_INFRA_IDENTITY = "X-GCP-Identity"
 
 
 def _expected_audience() -> str | None:
@@ -37,7 +39,8 @@ def _bearer_from_header(request, header_name: str) -> str | None:
 
 def try_platform_actor(request):
     """
-    If X-ACS-Acting-Uid is set, require Google OIDC (platform SA) on X-ACS-Platform-Authorization or Authorization.
+    If X-ACS-Acting-Uid is set, require Google OIDC (platform SA) on X-ACS-Platform-Authorization,
+    X-GCP-Identity, or Authorization (fallback).
     Returns (decoded_dict, None) on success, or (None, (error_body, status)) on failure.
     If acting header absent, returns (None, None) to continue Firebase path.
     """
@@ -53,7 +56,11 @@ def try_platform_actor(request):
     if not aud or not expected_email:
         return None, ({"error": "platform db auth not configured"}, 503)
 
-    token = _bearer_from_header(request, HEADER_PLATFORM_AUTH) or _bearer_from_header(request, "Authorization")
+    token = (
+        _bearer_from_header(request, HEADER_PLATFORM_AUTH)
+        or _bearer_from_header(request, HEADER_GCP_INFRA_IDENTITY)
+        or _bearer_from_header(request, "Authorization")
+    )
     if not token:
         return None, ({"error": "missing platform bearer token"}, 401)
 

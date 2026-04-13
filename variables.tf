@@ -105,6 +105,13 @@ variable "acs_oauth_state_secret" {
   description = "HMAC secret used to sign OAuth state."
 }
 
+variable "acs_callback_bridge_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Shared HS256 secret for public callback-bridge → integration (X-ACS-Callback-Bridge-Token). Empty disables enforcement in integration (dev)."
+}
+
 variable "integration_oauth_browser_cors_origins" {
   type        = list(string)
   default     = ["https://oauth.automatedconsultancy.com"]

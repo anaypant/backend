@@ -1,16 +1,31 @@
-"""Must match db/auth/core bundles — in-project calls attach end-user Firebase ID here."""
+"""ACS end-user identity for HTTP handlers.
+
+**Public API:** ``Authorization: Bearer <Firebase ID token>``. ESP validates and sets
+``X-Endpoint-API-UserInfo``.
+
+**Internal calls to other gateways:** ``Authorization`` = Firebase user JWT;
+``X-GCP-Identity`` = Google OIDC for invoker. Legacy: ``X-ACS-User-Authorization`` if needed.
+"""
 
 import base64
 import binascii
 import json
 
-USER_JWT_HEADER = "X-Firebase-Authorization"
-# Set by Google ESP after Firebase securityDefinitions validate Authorization Bearer (public gateway).
+USER_AUTHORIZATION_HEADER = "X-ACS-User-Authorization"
+USER_JWT_HEADER = USER_AUTHORIZATION_HEADER
+
+GCP_INFRA_IDENTITY_HEADER = "X-GCP-Identity"
+
 ENDPOINT_USER_INFO_HEADER = "X-Endpoint-API-UserInfo"
+
+END_USER_BEARER_HEADER_ORDER = (
+    "Authorization",
+    USER_AUTHORIZATION_HEADER,
+)
 
 
 def decode_endpoint_user_info_claims(request) -> dict | None:
-    """Base64url JWT payload JSON from API Gateway; None if absent or malformed."""
+    """Base64url JSON claims from ESP after Firebase JWT validation at the public gateway."""
     raw = (request.headers.get(ENDPOINT_USER_INFO_HEADER) or "").strip()
     if not raw:
         return None
@@ -21,3 +36,12 @@ def decode_endpoint_user_info_claims(request) -> dict | None:
         return out if isinstance(out, dict) else None
     except (ValueError, json.JSONDecodeError, binascii.Error):
         return None
+
+
+def parse_bearer_header(request, header_name: str) -> str | None:
+    raw = request.headers.get(header_name) or ""
+    parts = raw.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        t = parts[1].strip()
+        return t or None
+    return None

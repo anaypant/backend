@@ -15,15 +15,6 @@ def ensure_firebase():
             firebase_admin.initialize_app()
 
 
-def _bearer_from_header(request, header_name: str) -> str | None:
-    raw = request.headers.get(header_name) or ""
-    parts = raw.split()
-    if len(parts) == 2 and parts[0].lower() == "bearer":
-        t = parts[1].strip()
-        return t or None
-    return None
-
-
 def verify_realtor(id_token: str) -> tuple[dict | None, str | None]:
     ensure_firebase()
     try:
@@ -42,8 +33,11 @@ def verify_realtor(id_token: str) -> tuple[dict | None, str | None]:
 def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None]:
     """
     Identity: (1) ESP-validated Firebase claims in X-Endpoint-API-UserInfo (public gateway), or
-    (2) verify Bearer in X-Firebase-Authorization, X-Forwarded-Authorization, then Authorization
-    (browser fetch uses Authorization; lite proxy duplicates into X-Firebase-Authorization).
+    (2) verify Bearer tokens in END_USER_BEARER_HEADER_ORDER (see acs_internal).
+
+    Public clients send Authorization: Bearer <Firebase>. Internal hops may use the same pattern with
+    X-GCP-Identity for Google OIDC (see acs_internal).
+
     Returns (decoded_claims, error, id_token) — id_token set only for path (2).
 
     Tracing HTTP 401 on integration routes (e.g. GET /integrations/followupboss/oauth/start):
@@ -64,8 +58,9 @@ def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None
             return None, "forbidden", None
         return {**claims, "uid": uid}, None, None
 
-    for h in (acs.USER_JWT_HEADER, "X-Forwarded-Authorization", "Authorization"):
-        token = _bearer_from_header(request, h)
+    last_inv: str | None = None
+    for h in acs.END_USER_BEARER_HEADER_ORDER:
+        token = acs.parse_bearer_header(request, h)
         if not token:
             continue
         decoded, err = verify_realtor(token)
@@ -73,5 +68,5 @@ def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None
             return decoded, None, token
         if err in ("forbidden", "token expired", "token revoked"):
             return None, err, None
-        return None, err or "invalid token", None
-    return None, "missing bearer token", None
+        last_inv = err or "invalid token"
+    return None, last_inv or "missing bearer token", None

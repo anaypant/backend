@@ -34,3 +34,17 @@ variable "acs_public_integration_base_url" {
   default     = ""
   description = "Expected public origin for /integrations/* (https://…, no trailing slash). Empty = do not validate (integration fn may infer host from requests)."
 }
+
+variable "acs_callback_bridge_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "HS256 secret for X-ACS-Callback-Bridge-Token between public callback-bridge and integration. Empty = bridge transparent-proxies (dev only); set in prod."
+}
+
+variable "acs_oauth_state_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Same HMAC secret as integration (ACS_OAUTH_STATE_SECRET) so the callback bridge can validate OAuth state before forwarding."
+}

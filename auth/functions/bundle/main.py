@@ -1,6 +1,7 @@
 """Auth Cloud Functions: realtor/internal signup and login (password + Google via Identity Toolkit REST).
 
-Profile writes go to the internal DB gateway; end-user JWT uses acs_internal.USER_JWT_HEADER.
+Profile writes go to the internal DB gateway: ``Authorization`` carries the Firebase ID token and
+``X-GCP-Identity`` carries the Google ID token for the internal gateway / Cloud Run invoker.
 """
 
 from __future__ import annotations
@@ -11,6 +12,9 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token as oauth_id_token
 
 import acs_internal as acs
 import firebase_admin
@@ -155,7 +159,10 @@ def _db_internal_origin() -> str:
 
 
 def _post_db(user_jwt: str, path: str, payload: dict) -> tuple[dict, int]:
-    """POST internal db gateway path (e.g. /db/upsert/) with ACS user JWT header."""
+    """POST internal db gateway (Firebase user JWT + Google OIDC for invoker IAM)."""
+    host = (os.environ.get("DB_INTERNAL_GATEWAY_HOSTNAME") or "").strip().rstrip("/")
+    audience = f"https://{host}"
+    infra = oauth_id_token.fetch_id_token(Request(), audience)
     url = _db_internal_origin() + path
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -164,7 +171,8 @@ def _post_db(user_jwt: str, path: str, payload: dict) -> tuple[dict, int]:
         method="POST",
         headers={
             "Content-Type": "application/json",
-            acs.USER_JWT_HEADER: f"Bearer {user_jwt}",
+            "Authorization": f"Bearer {user_jwt}",
+            acs.GCP_INFRA_IDENTITY_HEADER: f"Bearer {infra}",
         },
     )
     try:

@@ -32,10 +32,10 @@ def test_gateway_user_info_forbidden():
     assert d is None and err == "forbidden" and tok is None
 
 
-def test_fallback_x_forwarded_firebase():
+def test_fallback_authorization_first_then_legacy_user_header():
     req = _Req(
         {
-            "X-Forwarded-Authorization": "Bearer firebase-token",
+            "X-ACS-User-Authorization": "Bearer firebase-token",
             "Authorization": "Bearer google-oidc",
         }
     )

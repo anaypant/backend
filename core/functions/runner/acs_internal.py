@@ -1,3 +1,4 @@
-"""Must match db/auth bundles: gateway forwards end-user context in this header when present."""
+"""Optional end-user Firebase token for core workflows."""
 
-USER_JWT_HEADER = "X-Firebase-Authorization"
+USER_AUTHORIZATION_HEADER = "X-ACS-User-Authorization"
+USER_JWT_HEADER = USER_AUTHORIZATION_HEADER

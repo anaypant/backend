@@ -39,3 +39,6 @@ acs_public_integration_base_url = ""
 
 #  generate (e.g. openssl rand -hex 32) and set in HCP as sensitive.
 acs_oauth_state_secret = ""
+
+# Same value in api + integration modules; openssl rand -hex 32. Empty = dev-only transparent OAuth callback proxy.
+acs_callback_bridge_secret = ""

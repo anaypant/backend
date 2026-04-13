@@ -61,6 +61,13 @@ variable "acs_oauth_state_secret" {
   default   = ""
 }
 
+variable "acs_callback_bridge_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Must match api module callback bridge; required when enforcing bridge token on oauth/callback."
+}
+
 variable "integration_oauth_browser_cors_origins" {
   type        = list(string)
   default     = ["https://oauth.automatedconsultancy.com"]

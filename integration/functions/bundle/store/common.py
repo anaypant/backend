@@ -21,8 +21,8 @@ def integration_auth_error_response(err: str):
     """Standard JSON for Firebase / gateway identity failures on realtor-only routes (trace 401/403)."""
     hints = {
         "missing bearer token": (
-            "Send Authorization: Bearer <Firebase ID token> (or X-Firebase-Authorization). "
-            "If you use the public API Gateway, ensure ESP forwards identity or the client sends the token."
+            "Send Authorization: Bearer <Firebase ID token> on the public API. "
+            "Internal hops use Authorization for Firebase and X-GCP-Identity for Google OIDC (invoker)."
         ),
         "invalid token": "ID token failed verification (wrong project, malformed, or not a Firebase auth token).",
         "token expired": "Refresh the Firebase session and retry with a new ID token.",
@@ -68,7 +68,10 @@ def post_json(url: str, payload: dict, *, user_jwt: str | None = None, headers: 
     body = json.dumps(payload).encode("utf-8")
     req_headers = {"Content-Type": "application/json"}
     if user_jwt:
-        req_headers[acs.USER_JWT_HEADER] = f"Bearer {user_jwt}"
+        req_headers["Authorization"] = f"Bearer {user_jwt}"
+        req_headers[acs.GCP_INFRA_IDENTITY_HEADER] = (
+            f"Bearer {gcp_identity.id_token_for_db_gateway()}"
+        )
     if headers:
         req_headers.update(headers)
     req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)

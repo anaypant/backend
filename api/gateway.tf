@@ -1,4 +1,10 @@
 # Public API Gateway — /health plus /db/* proxied to the internal DB API Gateway (same paths and JSON bodies).
+#
+# Secured routes: Authorization: Bearer <Firebase ID token>. ESP validates JWT and forwards claims as
+# X-Endpoint-API-UserInfo; backends verify Firebase or trust UserInfo when set by ESP (acs_internal).
+#
+# `parameters` + `schema` enable request validation at the gateway so malformed bodies fail with 400
+# before traffic reaches Cloud Functions (per OpenAPI 2 / API Gateway behavior).
 
 locals {
   db_internal_base          = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
@@ -18,16 +24,182 @@ locals {
   }
   firebase_sec = [{ firebase = [] }]
 
+  db_body_read = {
+    name     = "body"
+    in       = "body"
+    required = true
+    schema = {
+      type     = "object"
+      required = ["path"]
+      properties = {
+        path = { type = "string" }
+      }
+    }
+  }
+
+  db_body_upsert = {
+    name     = "body"
+    in       = "body"
+    required = true
+    schema = {
+      type     = "object"
+      required = ["path", "data"]
+      properties = {
+        path = { type = "string" }
+        data = { type = "object" }
+        merge = { type = "boolean" }
+      }
+    }
+  }
+
+  db_body_delete = {
+    name     = "body"
+    in       = "body"
+    required = true
+    schema = {
+      type     = "object"
+      required = ["path"]
+      properties = {
+        path = { type = "string" }
+      }
+    }
+  }
+
+  db_body_query = {
+    name     = "body"
+    in       = "body"
+    required = true
+    schema = {
+      type     = "object"
+      required = ["path"]
+      properties = {
+        path = { type = "string" }
+        filters = { type = "array" }
+        orderBy = { type = "array" }
+        limit = { type = "integer" }
+        pageToken = { type = "string" }
+        collectionGroup = { type = "boolean" }
+      }
+    }
+  }
+
+  auth_body_nonempty = {
+    name     = "body"
+    in       = "body"
+    required = true
+    schema = {
+      type                 = "object"
+      minProperties        = 1
+      additionalProperties = true
+    }
+  }
+
+  integration_json_object_body = {
+    name     = "body"
+    in       = "body"
+    required = true
+    schema = {
+      type                 = "object"
+      additionalProperties = true
+    }
+  }
+
+  webhook_ingress_parameters = [
+    {
+      name     = "connectionId"
+      in       = "query"
+      required = true
+      type     = "string"
+    },
+    local.integration_json_object_body,
+  ]
+
   db_proxy_paths = {
-    for key in ["read", "upsert", "delete", "query"] : "/db/${key}" => {
+    "/db/read" = {
       post = {
-        summary     = "DB ${key} (proxied to internal DB gateway)"
-        operationId = "db_${key}"
+        summary     = "DB read (proxied to internal DB gateway)"
+        operationId = "db_read"
         consumes    = ["application/json"]
         produces    = ["application/json"]
+        parameters  = [local.db_body_read]
         security    = local.firebase_sec
         "x-google-backend" = {
-          address          = "${local.db_internal_base}/db/${key}/"
+          address          = "${local.db_internal_base}/db/read/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "204" = { description = "No content" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "500" = { description = "Error" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/db/upsert" = {
+      post = {
+        summary     = "DB upsert (proxied to internal DB gateway)"
+        operationId = "db_upsert"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.db_body_upsert]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.db_internal_base}/db/upsert/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "204" = { description = "No content" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "500" = { description = "Error" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/db/delete" = {
+      post = {
+        summary     = "DB delete (proxied to internal DB gateway)"
+        operationId = "db_delete"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.db_body_delete]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.db_internal_base}/db/delete/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "204" = { description = "No content" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "500" = { description = "Error" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/db/query" = {
+      post = {
+        summary     = "DB query (proxied to internal DB gateway)"
+        operationId = "db_query"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.db_body_query]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.db_internal_base}/db/query/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
         }
@@ -57,6 +229,7 @@ locals {
         operationId = replace(replace(path, "/auth/", "auth_"), "/", "_")
         consumes    = ["application/json"]
         produces    = ["application/json"]
+        parameters  = [local.auth_body_nonempty]
         security    = []
         "x-google-backend" = {
           address          = "${local.auth_internal_base}${path}/"
@@ -145,14 +318,15 @@ locals {
     }
     "/integrations/followupboss/oauth/callback" = {
       get = {
-        summary     = "Integration followupboss/oauth/callback (proxied to internal integration gateway)"
+        summary     = "FUB OAuth callback (public callback-bridge validates state, then internal integration)"
         operationId = "integrations_followupboss_oauth_callback"
         produces    = ["application/json"]
         security    = []
         "x-google-backend" = {
-          address          = "${local.integration_internal_base}/integrations/followupboss/oauth/callback/"
-          path_translation = "CONSTANT_ADDRESS"
+          address          = "${trimsuffix(google_cloudfunctions2_function.callback_bridge.url, "/")}/"
+          path_translation = "APPEND_PATH_TO_ADDRESS"
           protocol         = "h2"
+          jwt_audience     = trimsuffix(google_cloudfunctions2_function.callback_bridge.url, "/")
         }
         responses = {
           "200" = { description = "OK" }
@@ -333,6 +507,8 @@ resource "google_api_gateway_api_config" "public" {
   provider      = google-beta
   api           = google_api_gateway_api.public.api_id
   api_config_id = "cfg${substr(local.api_config_revision, 0, 32)}"
+
+  depends_on = [google_cloudfunctions2_function.callback_bridge]
 
   openapi_documents {
     document {

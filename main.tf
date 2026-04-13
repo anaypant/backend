@@ -106,6 +106,7 @@ module "integration" {
   fub_x_system_key                       = var.fub_x_system_key
   acs_public_integration_base_url        = var.acs_public_integration_base_url
   acs_oauth_state_secret                 = var.acs_oauth_state_secret
+  acs_callback_bridge_secret             = var.acs_callback_bridge_secret
   integration_oauth_browser_cors_origins = var.integration_oauth_browser_cors_origins
   # Nonsensitive: hostname is not secret; avoids Google provider "inconsistent sensitive" on
   # integration function env when this value is (known after apply) on first full stack apply.
@@ -126,6 +127,8 @@ module "api" {
   integration_internal_gateway_hostname = module.integration.integration_gateway_hostname
   platform_service_account_email        = google_service_account.platform.email
   acs_public_integration_base_url       = var.acs_public_integration_base_url
+  acs_callback_bridge_secret            = var.acs_callback_bridge_secret
+  acs_oauth_state_secret                = var.acs_oauth_state_secret
   providers = {
     google      = google
     google-beta = google-beta

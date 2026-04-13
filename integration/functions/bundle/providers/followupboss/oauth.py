@@ -18,6 +18,8 @@ from store.profile_repo import (
 )
 from store.secret_repo import get_secret, put_secret
 
+import bridge_token
+
 _STATE_RE = re.compile(r"^[a-zA-Z0-9._-]{8,512}$")
 
 
@@ -262,6 +264,20 @@ def oauth_callback(request):
     uid, nonce, state_ok = _state_parse(state)
     if not uid or not nonce or not state_ok:
         return json_response({"error": "invalid state", "phase": "oauth_state_parse"}, 401)
+
+    if bridge_token.bridge_secret_configured():
+        bc = bridge_token.verify_callback_bridge_token(request)
+        if bc is None:
+            return json_response(
+                {
+                    "error": "missing or invalid callback bridge token",
+                    "phase": "oauth_bridge",
+                    "hint": "OAuth callback must be invoked via the public API callback URL.",
+                },
+                401,
+            )
+        if bc.get("sub") != uid or bc.get("state") != state:
+            return json_response({"error": "bridge token mismatch", "phase": "oauth_bridge"}, 401)
 
     _, fub = load_fub_profile_by_connection_id(uid)
     if fub is None:

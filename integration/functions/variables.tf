@@ -71,6 +71,13 @@ variable "acs_oauth_state_secret" {
   default     = ""
 }
 
+variable "acs_callback_bridge_secret" {
+  type        = string
+  sensitive   = true
+  description = "HS256 secret for verifying X-ACS-Callback-Bridge-Token on oauth/callback."
+  default     = ""
+}
+
 variable "browser_cors_origins" {
   type        = string
   default     = ""
