@@ -636,9 +636,19 @@ def list_registered_webhooks(request):
                 "httpStatus": 503,
                 "error": "fub_credentials_unavailable",
                 "detail": "Access token and API key could not be loaded from secret storage.",
+                "accessTokenRefPresent": True,
+                "apiKeyRefPresent": bool(isinstance(api_key_ref, str) and bool(api_key_ref.strip())),
+                "likelyCause": (
+                    "acs-sec:// reads use the same platform OIDC token as writes. If integration-bridge env "
+                    "SECRETS_INTERNAL_JWT_AUDIENCE is wrong or unset, secrets-bridge returns 401 and get_secret "
+                    "returns empty — not a missing FUB token."
+                ),
                 "todo": (
-                    "Verify secrets internal gateway (OIDC audience), acs-sec reads for this uid, or reconnect OAuth. "
-                    "Calling FUB without credentials produces generic 401 from their API."
+                    "Apply terraform so integration-bridge gets SECRETS_INTERNAL_JWT_AUDIENCE = secrets-bridge "
+                    "Cloud Function URL (output secrets_bridge_invoker_audience). Redeploy integration-bridge. "
+                    "Confirm secrets-bridge accepts that audience (ACS_SECRETS_GATEWAY_HOSTNAME / platform_auth). "
+                    "Then gcloud logging read stderr for integration-bridge should stop showing "
+                    "'invalid platform identity token' on secrets read/write."
                 ),
             },
             503,
