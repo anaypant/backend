@@ -1,4 +1,5 @@
-"""Optional end-user Firebase token for core workflows."""
+"""Headers for core runner (optional user propagation)."""
 
+APPLICATION_AUTHORIZATION_HEADER = "X-ACS-Application-Authorization"
 USER_AUTHORIZATION_HEADER = "X-ACS-User-Authorization"
-USER_JWT_HEADER = USER_AUTHORIZATION_HEADER
+USER_JWT_HEADER = APPLICATION_AUTHORIZATION_HEADER

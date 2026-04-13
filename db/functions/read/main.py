@@ -114,13 +114,14 @@ def main(request):
     Returns a Firestore document as JSON after authz.
 
     Headers:
-        Authorization: Bearer <Firebase ID token>
+        Authorization: Bearer <Google OIDC> (transport)
+        X-ACS-Application-Authorization: Bearer <Firebase ID token> (legacy: X-ACS-User-Authorization)
 
     JSON body:
         path (str): slash-separated path from root collection to leaf document, e.g.
             "People/abc" or "Organizations/org1/Realtors/r1"
 
-    Authorization:
+    Authz:
         - Firebase custom claim admin: true, or role == "admin", or
         - Document field ownerUid or createdBy equals the token uid.
 

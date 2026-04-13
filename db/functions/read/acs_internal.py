@@ -1,27 +1,31 @@
 """ACS end-user identity for HTTP handlers.
 
-**Public API:** clients send ``Authorization: Bearer <Firebase ID token>``. ESP validates at the
-gateway and forwards claims as ``X-Endpoint-API-UserInfo``.
+**Internal contract:** ``Authorization`` = Google OIDC (transport). ``X-ACS-Application-Authorization``
+= Firebase (or future ACS) JWT for application identity.
 
-**Internal service calls:** send Firebase in ``Authorization`` and Google ID token (invoker) in
-``X-GCP-Identity``. Legacy: ``X-ACS-User-Authorization`` may carry the Firebase token if
-``Authorization`` is reserved for OIDC.
+**Legacy:** ``X-ACS-User-Authorization`` (same as application JWT). ``X-GCP-Identity`` for OIDC
+invoker (deprecated; prefer ``Authorization`` for OIDC on new callers).
+
+**Public API:** clients may send Firebase in ``Authorization`` at the public gateway; ESP validates
+and may set ``X-Endpoint-API-UserInfo``.
 """
 
 import base64
 import binascii
 import json
 
+APPLICATION_AUTHORIZATION_HEADER = "X-ACS-Application-Authorization"
 USER_AUTHORIZATION_HEADER = "X-ACS-User-Authorization"
-USER_JWT_HEADER = USER_AUTHORIZATION_HEADER
+USER_JWT_HEADER = APPLICATION_AUTHORIZATION_HEADER
 
 GCP_INFRA_IDENTITY_HEADER = "X-GCP-Identity"
 
 ENDPOINT_USER_INFO_HEADER = "X-Endpoint-API-UserInfo"
 
 END_USER_BEARER_HEADER_ORDER = (
-    "Authorization",
+    APPLICATION_AUTHORIZATION_HEADER,
     USER_AUTHORIZATION_HEADER,
+    "Authorization",
 )
 
 

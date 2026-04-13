@@ -45,7 +45,8 @@ def cors_preflight_response(request) -> tuple[str, int, dict[str, str]] | None:
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": ", ".join(sorted(methods)),
         "Access-Control-Allow-Headers": (
-            "Authorization, Content-Type, X-ACS-User-Authorization, X-Requested-With"
+            "Authorization, Content-Type, X-ACS-Application-Authorization, "
+            "X-ACS-User-Authorization, X-Requested-With"
         ),
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin",

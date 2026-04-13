@@ -40,7 +40,7 @@ def _bearer_from_header(request, header_name: str) -> str | None:
 def try_platform_actor(request):
     """
     If X-ACS-Acting-Uid is set, require Google OIDC (platform SA) on X-ACS-Platform-Authorization,
-    X-GCP-Identity, or Authorization (fallback).
+    Authorization, or X-GCP-Identity (legacy).
     Returns (decoded_dict, None) on success, or (None, (error_body, status)) on failure.
     If acting header absent, returns (None, None) to continue Firebase path.
     """
@@ -58,8 +58,8 @@ def try_platform_actor(request):
 
     token = (
         _bearer_from_header(request, HEADER_PLATFORM_AUTH)
-        or _bearer_from_header(request, HEADER_GCP_INFRA_IDENTITY)
         or _bearer_from_header(request, "Authorization")
+        or _bearer_from_header(request, HEADER_GCP_INFRA_IDENTITY)
     )
     if not token:
         return None, ({"error": "missing platform bearer token"}, 401)

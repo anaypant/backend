@@ -35,8 +35,8 @@ def resolve_realtor_bearer(request) -> tuple[dict | None, str | None, str | None
     Identity: (1) ESP-validated Firebase claims in X-Endpoint-API-UserInfo (public gateway), or
     (2) verify Bearer tokens in END_USER_BEARER_HEADER_ORDER (see acs_internal).
 
-    Public clients send Authorization: Bearer <Firebase>. Internal hops may use the same pattern with
-    X-GCP-Identity for Google OIDC (see acs_internal).
+    Public clients send Authorization: Bearer <Firebase>.     Internal hops use ``Authorization`` for Google OIDC and
+    ``X-ACS-Application-Authorization`` for the Firebase JWT (see acs_internal).
 
     Returns (decoded_claims, error, id_token) — id_token set only for path (2).
 

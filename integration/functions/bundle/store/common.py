@@ -22,7 +22,7 @@ def integration_auth_error_response(err: str):
     hints = {
         "missing bearer token": (
             "Send Authorization: Bearer <Firebase ID token> on the public API. "
-            "Internal hops use Authorization for Firebase and X-GCP-Identity for Google OIDC (invoker)."
+            "Internal hops use Authorization for Google OIDC and X-ACS-Application-Authorization for the Firebase JWT."
         ),
         "invalid token": "ID token failed verification (wrong project, malformed, or not a Firebase auth token).",
         "token expired": "Refresh the Firebase session and retry with a new ID token.",
@@ -68,10 +68,8 @@ def post_json(url: str, payload: dict, *, user_jwt: str | None = None, headers: 
     body = json.dumps(payload).encode("utf-8")
     req_headers = {"Content-Type": "application/json"}
     if user_jwt:
-        req_headers["Authorization"] = f"Bearer {user_jwt}"
-        req_headers[acs.GCP_INFRA_IDENTITY_HEADER] = (
-            f"Bearer {gcp_identity.id_token_for_db_gateway()}"
-        )
+        req_headers["Authorization"] = f"Bearer {gcp_identity.id_token_for_db_gateway()}"
+        req_headers[acs.APPLICATION_AUTHORIZATION_HEADER] = f"Bearer {user_jwt}"
     if headers:
         req_headers.update(headers)
     req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)
@@ -85,6 +83,7 @@ def post_json_platform(url: str, payload: dict, *, acting_uid: str, timeout: int
     req_headers = {
         "Content-Type": "application/json",
         HEADER_ACTING: acting_uid,
+        "Authorization": f"Bearer {token}",
         f"{HEADER_PLATFORM_AUTH}": f"Bearer {token}",
     }
     req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)
@@ -98,6 +97,7 @@ def post_json_secrets_platform(url: str, payload: dict, *, acting_uid: str, time
     req_headers = {
         "Content-Type": "application/json",
         HEADER_ACTING: acting_uid,
+        "Authorization": f"Bearer {token}",
         HEADER_PLATFORM_AUTH: f"Bearer {token}",
     }
     req = urllib.request.Request(url, data=body, method="POST", headers=req_headers)

@@ -35,7 +35,7 @@ def test_gateway_user_info_forbidden():
 def test_fallback_authorization_first_then_legacy_user_header():
     req = _Req(
         {
-            "X-ACS-User-Authorization": "Bearer firebase-token",
+            "X-ACS-Application-Authorization": "Bearer firebase-token",
             "Authorization": "Bearer google-oidc",
         }
     )

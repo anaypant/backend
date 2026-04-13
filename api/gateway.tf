@@ -11,6 +11,20 @@ locals {
   auth_internal_base        = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
   integration_internal_base = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
 
+  # Routes where OpenAPI `security` is empty: no Firebase / application JWT required at the public edge.
+  # Keep in sync with `paths` below (operations using security: []).
+  public_routes_no_application_jwt = [
+    "GET /health",
+    "POST /auth/realtor/signup",
+    "POST /auth/realtor/login",
+    "POST /auth/internal/signup",
+    "POST /auth/internal/login",
+    "POST /integrations/webhooks/followupboss",
+    "GET /integrations/followupboss/oauth/start",
+    "OPTIONS /integrations/followupboss/oauth/start",
+    "GET /integrations/followupboss/oauth/callback",
+  ]
+
   # Firebase Auth JWT validated at public ESP; payload forwarded as X-Endpoint-API-UserInfo to backends.
   firebase_security_definitions = {
     firebase = {

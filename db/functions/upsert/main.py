@@ -120,14 +120,15 @@ def main(request):
     Creates or updates (merge) a Firestore document.
 
     Headers:
-        Authorization: Bearer <Firebase ID token>
+        Authorization: Bearer <Google OIDC> (transport)
+        X-ACS-Application-Authorization: Bearer <Firebase ID token> (application identity; legacy: X-ACS-User-Authorization)
 
     JSON body:
         path (str): slash-separated path to the document (same as read/delete).
         data (object): fields to write. For merge updates, shallow-merged with existing data.
         merge (bool, optional): passed to Firestore set(); default true (upsert / partial update).
 
-    Authorization:
+    Authz (after identity resolved):
         - Document does not exist: admin, or payload ownerUid/createdBy (when present) must
           both equal the caller uid; missing owner fields default to caller on write.
         - Document exists: admin, or existing ownerUid/createdBy matches caller uid.

@@ -174,7 +174,8 @@ def main(request):
     Query documents in a collection (Firestore Query).
 
     Headers:
-        Authorization: Bearer <Firebase ID token>
+        Authorization: Bearer <Google OIDC> (transport)
+        X-ACS-Application-Authorization: Bearer <Firebase ID token> (legacy: X-ACS-User-Authorization)
 
     JSON body:
         path (str): collection path (odd segments), e.g. "People" or "Organizations/org1/Realtors"

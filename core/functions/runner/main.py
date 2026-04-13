@@ -36,7 +36,9 @@ def main(request):
         return _json_response({"error": "workflow_id must be a string when provided"}, 400)
 
     # Optional: propagate user for future rate limits (header may be absent for internal jobs).
-    _user_hdr = request.headers.get(acs.USER_JWT_HEADER) or ""
+    _user_hdr = request.headers.get(acs.USER_JWT_HEADER) or request.headers.get(
+        acs.USER_AUTHORIZATION_HEADER
+    ) or ""
 
     correlation = state.get("correlation_id") or str(uuid.uuid4())
     out_state = dict(state)
