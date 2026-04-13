@@ -136,4 +136,5 @@ def main(request):
         return _json_response({"error": "forbidden"}, 403)
 
     doc_ref.delete()
-    return ("", 204)
+    # Use 200 + JSON like read/upsert — empty 204 responses often break API Gateway / Next proxies.
+    return _json_response({"path": doc_ref.path, "deleted": True}, 200)
