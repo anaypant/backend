@@ -37,6 +37,11 @@ fub_x_system_key = "2b615f84728548771e7b4dd45277852e"
 # After first apply: terraform output public_gateway_base_url — set this (and HCP) to that value exactly for zero drift (enforced on gateway).
 acs_public_integration_base_url = ""
 
+# If integration-bridge still cannot read acs-sec secrets (503 fub_credentials_unavailable), set this in HCP too:
+#   terraform output -raw secrets_bridge_invoker_audience
+# Paste the full https URL (no trailing slash). Leave empty to use the computed value from module.secrets.
+# secrets_internal_jwt_audience_override = ""
+
 #  generate (e.g. openssl rand -hex 32) and set in HCP as sensitive.
 acs_oauth_state_secret = ""
 

@@ -18,6 +18,12 @@ variable "secrets_internal_gateway_hostname" {
   description = "Internal secrets API Gateway hostname (no scheme). When non-empty, must match terraform output secrets_gateway_hostname (plan check in secrets module)."
 }
 
+variable "secrets_internal_jwt_audience_override" {
+  type        = string
+  default     = ""
+  description = "Optional. When set, used as SECRETS_INTERNAL_JWT_AUDIENCE on integration-bridge instead of module.secrets output (paste from: terraform output -raw secrets_bridge_invoker_audience). Must match that URL after trim/lowercase; plan fails otherwise (check block secrets_internal_jwt_audience_matches_secrets_bridge)."
+}
+
 variable "dev_project_id" {
   type = string
 }

@@ -1,7 +1,17 @@
 import os
+from typing import Any
 
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token as oauth_id_token
+
+
+class SecretsOidcConfigError(Exception):
+    """Raised when SECRETS_INTERNAL_JWT_AUDIENCE is missing; carries HTTP JSON for handle_request."""
+
+    def __init__(self, payload: dict[str, Any], *, http_status: int = 503):
+        super().__init__(str(payload.get("error", "secrets_oidc")))
+        self.payload = payload
+        self.http_status = http_status
 
 
 def normalize_internal_gateway_hostname(raw: str) -> str:
@@ -39,15 +49,28 @@ def id_token_for_secrets_gateway() -> str:
     """
     Google ID token for calling the internal secrets API Gateway.
 
-    The gateway's x-google-backend `jwt_audience` is the **secrets-bridge Cloud Function URL**, not the
-    gateway hostname. `fetch_id_token` must use that same audience or the gateway rejects the request.
+    Audience **must** be ``SECRETS_INTERNAL_JWT_AUDIENCE`` (secrets-bridge Cloud Function URL, matching API Gateway
+    ``jwt_audience``). There is **no** fallback to ``SECRETS_INTERNAL_GATEWAY_HOSTNAME`` — minting for ``*.gateway.dev``
+    is rejected by secrets-bridge.
     """
     aud = (os.environ.get("SECRETS_INTERNAL_JWT_AUDIENCE") or "").strip().rstrip("/")
     if aud:
         return oauth_id_token.fetch_id_token(Request(), aud)
-    host = normalize_internal_gateway_hostname(os.environ.get("SECRETS_INTERNAL_GATEWAY_HOSTNAME") or "")
-    if not host:
-        raise RuntimeError(
-            "SECRETS_INTERNAL_JWT_AUDIENCE (preferred) or SECRETS_INTERNAL_GATEWAY_HOSTNAME must be set"
-        )
-    return oauth_id_token.fetch_id_token(Request(), f"https://{host}")
+
+    gw_host = (os.environ.get("SECRETS_INTERNAL_GATEWAY_HOSTNAME") or "").strip() or None
+    raise SecretsOidcConfigError(
+        {
+            "error": "secrets_oidc_audience_not_configured",
+            "phase": "secrets_platform_oidc",
+            "detail": (
+                "SECRETS_INTERNAL_JWT_AUDIENCE is unset or empty; OIDC for acs-sec:// cannot be minted. "
+                "Hostname-based minting is not supported (wrong aud for secrets-bridge)."
+            ),
+            "secretsInternalGatewayHostname": gw_host,
+            "todo": (
+                "Set SECRETS_INTERNAL_JWT_AUDIENCE on integration-bridge to the secrets-bridge Cloud Function URL "
+                "(no trailing slash), e.g. terraform output -raw secrets_bridge_invoker_audience, then redeploy."
+            ),
+        },
+        http_status=503,
+    )

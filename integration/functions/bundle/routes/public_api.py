@@ -1,6 +1,7 @@
 from providers.provider_registry import PROVIDER_REGISTRY
 from store.browser_cors import cors_preflight_response, merge_cors_for_oauth_start_get
 from store.common import json_response
+from store.gcp_identity import SecretsOidcConfigError
 
 
 ROUTES = {
@@ -45,5 +46,8 @@ def handle_request(request):
     handler = getattr(provider, handler_name, None)
     if handler is None:
         return json_response({"error": "handler not implemented"}, 500)
-    out = handler(request)
+    try:
+        out = handler(request)
+    except SecretsOidcConfigError as e:
+        out = json_response(e.payload, e.http_status)
     return merge_cors_for_oauth_start_get(request, out)

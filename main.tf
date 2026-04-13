@@ -25,6 +25,16 @@ locals {
   _db_gw_after_http                       = local._db_gw_after_https != "" && startswith(lower(local._db_gw_after_https), "http://") ? trimspace(trim(substr(local._db_gw_after_https, 7, length(local._db_gw_after_https) - 7), "/")) : local._db_gw_after_https
   _db_gw_host_only                        = local._db_gw_after_http != "" ? split("/", local._db_gw_after_http)[0] : ""
   db_internal_gateway_hostname_normalized = local._db_gw_raw == "" ? "" : local._db_gw_host_only
+
+  # OIDC audience for calling secrets via the internal gateway must be the secrets-bridge function URL.
+  _secrets_bridge_invoker_audience = nonsensitive(module.secrets.secrets_bridge_invoker_audience)
+  secrets_internal_jwt_audience_effective = (
+    trimspace(var.secrets_internal_jwt_audience_override) != ""
+    ? trimspace(var.secrets_internal_jwt_audience_override)
+    : local._secrets_bridge_invoker_audience
+  )
+  secrets_jwt_aud_norm_effective = lower(trimspace(trimsuffix(local.secrets_internal_jwt_audience_effective, "/")))
+  secrets_jwt_aud_norm_bridge    = lower(trimspace(trimsuffix(local._secrets_bridge_invoker_audience, "/")))
 }
 
 provider "google" {
@@ -111,12 +121,26 @@ module "integration" {
   # Nonsensitive: hostname is not secret; avoids Google provider "inconsistent sensitive" on
   # integration function env when this value is (known after apply) on first full stack apply.
   secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
-  secrets_internal_jwt_audience     = nonsensitive(module.secrets.secrets_bridge_invoker_audience)
+  secrets_internal_jwt_audience     = local.secrets_internal_jwt_audience_effective
   providers = {
     google      = google
     google-beta = google-beta
   }
   depends_on = [google_project_service.gcp, module.db, module.core, module.secrets, google_service_account.platform]
+}
+
+check "secrets_internal_jwt_audience_matches_secrets_bridge" {
+  assert {
+    condition = local.secrets_jwt_aud_norm_effective == local.secrets_jwt_aud_norm_bridge
+    error_message = join(" ", [
+      "SECRETS_INTERNAL_JWT_AUDIENCE must match the deployed secrets-bridge Cloud Function URL.",
+      "Use: terraform output -raw secrets_bridge_invoker_audience",
+      "or clear secrets_internal_jwt_audience_override so Terraform uses that output.",
+      "Compare (normalized):",
+      "effective=${local.secrets_jwt_aud_norm_effective}",
+      "bridge=${local.secrets_jwt_aud_norm_bridge}",
+    ])
+  }
 }
 
 module "api" {
