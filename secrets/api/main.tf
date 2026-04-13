@@ -20,10 +20,10 @@ locals {
   health_path = {
     "/health" = {
       get = {
-        summary         = "Placeholder health"
-        operationId     = "health"
-        produces        = ["application/json"]
-        security        = []
+        summary     = "Placeholder health"
+        operationId = "health"
+        produces    = ["application/json"]
+        security    = []
         "x-google-backend" = {
           address          = "https://www.googleapis.com/discovery/v1/apis"
           path_translation = "CONSTANT_ADDRESS"

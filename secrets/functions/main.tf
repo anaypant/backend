@@ -53,11 +53,16 @@ resource "google_cloudfunctions2_function" "bridge" {
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email
-    environment_variables = {
-      GCP_PROJECT                        = var.project_id
-      GOOGLE_CLOUD_PROJECT                = var.project_id
-      ACS_PLATFORM_SERVICE_ACCOUNT_EMAIL = var.backend_service_account_email
-    }
+    environment_variables = merge(
+      {
+        GCP_PROJECT                        = var.project_id
+        GOOGLE_CLOUD_PROJECT               = var.project_id
+        ACS_PLATFORM_SERVICE_ACCOUNT_EMAIL = var.backend_service_account_email
+      },
+      var.secrets_internal_gateway_hostname != "" ? {
+        ACS_SECRETS_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
+      } : {},
+    )
   }
 }
 

@@ -18,6 +18,14 @@ from store.profile_repo import (
 )
 from store.secret_repo import get_secret, put_secret
 
+
+def _put_fub_secret(reference_id: str, value: str) -> tuple[str | None, str | None]:
+    """Persist a FUB credential; returns (ref, None) or (None, error_message)."""
+    try:
+        return put_secret(reference_id, value), None
+    except (RuntimeError, ValueError) as e:
+        return None, str(e)
+
 import bridge_token
 
 _STATE_RE = re.compile(r"^[a-zA-Z0-9._-]{8,512}$")
@@ -336,10 +344,20 @@ def oauth_callback(request):
     if not isinstance(access_token, str) or not access_token:
         return json_response({"error": "invalid token response", "detail": token_body}, 502)
 
-    access_ref = put_secret(f"fub-access-{uid}", access_token)
+    access_ref, access_err = _put_fub_secret(f"fub-access-{uid}", access_token)
+    if access_err:
+        return json_response(
+            {"error": "secret_persist_failed", "phase": "oauth_access_token", "detail": access_err},
+            502,
+        )
     refresh_ref = None
     if isinstance(refresh_token, str) and refresh_token:
-        refresh_ref = put_secret(f"fub-refresh-{uid}", refresh_token)
+        refresh_ref, refresh_err = _put_fub_secret(f"fub-refresh-{uid}", refresh_token)
+        if refresh_err:
+            return json_response(
+                {"error": "secret_persist_failed", "phase": "oauth_refresh_token", "detail": refresh_err},
+                502,
+            )
 
     auth_block = dict(fub.get("auth") or {})
     auth_block["oauthPending"] = None
@@ -409,10 +427,22 @@ def refresh(request):
 
     new_access = body.get("access_token")
     if isinstance(new_access, str) and new_access:
-        auth_block["accessTokenRef"] = put_secret(f"fub-access-{uid}", new_access)
+        ref, err = _put_fub_secret(f"fub-access-{uid}", new_access)
+        if err:
+            return json_response(
+                {"error": "secret_persist_failed", "phase": "access_token", "detail": err},
+                502,
+            )
+        auth_block["accessTokenRef"] = ref
     new_refresh = body.get("refresh_token")
     if isinstance(new_refresh, str) and new_refresh:
-        auth_block["refreshTokenRef"] = put_secret(f"fub-refresh-{uid}", new_refresh)
+        ref, err = _put_fub_secret(f"fub-refresh-{uid}", new_refresh)
+        if err:
+            return json_response(
+                {"error": "secret_persist_failed", "phase": "refresh_token", "detail": err},
+                502,
+            )
+        auth_block["refreshTokenRef"] = ref
 
     auth_block["expiresAtEpoch"] = now_epoch() + int(body.get("expires_in") or 3600)
     fub["auth"] = auth_block
