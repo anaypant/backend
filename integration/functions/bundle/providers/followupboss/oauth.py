@@ -104,15 +104,18 @@ def _resolve_authorize_url(state: str, callback_url: str) -> tuple[str | None, d
     client_id = (os.environ.get("FUB_OAUTH_CLIENT_ID") or "").strip()
     if not base:
         return None, {"error": "oauth_authorize_not_configured", "todo": "Set FUB_OAUTH_AUTHORIZE_URL"}
-    # TODO: confirm exact Follow Up Boss scope and response parameters for your registered app.
+    # https://docs.followupboss.com/docs/oauth-authentication-and-authorization — response_type=auth_code (not "code")
     params = [
         f"state={urllib.parse.quote(state, safe='')}",
         f"redirect_uri={urllib.parse.quote(callback_url, safe='')}",
     ]
     if client_id:
-        params.append(f"client_id={client_id}")
-    if "response_type=" not in base:
-        params.append("response_type=code")
+        params.append(f"client_id={urllib.parse.quote(client_id, safe='')}")
+    base_lower = base.lower()
+    if "response_type=" not in base_lower:
+        params.append("response_type=auth_code")
+    if "prompt=" not in base_lower:
+        params.append("prompt=login")
     sep = "&" if "?" in base else "?"
     return base + sep + "&".join(params), None
 
@@ -338,9 +341,9 @@ def oauth_callback(request):
     if token_status >= 400:
         return json_response({"error": "token_exchange_failed", "detail": token_body}, 502 if token_status >= 500 else token_status)
 
-    access_token = token_body.get("access_token")
-    refresh_token = token_body.get("refresh_token")
-    expires_in = token_body.get("expires_in")
+    access_token = token_body.get("access_token") or token_body.get("accessToken")
+    refresh_token = token_body.get("refresh_token") or token_body.get("refreshToken")
+    expires_in = token_body.get("expires_in") or token_body.get("expiresIn")
     if not isinstance(access_token, str) or not access_token:
         return json_response({"error": "invalid token response", "detail": token_body}, 502)
 
@@ -392,7 +395,16 @@ def oauth_callback(request):
     fub["audit"]["lastOauthCallbackAtEpoch"] = now_epoch()
     save_fub_profile_by_connection_id(uid, fub)
 
-    return json_response({"ok": True, "uid": uid, "state": state, "webhooks": webhook_sync}, 200 if sync_status in (200, 207) else 207)
+    payload: dict = {"ok": True, "uid": uid, "state": state, "webhooks": webhook_sync}
+    if not (isinstance(refresh_token, str) and refresh_token):
+        payload["warning"] = {
+            "code": "no_refresh_token_in_exchange",
+            "todo": (
+                "POST /integrations/followupboss/refresh will not work without a stored refresh token. "
+                "Reconnect OAuth; ensure authorize URL uses response_type=auth_code per FUB docs."
+            ),
+        }
+    return json_response(payload, 200 if sync_status in (200, 207) else 207)
 
 
 def refresh(request):
@@ -411,12 +423,25 @@ def refresh(request):
 
     auth_block = dict(fub.get("auth") or {})
     refresh_ref = auth_block.get("refreshTokenRef")
-    refresh_token = get_secret(refresh_ref or "", acting_uid=uid)
+    if not isinstance(refresh_ref, str) or not refresh_ref.strip():
+        return json_response(
+            {
+                "error": "refresh_token_ref_missing",
+                "todo": (
+                    "No refreshTokenRef on the realtor profile (OAuth exchange may not have returned refresh_token, "
+                    "or connect predates refresh storage). Disconnect and reconnect with authorize URL using "
+                    "response_type=auth_code per Follow Up Boss docs."
+                ),
+            },
+            400,
+        )
+    refresh_token = get_secret(refresh_ref, acting_uid=uid)
     if not refresh_token:
         return json_response(
             {
-                "error": "refresh token missing",
-                "todo": "Reconnect account to obtain refresh token or ensure secret ref exists.",
+                "error": "refresh_token_secret_unreadable",
+                "detail": "refreshTokenRef is set but the secret value is empty or could not be read for this uid.",
+                "todo": "Verify secrets internal gateway + acs-sec scope for this realtor, or reconnect OAuth.",
             },
             400,
         )
@@ -472,6 +497,9 @@ def connection_status(request):
     conn = dict(fub.get("connection") or {})
     st = conn.get("status")
     integrated = _fub_is_integrated(fub)
+    auth_block = dict(fub.get("auth") or {})
+    rr = auth_block.get("refreshTokenRef")
+    ar = auth_block.get("accessTokenRef")
     return json_response(
         {
             "ok": True,
@@ -481,6 +509,8 @@ def connection_status(request):
             "canOauthStart": not integrated,
             "oauthStartPath": "/integrations/followupboss/oauth/start",
             "disconnectPath": "/integrations/followupboss/disconnect",
+            "hasAccessTokenRef": isinstance(ar, str) and bool(ar.strip()),
+            "hasRefreshTokenRef": isinstance(rr, str) and bool(rr.strip()),
         },
         200,
     )
@@ -593,6 +623,26 @@ def list_registered_webhooks(request):
     access_ref = auth_block.get("accessTokenRef")
     if not isinstance(access_ref, str) or not access_ref:
         return json_response({"error": "access token ref missing", "todo": "Complete OAuth connect first."}, 400)
+
+    api_key_ref = auth_block.get("apiKeyRef")
+    access_plain = get_secret(access_ref, acting_uid=uid)
+    api_plain = (
+        get_secret(api_key_ref, acting_uid=uid) if isinstance(api_key_ref, str) and api_key_ref else None
+    )
+    if not access_plain and not api_plain:
+        return json_response(
+            {
+                "ok": False,
+                "httpStatus": 503,
+                "error": "fub_credentials_unavailable",
+                "detail": "Access token and API key could not be loaded from secret storage.",
+                "todo": (
+                    "Verify secrets internal gateway (OIDC audience), acs-sec reads for this uid, or reconnect OAuth. "
+                    "Calling FUB without credentials produces generic 401 from their API."
+                ),
+            },
+            503,
+        )
 
     raw, st = FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid).list_webhooks()
     return json_response({"ok": st < 400, "httpStatus": st, "fub": raw}, 200 if st < 400 else st)

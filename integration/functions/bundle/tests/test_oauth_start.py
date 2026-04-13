@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -96,6 +97,24 @@ class OauthStartTest(unittest.TestCase):
         p = json.loads(body)
         self.assertEqual(p.get("phase"), "integration_auth")
         self.assertIn("hint", p)
+
+    @patch.dict(
+        os.environ,
+        {
+            "FUB_OAUTH_AUTHORIZE_URL": "https://app.followupboss.com/oauth/authorize",
+            "FUB_OAUTH_CLIENT_ID": "my-client-id",
+        },
+        clear=False,
+    )
+    def test_resolve_authorize_url_uses_fub_auth_code_and_prompt(self):
+        url, err = oauth._resolve_authorize_url("state-1", "https://example.com/oauth/cb")
+        self.assertIsNone(err)
+        self.assertIsNotNone(url)
+        assert url
+        self.assertIn("response_type=auth_code", url)
+        self.assertIn("prompt=login", url)
+        self.assertNotIn("response_type=code", url)
+        self.assertIn("client_id=my-client-id", url)
 
 
 if __name__ == "__main__":
