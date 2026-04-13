@@ -61,6 +61,37 @@ locals {
         }
       }
     }
+    "/integrations/followupboss/status" = {
+      options = {
+        summary            = "CORS preflight for connection status"
+        operationId        = "integrations_followupboss_status_options"
+        consumes           = ["text/plain"]
+        produces           = ["text/plain"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
+      get = {
+        summary            = "Integration followupboss/status (connection flags)"
+        operationId        = "integrations_followupboss_status"
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
     "/integrations/followupboss/oauth/start" = {
       options = {
         summary            = "CORS preflight for oauth/start"
@@ -87,6 +118,7 @@ locals {
           "403" = { description = "Forbidden" }
           "404" = { description = "Not found" }
           "405" = { description = "Method not allowed" }
+          "409" = { description = "Conflict (e.g. already connected)" }
           "501" = { description = "Not implemented" }
           "503" = { description = "Unavailable" }
         }
