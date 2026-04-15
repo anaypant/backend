@@ -36,7 +36,7 @@ locals {
   core_paths = {
     "/core/v1/run" = {
       post = {
-        summary     = "Run ACS workflow (stub)"
+        summary     = "Run ACS workflow (LangGraph)"
         operationId = "core_run"
         consumes    = ["application/json"]
         produces    = ["application/json"]

@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acs.local/contracts/tool_invocation.v1.json",
+  "title": "ToolInvocationV1",
+  "type": "object",
+  "required": ["tool", "args"],
+  "additionalProperties": false,
+  "properties": {
+    "tool": { "type": "string", "minLength": 1 },
+    "args": { "type": "object" }
+  }
+}

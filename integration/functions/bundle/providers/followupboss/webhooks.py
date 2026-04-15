@@ -28,8 +28,17 @@ def _signature_ok(raw_body: bytes, header_sig: str | None, x_system_key: str) ->
     return hmac.compare_digest(expected, header_sig.strip())
 
 
-def _process_webhook_event(connection_id: str, fub: dict, event_body: dict):
-    """Shared pipeline after signature (ingress) or Firebase auth (test)."""
+def _process_webhook_event(
+    connection_id: str,
+    fub: dict,
+    event_body: dict,
+    *,
+    workflow_id: str | None = None,
+):
+    """Shared pipeline after signature (ingress) or Firebase auth (test).
+
+    Optional ``workflow_id`` query param (e.g. ``demo.joke_to_profile_v1``) is forwarded to core for testing.
+    """
     auth = dict(fub.get("auth") or {})
 
     event_id = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
@@ -38,7 +47,7 @@ def _process_webhook_event(connection_id: str, fub: dict, event_body: dict):
         return json_response({"ok": True, "duplicate": True, "eventId": event_id}, 200)
 
     state = _to_acs_state(event_body, connection_id)
-    core_body, core_status = send_state_to_core(state)
+    core_body, core_status = send_state_to_core(state, workflow_id=workflow_id)
     if core_status >= 400:
         update_event_status(connection_id, event_id, "core_error", core_body)
         return json_response({"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}, 200)
@@ -110,7 +119,8 @@ def webhook_ingress(request):
     if not isinstance(event_body, dict):
         return json_response({"error": "JSON object body required"}, 400)
 
-    return _process_webhook_event(connection_id, fub, event_body)
+    wf = (request.args.get("workflowId") or request.args.get("workflow_id") or "").strip()
+    return _process_webhook_event(connection_id, fub, event_body, workflow_id=wf or None)
 
 
 def webhook_test(request):
@@ -132,4 +142,5 @@ def webhook_test(request):
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
 
-    return _process_webhook_event(uid, fub, event_body)
+    wf = (request.args.get("workflowId") or request.args.get("workflow_id") or "").strip()
+    return _process_webhook_event(uid, fub, event_body, workflow_id=wf or None)

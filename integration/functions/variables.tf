@@ -93,3 +93,18 @@ variable "secrets_internal_jwt_audience" {
   type        = string
   description = "OIDC audience for secrets internal API (secrets-bridge URL); SECRETS_INTERNAL_JWT_AUDIENCE on the bridge."
 }
+
+variable "fub_webhook_sync_worker_url" {
+  type        = string
+  default     = ""
+  description = <<-EOT
+    HTTPS origin of integration-bridge (Cloud Run / Functions Gen2 URL), no trailing slash.
+    Required for deferred FUB webhook registration via Cloud Tasks. Use module output bridge_function.url
+    after the first deploy, then set this and re-apply. Leave empty to run webhook sync inline during OAuth.
+  EOT
+}
+
+variable "events_internal_gateway_hostname" {
+  type        = string
+  description = "acs-events-internal gateway hostname (no scheme); EVENTS_INTERNAL_GATEWAY_HOSTNAME on integration-bridge."
+}

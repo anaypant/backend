@@ -9,6 +9,13 @@ from providers.followupboss.client import FubClient
 from providers.followupboss.constants import ALL_WEBHOOK_EVENTS
 from store.authn import resolve_realtor_bearer
 from store.common import integration_auth_error_response, json_response, now_epoch, public_integration_base_url
+from store.domain_events import (
+    emit_followupboss_disconnected,
+    emit_followupboss_oauth_connected,
+    emit_followupboss_webhooks_resynced,
+    emit_followupboss_webhooks_sync_completed,
+)
+from store.internal_worker_auth import verify_cloud_tasks_caller
 from store.profile_repo import (
     delete_followupboss_event_ledger_for_uid,
     fub_config_from_profile,
@@ -18,6 +25,7 @@ from store.profile_repo import (
     save_fub_profile_by_connection_id,
 )
 from store.secret_repo import get_secret, put_secret
+from store.webhook_sync_tasks import enqueue_fub_webhook_sync
 
 
 def _put_fub_secret(reference_id: str, value: str) -> tuple[str | None, str | None]:
@@ -121,6 +129,29 @@ def _resolve_authorize_url(state: str, callback_url: str) -> tuple[str | None, d
     return base + sep + "&".join(params), None
 
 
+def _fub_callback_url_matches(stored: str, expected: str) -> bool:
+    """
+    FUB may return webhook URLs with different encoding or query ordering than we build locally.
+    Compare scheme, host, path, and query parameters (sorted) so list/delete/sync match reliably.
+    """
+    try:
+        a = urllib.parse.urlparse((stored or "").strip())
+        b = urllib.parse.urlparse((expected or "").strip())
+        if a.scheme.lower() != b.scheme.lower():
+            return False
+        if a.netloc.lower() != b.netloc.lower():
+            return False
+        pa = (a.path or "/").rstrip("/") or "/"
+        pb = (b.path or "/").rstrip("/") or "/"
+        if pa != pb:
+            return False
+        qa = urllib.parse.parse_qsl(a.query, keep_blank_values=True)
+        qb = urllib.parse.parse_qsl(b.query, keep_blank_values=True)
+        return sorted(qa) == sorted(qb)
+    except Exception:
+        return False
+
+
 def _ensure_all_webhooks(client: FubClient, connection_id: str, callback_base: str) -> tuple[dict, int]:
     webhook_url = f"{callback_base}/integrations/webhooks/followupboss?connectionId={connection_id}"
     existing, status = client.list_webhooks()
@@ -143,7 +174,11 @@ def _ensure_all_webhooks(client: FubClient, connection_id: str, callback_base: s
     failures: list[dict] = []
 
     for event in ALL_WEBHOOK_EVENTS:
-        candidates = [w for w in by_event.get(event, []) if w.get("url") == webhook_url]
+        candidates = [
+            w
+            for w in by_event.get(event, [])
+            if isinstance(w.get("url"), str) and _fub_callback_url_matches(w.get("url"), webhook_url)
+        ]
         if candidates:
             kept += 1
         else:
@@ -158,7 +193,8 @@ def _ensure_all_webhooks(client: FubClient, connection_id: str, callback_base: s
         extras = []
         matched = 0
         for w in all_for_event:
-            if w.get("url") == webhook_url and matched == 0:
+            wu = w.get("url")
+            if isinstance(wu, str) and _fub_callback_url_matches(wu, webhook_url) and matched == 0:
                 matched += 1
                 continue
             wid = w.get("id")
@@ -375,16 +411,40 @@ def oauth_callback(request):
     auth_block["xSystemKeyRef"] = auth_block.get("xSystemKeyRef") or "env://FUB_X_SYSTEM_KEY"
 
     callback_base = public_integration_base_url(request)
-    webhook_sync, sync_status = _ensure_all_webhooks(
-        FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid),
-        uid,
-        callback_base,
+    queue_configured = bool((os.environ.get("FUB_WEBHOOK_SYNC_QUEUE") or "").strip()) and bool(
+        (os.environ.get("FUB_WEBHOOK_SYNC_WORKER_URL") or "").strip()
     )
+    deferred = False
+    if queue_configured:
+        enq_ok, _enq_err = enqueue_fub_webhook_sync(uid)
+        if enq_ok:
+            deferred = True
+            webhook_sync = {
+                "syncStatus": "pending",
+                "deferred": True,
+                "enqueuedAtEpoch": now_epoch(),
+            }
+            sync_status = 200
+        else:
+            webhook_sync, sync_status = _ensure_all_webhooks(
+                FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid),
+                uid,
+                callback_base,
+            )
+    else:
+        webhook_sync, sync_status = _ensure_all_webhooks(
+            FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid),
+            uid,
+            callback_base,
+        )
 
     fub["auth"] = auth_block
-    connect_status = "connected" if sync_status == 200 else "connected_with_webhook_sync_issues"
-    if webhook_sync.get("needsOwner"):
-        connect_status = "needs_owner_for_webhooks"
+    if deferred:
+        connect_status = "connected"
+    else:
+        connect_status = "connected" if sync_status == 200 else "connected_with_webhook_sync_issues"
+        if webhook_sync.get("needsOwner"):
+            connect_status = "needs_owner_for_webhooks"
     fub["connection"] = {
         "provider": "followupboss",
         "status": connect_status,
@@ -396,7 +456,16 @@ def oauth_callback(request):
     fub["audit"]["lastOauthCallbackAtEpoch"] = now_epoch()
     save_fub_profile_by_connection_id(uid, fub)
 
+    emit_followupboss_oauth_connected(
+        uid,
+        connection_status=connect_status,
+        webhook_sync_deferred=deferred,
+        webhook_sync=webhook_sync,
+    )
+
     payload: dict = {"ok": True, "uid": uid, "state": state, "webhooks": webhook_sync}
+    if deferred:
+        payload["webhookSyncDeferred"] = True
     if not (isinstance(refresh_token, str) and refresh_token):
         payload["warning"] = {
             "code": "no_refresh_token_in_exchange",
@@ -406,6 +475,66 @@ def oauth_callback(request):
             ),
         }
     return json_response(payload, 200 if sync_status in (200, 207) else 207)
+
+
+def internal_webhook_sync(request):
+    """
+    POST — Cloud Tasks worker: register all FUB webhooks for a realtor after OAuth.
+    Secured with OIDC (platform service account); not for browser use.
+    """
+    if request.method != "POST":
+        return json_response({"error": "method not allowed"}, 405)
+    _, err = verify_cloud_tasks_caller(request)
+    if err:
+        return json_response({"error": "unauthorized", "detail": err}, 401)
+    body = request.get_json(silent=True) or {}
+    uid = body.get("uid") if isinstance(body, dict) else None
+    if not isinstance(uid, str) or not uid.strip():
+        return json_response({"error": "uid required"}, 400)
+    uid = uid.strip()
+
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        return maybe_err
+    fub = fub_config_from_profile(existing)
+    if not fub:
+        return json_response({"error": "followupboss not configured"}, 404)
+    auth_block = dict(fub.get("auth") or {})
+    access_ref = auth_block.get("accessTokenRef")
+    if not isinstance(access_ref, str) or not access_ref.strip():
+        return json_response({"error": "access token ref missing"}, 400)
+
+    callback_base = public_integration_base_url(request)
+    webhook_sync, sync_status = _ensure_all_webhooks(
+        FubClient(access_token_ref=access_ref, api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid),
+        uid,
+        callback_base,
+    )
+    connect_status = "connected" if sync_status == 200 else "connected_with_webhook_sync_issues"
+    if webhook_sync.get("needsOwner"):
+        connect_status = "needs_owner_for_webhooks"
+    fub["connection"] = {
+        "provider": "followupboss",
+        "status": connect_status,
+        "mode": "oauth",
+        "updatedAtEpoch": now_epoch(),
+    }
+    fub["webhooks"] = webhook_sync
+    fub.setdefault("audit", {})
+    fub["audit"]["lastWebhookDeferredSyncAtEpoch"] = now_epoch()
+    db_body, db_status = save_fub_profile(uid, fub)
+    if db_status >= 400:
+        return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
+    emit_followupboss_webhooks_sync_completed(
+        uid,
+        connection_status=connect_status,
+        webhook_sync=webhook_sync,
+    )
+    return json_response(
+        {"ok": sync_status in (200, 207), "uid": uid, "webhooks": webhook_sync, "db": db_body},
+        200 if sync_status in (200, 207) else 207,
+    )
 
 
 def refresh(request):
@@ -480,6 +609,27 @@ def refresh(request):
         return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
 
     return json_response({"ok": True, "uid": uid, "db": db_body}, 200)
+
+
+def _delete_fub_webhook_with_auth_fallback(
+    delete_client: FubClient,
+    *,
+    uid: str,
+    api_key_ref: str | None,
+    webhook_id: int | str,
+) -> tuple[dict, int]:
+    body, status = delete_client.delete_webhook(webhook_id)
+    if status < 400:
+        return body, status
+    if status in (401, 403) and isinstance(api_key_ref, str) and api_key_ref.strip():
+        fb = FubClient(
+            access_token_ref=None,
+            access_token_plain=None,
+            api_key_ref=api_key_ref,
+            acting_uid=uid,
+        )
+        return fb.delete_webhook(webhook_id)
+    return body, status
 
 
 def _disconnect_refresh_access_plain(uid: str, auth_block: dict) -> str | None:
@@ -579,13 +729,26 @@ def _disconnect_unregister_webhooks(uid: str, auth_block: dict, request) -> dict
         if isinstance(listed, dict)
         else []
     )
+    api_key_ref = auth_block.get("apiKeyRef")
+    delete_failures: list[dict] = []
     for w in items if isinstance(items, list) else []:
         if not isinstance(w, dict):
             continue
-        if w.get("url") == target and w.get("id") is not None:
-            _b, ds = delete_client.delete_webhook(w.get("id"))
-            if ds < 400:
-                out["removed"] += 1
+        wurl = w.get("url")
+        if not isinstance(wurl, str) or not _fub_callback_url_matches(wurl, target):
+            continue
+        wid = w.get("id")
+        if wid is None:
+            continue
+        _b, ds = _delete_fub_webhook_with_auth_fallback(
+            delete_client, uid=uid, api_key_ref=api_key_ref if isinstance(api_key_ref, str) else None, webhook_id=wid
+        )
+        if ds < 400:
+            out["removed"] += 1
+        else:
+            delete_failures.append({"id": wid, "status": ds, "detail": _b})
+    if delete_failures:
+        out["deleteFailures"] = delete_failures
     return out
 
 
@@ -625,7 +788,7 @@ def connection_status(request):
 
 
 def disconnect(request):
-    decoded, err, _token = resolve_realtor_bearer(request)
+    decoded, err, id_token = resolve_realtor_bearer(request)
     if err:
         return integration_auth_error_response(err)
     uid = decoded["uid"]
@@ -639,7 +802,8 @@ def disconnect(request):
         return json_response({"error": "followupboss not configured"}, 404)
 
     conn = dict(fub.get("connection") or {})
-    if conn.get("status") == "disconnected":
+    conn_status = conn.get("status")
+    if conn_status == "disconnected":
         return json_response(
             {
                 "ok": True,
@@ -649,11 +813,23 @@ def disconnect(request):
             },
             200,
         )
+    if conn_status not in _FUB_CONNECTED_STATUSES:
+        return json_response(
+            {
+                "error": "not_connected",
+                "connectionStatus": conn_status,
+                "hint": (
+                    "Follow Up Boss is not in a connected state. Complete OAuth connect first, "
+                    "or use GET /integrations/followupboss/status."
+                ),
+            },
+            409,
+        )
 
     auth_block = dict(fub.get("auth") or {})
     webhooks = dict(fub.get("webhooks") or {})
     webhook_cleanup = _disconnect_unregister_webhooks(uid, auth_block, request)
-    ledger_deleted, ledger_err = delete_followupboss_event_ledger_for_uid(uid)
+    ledger_deleted, ledger_err = delete_followupboss_event_ledger_for_uid(uid, user_jwt=id_token)
 
     fub["connection"] = {
         "provider": "followupboss",
@@ -681,6 +857,11 @@ def disconnect(request):
     }
     if ledger_err:
         payload["eventLedgerCleanupError"] = ledger_err
+    emit_followupboss_disconnected(
+        uid,
+        webhook_cleanup=webhook_cleanup,
+        event_ledger_deleted=ledger_deleted,
+    )
     return json_response(payload, 200)
 
 
@@ -712,6 +893,7 @@ def resync_webhooks(request):
     fub.setdefault("audit", {})
     fub["audit"]["lastWebhookResyncAtEpoch"] = now_epoch()
     save_fub_profile(uid, fub)
+    emit_followupboss_webhooks_resynced(uid, webhook_sync=result)
     return json_response({"ok": sync_status in (200, 207), "uid": uid, "webhooks": result}, 200 if sync_status in (200, 207) else sync_status)
 
 

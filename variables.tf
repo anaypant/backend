@@ -123,3 +123,22 @@ variable "integration_oauth_browser_cors_origins" {
   default     = ["https://oauth.automatedconsultancy.com"]
   description = "Browser origins allowed CORS on public GET/OPTIONS /integrations/followupboss/oauth/start. Set [] to disable; add http://localhost:3000 for local OAuth UI."
 }
+
+variable "fub_webhook_sync_worker_url" {
+  type        = string
+  default     = ""
+  description = "Integration-bridge HTTPS base URL (no trailing slash) for Cloud Tasks deferred FUB webhook sync. Set to module.integration.integration_bridge_function_url after first deploy, then re-apply."
+}
+
+variable "events_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = "acs-events-internal API Gateway hostname (no scheme). Set to terraform output events_gateway_hostname after first deploy; required for OIDC verification on POST /events/v1/publish."
+}
+
+variable "openrouter_api_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Optional. OpenRouter API key for llm-complete Cloud Function; leave empty to use echo provider only until configured."
+}

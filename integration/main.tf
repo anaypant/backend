@@ -30,6 +30,8 @@ module "functions" {
   browser_cors_origins            = join(",", var.integration_oauth_browser_cors_origins)
   secrets_internal_gateway_hostname = var.secrets_internal_gateway_hostname
   secrets_internal_jwt_audience     = var.secrets_internal_jwt_audience
+  fub_webhook_sync_worker_url       = var.fub_webhook_sync_worker_url
+  events_internal_gateway_hostname  = var.events_internal_gateway_hostname
 }
 
 module "api" {
@@ -48,4 +50,9 @@ module "api" {
 output "integration_gateway_hostname" {
   description = "Internal Integration API Gateway hostname (no scheme)."
   value       = module.api.gateway_hostname
+}
+
+output "integration_bridge_function_url" {
+  description = "HTTPS URL of integration-bridge (set fub_webhook_sync_worker_url to this for deferred webhook sync)."
+  value       = module.functions.bridge_function.url
 }

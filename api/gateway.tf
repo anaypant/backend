@@ -11,6 +11,10 @@ locals {
   auth_internal_base        = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
   integration_internal_base = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
 
+  # ESPv2 defaults to a 15s backend deadline; OAuth + FUB webhook sync exceeds it (504 response_timeout).
+  # Align with integration / callback_bridge Cloud Functions (timeout_seconds = 60).
+  integration_upstream_deadline = 60.0
+
   # Routes where OpenAPI `security` is empty: no Firebase / application JWT required at the public edge.
   # Keep in sync with `paths` below (operations using security: []).
   public_routes_no_application_jwt = [
@@ -277,6 +281,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/webhooks/followupboss/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -301,6 +306,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/status/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "204" = { description = "No content" }
@@ -316,6 +322,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/status/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -340,6 +347,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "204" = { description = "No content" }
@@ -357,6 +365,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -381,6 +390,7 @@ locals {
           path_translation = "APPEND_PATH_TO_ADDRESS"
           protocol         = "h2"
           jwt_audience     = trimsuffix(google_cloudfunctions2_function.callback_bridge.url, "/")
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -403,6 +413,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/refresh/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -427,6 +438,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/resync_webhooks/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -450,6 +462,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/webhooks/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -474,6 +487,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/webhook_test/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }
@@ -498,6 +512,7 @@ locals {
           address          = "${local.integration_internal_base}/integrations/followupboss/disconnect/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
         }
         responses = {
           "200" = { description = "OK" }

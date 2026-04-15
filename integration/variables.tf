@@ -83,3 +83,14 @@ variable "secrets_internal_jwt_audience" {
   type        = string
   description = "OIDC audience for platform calls to the secrets internal API (secrets-bridge function URL, not the gateway hostname)."
 }
+
+variable "fub_webhook_sync_worker_url" {
+  type        = string
+  default     = ""
+  description = "Integration-bridge HTTPS base URL for Cloud Tasks deferred webhook sync; pass module.functions bridge_function.url after first deploy."
+}
+
+variable "events_internal_gateway_hostname" {
+  type        = string
+  description = "Internal domain-events API gateway hostname (module.events.events_gateway_hostname)."
+}

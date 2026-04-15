@@ -8,6 +8,7 @@ ROUTES = {
     "/integrations/followupboss/oauth/start": ("followupboss", "oauth_start", {"GET"}),
     "/integrations/followupboss/status": ("followupboss", "connection_status", {"GET"}),
     "/integrations/followupboss/oauth/callback": ("followupboss", "oauth_callback", {"GET"}),
+    "/integrations/followupboss/internal/webhook_sync": ("followupboss", "internal_webhook_sync", {"POST"}),
     "/integrations/followupboss/refresh": ("followupboss", "refresh", {"POST"}),
     "/integrations/followupboss/resync_webhooks": ("followupboss", "resync_webhooks", {"POST"}),
     "/integrations/followupboss/webhooks": ("followupboss", "list_webhooks", {"GET"}),

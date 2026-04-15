@@ -11,6 +11,17 @@ terraform {
   }
 }
 
+locals {
+  core_env_public = {
+    DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
+    LLM_INTERNAL_GATEWAY_HOSTNAME     = var.llm_internal_gateway_hostname
+    LLM_INTERNAL_JWT_AUDIENCE         = var.llm_internal_jwt_audience
+    SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
+    SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
+    BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
+  }
+}
+
 data "archive_file" "fn" {
   type        = "zip"
   source_dir  = "${path.module}/runner"
@@ -48,11 +59,12 @@ resource "google_cloudfunctions2_function" "core_run" {
 
   service_config {
     max_instance_count               = 5
-    available_memory                 = "256Mi"
+    available_memory                 = "512Mi"
     timeout_seconds                  = 120
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email
+    environment_variables            = local.core_env_public
   }
 }
 

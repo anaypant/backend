@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acs.local/contracts/llm_complete.v1.json",
+  "title": "LlmCompleteRequestV1",
+  "type": "object",
+  "required": ["messages", "model"],
+  "additionalProperties": true,
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "Provider id; default openrouter",
+      "default": "openrouter"
+    },
+    "model": { "type": "string", "minLength": 1 },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": { "type": "string" },
+          "content": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "response_format": {
+      "type": "string",
+      "enum": ["text", "json"]
+    },
+    "provider_options": {
+      "type": "object",
+      "description": "Opaque per-provider options (temperature, etc.)",
+      "additionalProperties": true
+    }
+  }
+}

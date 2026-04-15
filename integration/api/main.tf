@@ -33,11 +33,13 @@ locals {
     }
   }
 
+  # ESPv2 default backend deadline is 15s; OAuth callback + webhook sync needs longer (matches public gateway + CF timeout).
   integration_backend = {
     address          = trimsuffix(var.bridge_function.url, "/")
     path_translation = "APPEND_PATH_TO_ADDRESS"
     protocol         = "h2"
     jwt_audience     = trimsuffix(var.bridge_function.url, "/")
+    deadline         = 60.0
   }
 
   integration_paths = {

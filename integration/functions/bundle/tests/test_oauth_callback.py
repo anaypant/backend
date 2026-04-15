@@ -12,6 +12,7 @@ class DummyReq:
 
 
 class OauthCallbackNoRefreshWarningTest(unittest.TestCase):
+    @patch("store.domain_events._try_publish")
     @patch("providers.followupboss.oauth.save_fub_profile_by_connection_id")
     @patch("providers.followupboss.oauth._ensure_all_webhooks", return_value=({"ok": True, "created": 0}, 200))
     @patch("providers.followupboss.oauth.put_secret", return_value="sm://a")
@@ -34,6 +35,7 @@ class OauthCallbackNoRefreshWarningTest(unittest.TestCase):
 
 
 class OauthCallbackSyncTest(unittest.TestCase):
+    @patch("store.domain_events._try_publish")
     @patch("providers.followupboss.oauth.save_fub_profile_by_connection_id")
     @patch("providers.followupboss.oauth._ensure_all_webhooks", return_value=({"ok": True, "created": 53}, 200))
     @patch("providers.followupboss.oauth.put_secret", side_effect=["sm://a", "sm://r"])
@@ -48,6 +50,7 @@ class OauthCallbackSyncTest(unittest.TestCase):
 
 
 class OauthCallbackIdempotentTest(unittest.TestCase):
+    @patch("store.domain_events._try_publish")
     @patch("providers.followupboss.oauth.save_fub_profile_by_connection_id")
     @patch(
         "providers.followupboss.oauth.load_fub_profile_by_connection_id",

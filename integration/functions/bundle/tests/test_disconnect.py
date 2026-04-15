@@ -11,6 +11,7 @@ class DummyReq:
 
 
 class DisconnectIdempotentTest(unittest.TestCase):
+    @patch("store.domain_events._try_publish")
     @patch("providers.followupboss.oauth.save_fub_profile")
     @patch(
         "providers.followupboss.oauth.load_realtor_profile",
@@ -30,12 +31,41 @@ class DisconnectIdempotentTest(unittest.TestCase):
         "providers.followupboss.oauth.resolve_realtor_bearer",
         return_value=({"uid": "u1", "role": "realtor"}, None, None),
     )
-    def test_disconnect_noop_when_already_disconnected(self, _resolve, _load, mock_save):
+    def test_disconnect_noop_when_already_disconnected(self, _resolve, _load, mock_save, _try_publish):
         body, status, _ = oauth.disconnect(DummyReq())
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body).get("idempotent"))
         mock_save.assert_not_called()
 
+    @patch("store.domain_events._try_publish")
+    @patch("providers.followupboss.oauth.save_fub_profile")
+    @patch(
+        "providers.followupboss.oauth.load_realtor_profile",
+        return_value=(
+            {
+                "integrations": {
+                    "followupboss": {
+                        "connection": {"status": "oauth_pending"},
+                        "auth": {"oauthPending": {}},
+                    }
+                }
+            },
+            200,
+        ),
+    )
+    @patch(
+        "providers.followupboss.oauth.resolve_realtor_bearer",
+        return_value=({"uid": "u1", "role": "realtor"}, None, None),
+    )
+    def test_disconnect_rejects_when_not_connected(self, _resolve, _load, mock_save, _try_publish):
+        body, status, _ = oauth.disconnect(DummyReq())
+        self.assertEqual(status, 409)
+        data = json.loads(body)
+        self.assertEqual(data.get("error"), "not_connected")
+        self.assertEqual(data.get("connectionStatus"), "oauth_pending")
+        mock_save.assert_not_called()
+
+    @patch("store.domain_events._try_publish")
     @patch("providers.followupboss.oauth.delete_followupboss_event_ledger_for_uid", return_value=(2, None))
     @patch(
         "providers.followupboss.oauth._disconnect_unregister_webhooks",
@@ -68,7 +98,7 @@ class DisconnectIdempotentTest(unittest.TestCase):
         "providers.followupboss.oauth.resolve_realtor_bearer",
         return_value=({"uid": "u1", "role": "realtor"}, None, None),
     )
-    def test_disconnect_runs_fub_and_ledger_cleanup(self, _resolve, _load, mock_save, _wh, _ledger):
+    def test_disconnect_runs_fub_and_ledger_cleanup(self, _resolve, _load, mock_save, _wh, _ledger, _try_publish):
         mock_save.return_value = ({"path": "Realtors/u1", "merge": True}, 200)
         body, status, _ = oauth.disconnect(DummyReq())
         self.assertEqual(status, 200)

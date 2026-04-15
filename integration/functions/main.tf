@@ -17,12 +17,27 @@ data "archive_file" "bundle" {
   output_path = "${path.module}/.build/integration-bridge.zip"
 }
 
+resource "google_cloud_tasks_queue" "fub_webhook_sync" {
+  name     = "fub-webhook-sync"
+  location = var.region
+  project  = var.project_id
+}
+
+resource "google_cloud_tasks_queue_iam_member" "bridge_enqueues" {
+  project  = var.project_id
+  location = google_cloud_tasks_queue.fub_webhook_sync.location
+  name     = google_cloud_tasks_queue.fub_webhook_sync.name
+  role     = "roles/cloudtasks.enqueuer"
+  member   = "serviceAccount:${var.backend_service_account_email}"
+}
+
 # Public env must be nonsensitive so values learned at apply (e.g. secrets gateway hostname)
 # do not trip "inconsistent values for sensitive attribute" on google_cloudfunctions2_function.
 locals {
   integration_env_public = {
     DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
     CORE_INTERNAL_GATEWAY_HOSTNAME    = var.core_internal_gateway_hostname
+    BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
     FUB_OAUTH_AUTHORIZE_URL           = var.fub_oauth_authorize_url
     FUB_OAUTH_TOKEN_URL               = var.fub_oauth_token_url
     FUB_OAUTH_CLIENT_ID               = var.fub_oauth_client_id
@@ -32,6 +47,10 @@ locals {
     ACS_BROWSER_CORS_ORIGINS          = var.browser_cors_origins
     SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
     SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
+    FUB_WEBHOOK_SYNC_QUEUE            = google_cloud_tasks_queue.fub_webhook_sync.id
+    FUB_WEBHOOK_SYNC_WORKER_URL       = var.fub_webhook_sync_worker_url
+    FUB_WEBHOOK_SYNC_OIDC_AUDIENCE    = var.fub_webhook_sync_worker_url
+    EVENTS_INTERNAL_GATEWAY_HOSTNAME   = var.events_internal_gateway_hostname
   }
   integration_env_secret = {
     FUB_OAUTH_CLIENT_SECRET       = var.fub_oauth_client_secret
@@ -73,7 +92,7 @@ resource "google_cloudfunctions2_function" "bridge" {
   service_config {
     max_instance_count               = 10
     available_memory                 = "256Mi"
-    timeout_seconds                  = 60
+    timeout_seconds                  = 300
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email

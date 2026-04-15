@@ -26,6 +26,12 @@ locals {
   _db_gw_host_only                        = local._db_gw_after_http != "" ? split("/", local._db_gw_after_http)[0] : ""
   db_internal_gateway_hostname_normalized = local._db_gw_raw == "" ? "" : local._db_gw_host_only
 
+  _ev_gw_raw         = trimspace(var.events_internal_gateway_hostname)
+  _ev_gw_after_https = local._ev_gw_raw != "" && startswith(lower(local._ev_gw_raw), "https://") ? trimspace(trim(substr(local._ev_gw_raw, 8, length(local._ev_gw_raw) - 8), "/")) : local._ev_gw_raw
+  _ev_gw_after_http  = local._ev_gw_after_https != "" && startswith(lower(local._ev_gw_after_https), "http://") ? trimspace(trim(substr(local._ev_gw_after_https, 7, length(local._ev_gw_after_https) - 7), "/")) : local._ev_gw_after_https
+  _ev_gw_host_only   = local._ev_gw_after_http != "" ? split("/", local._ev_gw_after_http)[0] : ""
+  events_internal_gateway_hostname_normalized = local._ev_gw_raw == "" ? "" : local._ev_gw_host_only
+
   # OIDC audience for calling secrets via the internal gateway must be the secrets-bridge function URL.
   _secrets_bridge_invoker_audience = nonsensitive(module.secrets.secrets_bridge_invoker_audience)
   secrets_internal_jwt_audience_effective = (
@@ -76,11 +82,12 @@ module "auth" {
   depends_on = [google_project_service.gcp, module.db, google_service_account.platform]
 }
 
-module "core" {
-  source            = "./core"
-  project_id        = local.project_id
-  region            = var.region
-  platform_sa_email = google_service_account.platform.email
+module "events" {
+  source                              = "./events"
+  project_id                          = local.project_id
+  region                              = var.region
+  platform_sa_email                   = google_service_account.platform.email
+  events_internal_gateway_hostname    = local.events_internal_gateway_hostname_normalized
   providers = {
     google      = google
     google-beta = google-beta
@@ -101,6 +108,44 @@ module "secrets" {
   depends_on = [google_project_service.gcp, google_service_account.platform]
 }
 
+module "llm" {
+  source                            = "./llm"
+  project_id                        = local.project_id
+  region                            = var.region
+  platform_sa_email                 = google_service_account.platform.email
+  secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
+  secrets_internal_jwt_audience     = local.secrets_internal_jwt_audience_effective
+  openrouter_api_key                = var.openrouter_api_key
+  providers = {
+    google      = google
+    google-beta = google-beta
+  }
+  depends_on = [google_project_service.gcp, google_service_account.platform, module.secrets]
+}
+
+module "core" {
+  source                              = "./core"
+  project_id                          = local.project_id
+  region                              = var.region
+  platform_sa_email                   = google_service_account.platform.email
+  db_internal_gateway_hostname        = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
+  llm_internal_gateway_hostname       = module.llm.llm_gateway_hostname
+  llm_internal_jwt_audience           = module.llm.llm_function_url
+  secrets_internal_gateway_hostname   = nonsensitive(module.secrets.secrets_gateway_hostname)
+  secrets_internal_jwt_audience       = local.secrets_internal_jwt_audience_effective
+  providers = {
+    google      = google
+    google-beta = google-beta
+  }
+  depends_on = [
+    google_project_service.gcp,
+    google_service_account.platform,
+    module.db,
+    module.secrets,
+    module.llm,
+  ]
+}
+
 module "integration" {
   source                                 = "./integration"
   project_id                             = local.project_id
@@ -118,6 +163,8 @@ module "integration" {
   acs_oauth_state_secret                 = var.acs_oauth_state_secret
   acs_callback_bridge_secret             = var.acs_callback_bridge_secret
   integration_oauth_browser_cors_origins = var.integration_oauth_browser_cors_origins
+  fub_webhook_sync_worker_url            = var.fub_webhook_sync_worker_url
+  events_internal_gateway_hostname       = module.events.events_gateway_hostname
   # Nonsensitive: hostname is not secret; avoids Google provider "inconsistent sensitive" on
   # integration function env when this value is (known after apply) on first full stack apply.
   secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
@@ -126,7 +173,37 @@ module "integration" {
     google      = google
     google-beta = google-beta
   }
-  depends_on = [google_project_service.gcp, module.db, module.core, module.secrets, google_service_account.platform]
+  depends_on = [google_project_service.gcp, module.db, module.core, module.events, module.secrets, google_service_account.platform]
+}
+
+output "integration_bridge_function_url" {
+  description = "integration-bridge Cloud Function URL; set terraform variable fub_webhook_sync_worker_url to this (no trailing slash) to enable deferred FUB webhook sync."
+  value       = module.integration.integration_bridge_function_url
+}
+
+output "events_gateway_hostname" {
+  description = "Internal domain-events API Gateway hostname (no scheme); set events_internal_gateway_hostname to this."
+  value       = module.events.events_gateway_hostname
+}
+
+output "llm_gateway_hostname" {
+  description = "Internal LLM API Gateway hostname (no scheme); set on callers that invoke POST /llm/v1/complete."
+  value       = module.llm.llm_gateway_hostname
+}
+
+output "llm_function_url" {
+  description = "llm-complete Cloud Function URL (OIDC audience for LLM internal API)."
+  value       = module.llm.llm_function_url
+}
+
+check "events_internal_gateway_hostname_matches_deployed" {
+  assert {
+    condition = (
+      local.events_internal_gateway_hostname_normalized == "" ||
+      lower(trim(local.events_internal_gateway_hostname_normalized, "/")) == lower(trim(module.events.events_gateway_hostname, "/"))
+    )
+    error_message = "events_internal_gateway_hostname must match module.events.events_gateway_hostname (terraform output events_gateway_hostname). Deployed: ${module.events.events_gateway_hostname}"
+  }
 }
 
 check "secrets_internal_jwt_audience_matches_secrets_bridge" {

@@ -11,6 +11,7 @@ resource "google_project_service" "gcp" {
     "identitytoolkit.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "pubsub.googleapis.com",
     "run.googleapis.com",
     "servicecontrol.googleapis.com",
     "servicemanagement.googleapis.com",

@@ -1,15 +1,26 @@
 from typing import Any
 
-from store.common import db_origin, post_json_platform
+from store.common import db_origin, post_json, post_json_platform
 
 
-def delete_followupboss_event_ledger_for_uid(uid: str) -> tuple[int, dict | None]:
+def delete_followupboss_event_ledger_for_uid(uid: str, *, user_jwt: str | None = None) -> tuple[int, dict | None]:
     """
     Best-effort: delete IntegrationEventLedger docs for this realtor's Follow Up Boss ingress.
     Queries by ownerUid (required for non-admin query authz), filters provider in-process.
+
+    When ``user_jwt`` is set (caller's Firebase ID token), uses the user + Google OIDC two-header
+    contract to the DB gateway — avoids platform-only 401s when ESP did not supply a raw JWT.
+    Otherwise uses platform SA + X-ACS-Acting-Uid (e.g. OAuth callback / internal callers).
     """
     deleted = 0
     page_token: str | None = None
+
+    def _post(path: str, payload: dict) -> tuple[dict, int]:
+        url = db_origin() + path
+        if user_jwt:
+            return post_json(url, payload, user_jwt=user_jwt)
+        return post_json_platform(url, payload, acting_uid=uid)
+
     while True:
         body: dict = {
             "path": "IntegrationEventLedger",
@@ -18,7 +29,7 @@ def delete_followupboss_event_ledger_for_uid(uid: str) -> tuple[int, dict | None
         }
         if page_token:
             body["pageToken"] = page_token
-        resp, st = post_json_platform(db_origin() + "/db/query/", body, acting_uid=uid)
+        resp, st = _post("/db/query/", body)
         if st >= 400:
             return deleted, {"httpStatus": st, "detail": resp}
         items = resp.get("items") or []
@@ -31,7 +42,7 @@ def delete_followupboss_event_ledger_for_uid(uid: str) -> tuple[int, dict | None
             path = it.get("path")
             if not isinstance(path, str) or not path.strip():
                 continue
-            _d, dst = post_json_platform(db_origin() + "/db/delete/", {"path": path}, acting_uid=uid)
+            _d, dst = _post("/db/delete/", {"path": path})
             if dst < 400:
                 deleted += 1
         page_token = resp.get("nextPageToken")
