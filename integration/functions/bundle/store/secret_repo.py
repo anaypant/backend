@@ -1,5 +1,8 @@
+import logging
 import os
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 from google.cloud import secretmanager
 
@@ -107,6 +110,11 @@ def get_secret(secret_ref: str, *, acting_uid: str | None = None) -> str | None:
         url = f"{origin.rstrip('/')}/secrets/v1/read"
         body, status = post_json_secrets_platform(url, {"ref": secret_ref}, acting_uid=act)
         if status >= 400:
+            _logger.warning(
+                "acs_sec read failed: http_status=%s acting_uid_set=%s",
+                status,
+                bool(act),
+            )
             return None
         raw = body.get("value")
         return raw if isinstance(raw, str) else None
