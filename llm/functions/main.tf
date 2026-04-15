@@ -59,6 +59,8 @@ resource "google_cloudfunctions2_function" "llm_complete" {
   service_config {
     max_instance_count               = 10
     available_memory                 = "512Mi"
+    # Concurrency > 1 requires >= 1 vCPU on Cloud Run (default CPU at 512Mi is fractional).
+    available_cpu                    = "1"
     timeout_seconds                  = 120
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 4
