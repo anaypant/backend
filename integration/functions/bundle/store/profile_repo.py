@@ -3,6 +3,43 @@ from typing import Any
 from store.common import db_origin, post_json_platform
 
 
+def delete_followupboss_event_ledger_for_uid(uid: str) -> tuple[int, dict | None]:
+    """
+    Best-effort: delete IntegrationEventLedger docs for this realtor's Follow Up Boss ingress.
+    Queries by ownerUid (required for non-admin query authz), filters provider in-process.
+    """
+    deleted = 0
+    page_token: str | None = None
+    while True:
+        body: dict = {
+            "path": "IntegrationEventLedger",
+            "filters": [{"field": "ownerUid", "op": "==", "value": uid}],
+            "limit": 100,
+        }
+        if page_token:
+            body["pageToken"] = page_token
+        resp, st = post_json_platform(db_origin() + "/db/query/", body, acting_uid=uid)
+        if st >= 400:
+            return deleted, {"httpStatus": st, "detail": resp}
+        items = resp.get("items") or []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            data = it.get("data") if isinstance(it.get("data"), dict) else {}
+            if data.get("provider") != "followupboss":
+                continue
+            path = it.get("path")
+            if not isinstance(path, str) or not path.strip():
+                continue
+            _d, dst = post_json_platform(db_origin() + "/db/delete/", {"path": path}, acting_uid=uid)
+            if dst < 400:
+                deleted += 1
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    return deleted, None
+
+
 def fub_config_from_profile(doc_data: dict) -> dict | None:
     integrations = doc_data.get("integrations")
     if not isinstance(integrations, dict):

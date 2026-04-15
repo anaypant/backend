@@ -27,6 +27,15 @@ resource "google_project_iam_member" "platform_firebase_auth" {
   depends_on = [google_project_service.gcp]
 }
 
+# secrets-bridge (same SA) reads/writes tenant secrets in GSM; write_version idempotency calls access_secret_version.
+# Explicit binding documents the requirement if roles/editor is removed or org policy narrows Editor.
+resource "google_project_iam_member" "platform_secret_manager" {
+  project    = local.project_id
+  role       = "roles/secretmanager.admin"
+  member     = "serviceAccount:${google_service_account.platform.email}"
+  depends_on = [google_project_service.gcp]
+}
+
 resource "google_project_iam_member" "platform_run_invoker" {
   project    = local.project_id
   role       = "roles/run.invoker"

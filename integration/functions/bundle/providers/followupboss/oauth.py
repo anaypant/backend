@@ -10,6 +10,7 @@ from providers.followupboss.constants import ALL_WEBHOOK_EVENTS
 from store.authn import resolve_realtor_bearer
 from store.common import integration_auth_error_response, json_response, now_epoch, public_integration_base_url
 from store.profile_repo import (
+    delete_followupboss_event_ledger_for_uid,
     fub_config_from_profile,
     load_fub_profile_by_connection_id,
     load_realtor_profile,
@@ -481,6 +482,113 @@ def refresh(request):
     return json_response({"ok": True, "uid": uid, "db": db_body}, 200)
 
 
+def _disconnect_refresh_access_plain(uid: str, auth_block: dict) -> str | None:
+    """One-shot OAuth refresh for cleanup (does not persist new tokens to the profile)."""
+    refresh_ref = auth_block.get("refreshTokenRef")
+    if not isinstance(refresh_ref, str) or not refresh_ref.strip():
+        return None
+    refresh_token = get_secret(refresh_ref, acting_uid=uid)
+    if not refresh_token:
+        return None
+    body, s = FubClient().refresh_token(refresh_token)
+    if s >= 400:
+        return None
+    at = body.get("access_token")
+    return at if isinstance(at, str) and at else None
+
+
+def _disconnect_unregister_webhooks(uid: str, auth_block: dict, request) -> dict:
+    """
+    List FUB webhooks and DELETE those pointing at this connection's ACS callback URL.
+    Tries: refreshed bearer → stored access token → API key only (Bearer often expires first).
+    """
+    callback_base = public_integration_base_url(request)
+    target = f"{callback_base}/integrations/webhooks/followupboss?connectionId={uid}"
+    out: dict = {
+        "callbackUrl": target,
+        "removed": 0,
+        "listHttpStatus": None,
+        "usedRefresh": False,
+        "usedApiKeyFallback": False,
+        "error": None,
+    }
+
+    plain = _disconnect_refresh_access_plain(uid, auth_block)
+    if plain:
+        out["usedRefresh"] = True
+
+    listed = None
+    ls = 599
+    delete_client: FubClient | None = None
+
+    if plain:
+        listed, ls = FubClient(
+            access_token_plain=plain,
+            api_key_ref=auth_block.get("apiKeyRef"),
+            acting_uid=uid,
+        ).list_webhooks()
+        if ls < 400:
+            delete_client = FubClient(
+                access_token_plain=plain,
+                api_key_ref=auth_block.get("apiKeyRef"),
+                acting_uid=uid,
+            )
+    if ls >= 400:
+        listed, ls = FubClient(
+            access_token_ref=auth_block.get("accessTokenRef"),
+            api_key_ref=auth_block.get("apiKeyRef"),
+            acting_uid=uid,
+        ).list_webhooks()
+        if ls < 400:
+            delete_client = FubClient(
+                access_token_ref=auth_block.get("accessTokenRef"),
+                api_key_ref=auth_block.get("apiKeyRef"),
+                acting_uid=uid,
+            )
+    if ls >= 400:
+        api_ref = auth_block.get("apiKeyRef")
+        if isinstance(api_ref, str) and api_ref.strip():
+            out["usedApiKeyFallback"] = True
+            listed, ls = FubClient(
+                access_token_ref=None,
+                access_token_plain=None,
+                api_key_ref=api_ref,
+                acting_uid=uid,
+            ).list_webhooks()
+            if ls < 400:
+                delete_client = FubClient(
+                    access_token_ref=None,
+                    access_token_plain=None,
+                    api_key_ref=api_ref,
+                    acting_uid=uid,
+                )
+
+    out["listHttpStatus"] = ls
+    if delete_client is None or ls >= 400:
+        out["error"] = "list_webhooks_failed"
+        if isinstance(listed, dict):
+            out["detail"] = listed
+        else:
+            out["detail"] = {"raw": listed}
+        return out
+
+    items = (
+        listed
+        if isinstance(listed, list)
+        else listed.get("_embedded", {}).get("webhooks", [])
+        if isinstance(listed, dict)
+        else []
+    )
+    for w in items if isinstance(items, list) else []:
+        if not isinstance(w, dict):
+            continue
+        if w.get("url") == target and w.get("id") is not None:
+            _b, ds = delete_client.delete_webhook(w.get("id"))
+            if ds < 400:
+                out["removed"] += 1
+    return out
+
+
 def connection_status(request):
     """GET — whether FUB is linked; use to hide OAuth start when already integrated."""
     decoded, err, _token = resolve_realtor_bearer(request)
@@ -543,17 +651,9 @@ def disconnect(request):
         )
 
     auth_block = dict(fub.get("auth") or {})
-    client = FubClient(access_token_ref=auth_block.get("accessTokenRef"), api_key_ref=auth_block.get("apiKeyRef"), acting_uid=uid)
     webhooks = dict(fub.get("webhooks") or {})
-    # best effort cleanup
-    listed, ls = client.list_webhooks()
-    if ls < 400:
-        items = listed if isinstance(listed, list) else listed.get("_embedded", {}).get("webhooks", []) if isinstance(listed, dict) else []
-        callback_base = public_integration_base_url(request)
-        target = f"{callback_base}/integrations/webhooks/followupboss?connectionId={uid}"
-        for w in items if isinstance(items, list) else []:
-            if isinstance(w, dict) and w.get("url") == target and w.get("id") is not None:
-                client.delete_webhook(w.get("id"))
+    webhook_cleanup = _disconnect_unregister_webhooks(uid, auth_block, request)
+    ledger_deleted, ledger_err = delete_followupboss_event_ledger_for_uid(uid)
 
     fub["connection"] = {
         "provider": "followupboss",
@@ -571,7 +671,17 @@ def disconnect(request):
     db_body, db_status = save_fub_profile(uid, fub)
     if db_status >= 400:
         return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
-    return json_response({"ok": True, "uid": uid, "db": db_body, "webhooksBefore": webhooks}, 200)
+    payload = {
+        "ok": True,
+        "uid": uid,
+        "db": db_body,
+        "webhooksBefore": webhooks,
+        "webhookCleanup": webhook_cleanup,
+        "eventLedgerDeleted": ledger_deleted,
+    }
+    if ledger_err:
+        payload["eventLedgerCleanupError"] = ledger_err
+    return json_response(payload, 200)
 
 
 def resync_webhooks(request):

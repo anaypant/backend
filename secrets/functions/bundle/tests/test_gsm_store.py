@@ -6,6 +6,24 @@ from google.api_core import exceptions as gcp_exceptions
 import gsm_store
 
 
+class WriteVersionPermissionDeniedOnReadTest(unittest.TestCase):
+    @patch("gsm_store._project", return_value="proj")
+    @patch("gsm_store.secretmanager.SecretManagerServiceClient")
+    def test_adds_version_when_read_denied(self, mock_client_cls, _proj):
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.get_secret.return_value = object()
+
+        with patch(
+            "gsm_store.read_latest",
+            side_effect=gcp_exceptions.PermissionDenied("denied"),
+        ):
+            name, skipped = gsm_store.write_version("sid", "val")
+        self.assertFalse(skipped)
+        self.assertIn("secrets/sid", name)
+        mock_client.add_secret_version.assert_called_once()
+
+
 class WriteVersionIdempotentTest(unittest.TestCase):
     @patch("gsm_store._project", return_value="proj")
     @patch("gsm_store.secretmanager.SecretManagerServiceClient")

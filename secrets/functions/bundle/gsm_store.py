@@ -36,7 +36,12 @@ def write_version(secret_id: str, value: str) -> tuple[str, bool]:
         client.add_secret_version(request={"parent": name, "payload": {"data": value.encode("utf-8")}})
         return name, False
 
-    existing = read_latest(secret_id)
+    try:
+        existing = read_latest(secret_id)
+    except gcp_exceptions.PermissionDenied:
+        # Idempotency needs secretmanager.versions.access; if denied, still try to add a version
+        # (may duplicate versions when value unchanged — prefer fixing IAM: platform SA + Secret Manager).
+        existing = None
     if existing is not None and existing == value:
         return name, True
 
