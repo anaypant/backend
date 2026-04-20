@@ -59,8 +59,33 @@ def _is_admin(decoded: dict) -> bool:
     return role == "admin"
 
 
-def _caller_may_read(decoded: dict, doc_data: dict | None) -> bool:
+def _is_own_role_profile_path(decoded: dict, doc_path: str) -> bool:
+    """Own top-level Realtors|Internals/{uid} doc (legacy rows may omit ownerUid)."""
+    uid = decoded.get("uid")
+    if not isinstance(uid, str) or not uid:
+        return False
+    parts = [p for p in doc_path.strip().split("/") if p]
+    return len(parts) == 2 and parts[0] in ("Realtors", "Internals") and parts[1] == uid
+
+
+def _linked_auth_uids(doc_data: dict | None) -> set[str]:
+    raw = (doc_data or {}).get("linkedAuthUids")
+    if not isinstance(raw, list):
+        return set()
+    return {x for x in raw if isinstance(x, str) and x.strip()}
+
+
+def _caller_may_read(decoded: dict, doc_data: dict | None, doc_path: str) -> bool:
     if _is_admin(decoded):
+        return True
+    if _is_own_role_profile_path(decoded, doc_path):
+        return True
+    parts = [p for p in doc_path.strip().split("/") if p]
+    if (
+        len(parts) == 2
+        and parts[0] in ("Realtors", "Internals")
+        and decoded.get("uid") in _linked_auth_uids(doc_data)
+    ):
         return True
     if not doc_data:
         return False
@@ -164,8 +189,26 @@ def main(request):
         return _json_response({"error": "not found"}, 404)
 
     data = snap.to_dict()
-    if not _caller_may_read(decoded, data):
+    if not _caller_may_read(decoded, data, doc_path):
         return _json_response({"error": "forbidden"}, 403)
+
+    parts = [p for p in doc_path.strip().split("/") if p]
+    if (
+        len(parts) == 2
+        and parts[0] in ("Realtors", "Internals")
+        and parts[1] == decoded.get("uid")
+    ):
+        canon = (data or {}).get("canonicalProfileUid")
+        if isinstance(canon, str) and canon.strip() and canon.strip() != parts[1]:
+            try:
+                cref = _document_ref_from_path(db, f"{parts[0]}/{canon.strip()}")
+                csnap = cref.get()
+                if csnap.exists:
+                    cdata = csnap.to_dict() or {}
+                    if decoded.get("uid") in _linked_auth_uids(cdata):
+                        data = {**cdata, **(data or {})}
+            except ValueError:
+                pass
 
     payload = {
         "path": snap.reference.path,

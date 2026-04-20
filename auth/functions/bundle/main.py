@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 import urllib.error
 import urllib.parse
@@ -17,6 +18,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import id_token as oauth_id_token
 
 import acs_internal as acs
+import email_profile_reconcile
 import firebase_admin
 import firestore_profile as fp
 import functions_framework
@@ -191,6 +193,57 @@ def _db_upsert(id_token: str, path: str, data: dict, merge: bool = True) -> tupl
     return _post_db(id_token, "/db/upsert/", {"path": path, "data": data, "merge": merge})
 
 
+def _db_read(id_token: str, doc_path: str) -> tuple[dict, int]:
+    return _post_db(id_token, "/db/read/", {"path": doc_path})
+
+
+def _post_db_platform(acting_uid: str, path_suffix: str, payload: dict) -> tuple[dict, int]:
+    """Internal DB gateway with platform OIDC + X-ACS-Acting-Uid (same contract as integration callers)."""
+    host = (os.environ.get("DB_INTERNAL_GATEWAY_HOSTNAME") or "").strip().rstrip("/")
+    audience = f"https://{host}"
+    infra = oauth_id_token.fetch_id_token(Request(), audience)
+    url = _db_internal_origin() + path_suffix
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {infra}",
+            "X-ACS-Acting-Uid": acting_uid,
+            "X-ACS-Platform-Authorization": f"Bearer {infra}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read().decode("utf-8")
+            return (json.loads(raw) if raw else {}), resp.status
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8")
+        try:
+            return json.loads(raw), e.code
+        except json.JSONDecodeError:
+            return {"error": raw or "upstream error"}, e.code
+
+
+def _best_effort_reconcile_profile(
+    id_token: str, uid: str, email: str | None, role: str
+) -> None:
+    try:
+        email_profile_reconcile.reconcile_after_auth(
+            uid,
+            email,
+            role,
+            id_token,
+            db_read=_db_read,
+            db_upsert=_db_upsert,
+            platform_post=_post_db_platform,
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("email profile reconcile failed: %s", e)
+
+
 def _sync_profile_signup(id_token: str, uid: str, email: str | None, role: str) -> tuple[dict | None, int]:
     doc = f"{fp.collection_for_role(role)}/{uid}"
     return _db_upsert(
@@ -314,6 +367,7 @@ def _handle_signup(request, role: str):
                     },
                     502,
                 )
+            _best_effort_reconcile_profile(id_tok, uid, raw.get("email"), role)
             return _json_response(_normalize_token_bundle(raw, ref_body), 200)
 
         if not email or not isinstance(email, str):
@@ -362,6 +416,7 @@ def _handle_signup(request, role: str):
                 },
                 502,
             )
+        _best_effort_reconcile_profile(id_tok, user.uid, email.strip(), role)
         return _json_response(_normalize_token_bundle(raw, ref_body), 200)
 
     except RuntimeError as e:
@@ -420,6 +475,7 @@ def _handle_login(request, role: str):
                     },
                     503,
                 )
+            _best_effort_reconcile_profile(id_tok, uid, raw.get("email"), role)
             return _json_response(_normalize_token_bundle(raw), 200)
 
         if not email or not isinstance(email, str):
@@ -454,6 +510,7 @@ def _handle_login(request, role: str):
                 },
                 503,
             )
+        _best_effort_reconcile_profile(id_tok, uid, raw.get("email"), role)
         return _json_response(_normalize_token_bundle(raw), 200)
 
     except RuntimeError as e:

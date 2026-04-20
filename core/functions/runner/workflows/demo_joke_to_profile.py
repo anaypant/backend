@@ -23,7 +23,7 @@ class DemoState(TypedDict, total=False):
 
 
 def _default_llm_provider() -> str:
-    return (os.environ.get("ACS_DEMO_LLM_PROVIDER") or "echo").strip() or "echo"
+    return (os.environ.get("ACS_DEMO_LLM_PROVIDER") or "openrouter").strip() or "openrouter"
 
 
 def _default_llm_model() -> str:

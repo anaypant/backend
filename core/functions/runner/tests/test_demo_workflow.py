@@ -11,8 +11,8 @@ class DemoJokeWorkflowTest(unittest.TestCase):
     def test_demo_happy_path(self, mock_upsert, mock_llm):
         mock_llm.return_value = ({"text": "Why did the agent cross the road? Listings."}, 200)
         mock_upsert.return_value = ({}, 200)
-        os.environ["ACS_DEMO_LLM_PROVIDER"] = "echo"
         os.environ["ACS_DEMO_LLM_MODEL"] = "test/model"
+        os.environ.pop("ACS_DEMO_LLM_PROVIDER", None)
 
         acs = {
             "state_version": 1,
@@ -25,6 +25,8 @@ class DemoJokeWorkflowTest(unittest.TestCase):
         meta = out.get("metadata") or {}
         core = meta.get("core") if isinstance(meta.get("core"), dict) else {}
         self.assertEqual(core.get("status"), "completed")
+        mock_llm.assert_called_once()
+        self.assertEqual(mock_llm.call_args.kwargs.get("provider"), "openrouter")
         mock_upsert.assert_called_once()
         args, kwargs = mock_upsert.call_args
         self.assertIn("workflowDemo", args[1])

@@ -65,8 +65,31 @@ def _caller_owns_document(decoded: dict, doc_data: dict | None) -> bool:
     return owner == uid
 
 
-def _caller_may_update_existing(decoded: dict, existing: dict) -> bool:
-    return _is_admin(decoded) or _caller_owns_document(decoded, existing)
+def _is_own_role_profile_path(decoded: dict, doc_path: str) -> bool:
+    uid = decoded.get("uid")
+    if not isinstance(uid, str) or not uid:
+        return False
+    parts = [p for p in doc_path.strip().split("/") if p]
+    return len(parts) == 2 and parts[0] in ("Realtors", "Internals") and parts[1] == uid
+
+
+def _linked_auth_uids(existing: dict | None) -> set[str]:
+    raw = (existing or {}).get("linkedAuthUids")
+    if not isinstance(raw, list):
+        return set()
+    return {x for x in raw if isinstance(x, str) and x.strip()}
+
+
+def _caller_may_update_existing(decoded: dict, existing: dict, doc_path: str) -> bool:
+    if _is_admin(decoded):
+        return True
+    if _is_own_role_profile_path(decoded, doc_path):
+        return True
+    parts = [p for p in doc_path.strip().split("/") if p]
+    if len(parts) == 2 and parts[0] in ("Realtors", "Internals"):
+        if decoded.get("uid") in _linked_auth_uids(existing):
+            return True
+    return _caller_owns_document(decoded, existing)
 
 
 def _caller_may_create(decoded: dict, data: dict) -> bool:
@@ -176,9 +199,27 @@ def main(request):
 
     snap = doc_ref.get()
     existing_dict = snap.to_dict() if snap.exists else None
+    effective_path = doc_path.strip()
+    parts = [p for p in effective_path.split("/") if p]
+    if (
+        snap.exists
+        and existing_dict
+        and len(parts) == 2
+        and parts[0] in ("Realtors", "Internals")
+    ):
+        canon = existing_dict.get("canonicalProfileUid")
+        if isinstance(canon, str) and canon.strip() and canon.strip() != parts[1]:
+            effective_path = f"{parts[0]}/{canon.strip()}"
+            try:
+                doc_ref = _document_ref_from_path(db, effective_path)
+            except ValueError:
+                pass
+            else:
+                snap = doc_ref.get()
+                existing_dict = snap.to_dict() if snap.exists else None
 
     if snap.exists:
-        if not _caller_may_update_existing(decoded, existing_dict):
+        if not _caller_may_update_existing(decoded, existing_dict, effective_path):
             return _json_response({"error": "forbidden"}, 403)
         patch = _strip_invalid_owner_changes(decoded, data)
         if patch is None:
