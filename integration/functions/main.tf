@@ -31,8 +31,9 @@ resource "google_cloud_tasks_queue_iam_member" "bridge_enqueues" {
   member   = "serviceAccount:${var.backend_service_account_email}"
 }
 
-# Public env must be nonsensitive so values learned at apply (e.g. secrets gateway hostname)
-# do not trip "inconsistent values for sensitive attribute" on google_cloudfunctions2_function.
+# google_cloudfunctions2_function treats environment_variables oddly when the map is
+# sensitive (merge with secrets): apply-time refresh can error with "inconsistent values
+# for sensitive attribute". Mark the merged map nonsensitive; values still live in state.
 locals {
   integration_env_public = {
     DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
@@ -96,10 +97,10 @@ resource "google_cloudfunctions2_function" "bridge" {
     ingress_settings                 = "ALLOW_ALL"
     max_instance_request_concurrency = 1
     service_account_email            = var.backend_service_account_email
-    environment_variables = merge(
-      nonsensitive(local.integration_env_public),
+    environment_variables = nonsensitive(merge(
+      local.integration_env_public,
       local.integration_env_secret,
-    )
+    ))
   }
 }
 
