@@ -32,3 +32,9 @@ variable "secrets_internal_jwt_audience" {
   type    = string
   default = ""
 }
+
+variable "fub_webhook_sync_worker_url" {
+  type        = string
+  default     = ""
+  description = "integration-bridge base URL for core-run internal FUB calls (optional)."
+}

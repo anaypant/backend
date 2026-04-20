@@ -12,14 +12,18 @@ terraform {
 }
 
 locals {
-  core_env_public = {
-    DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
-    LLM_INTERNAL_GATEWAY_HOSTNAME     = var.llm_internal_gateway_hostname
-    LLM_INTERNAL_JWT_AUDIENCE         = var.llm_internal_jwt_audience
-    SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
-    SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
-    BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
-  }
+  _bridge_base = trimspace(var.fub_webhook_sync_worker_url)
+  core_env_public = merge(
+    {
+      DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
+      LLM_INTERNAL_GATEWAY_HOSTNAME     = var.llm_internal_gateway_hostname
+      LLM_INTERNAL_JWT_AUDIENCE         = var.llm_internal_jwt_audience
+      SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
+      SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
+      BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
+    },
+    local._bridge_base != "" ? { INTEGRATION_BRIDGE_BASE_URL = trimsuffix(local._bridge_base, "/") } : {},
+  )
 }
 
 data "archive_file" "fn" {

@@ -51,5 +51,38 @@ class InternalWebhookSyncTest(unittest.TestCase):
         self.assertEqual(status, 401)
 
 
+class ResyncWebhooksDeferredTest(unittest.TestCase):
+    @patch.dict(
+        os.environ,
+        {"FUB_WEBHOOK_SYNC_QUEUE": "projects/p/locations/l/queues/q", "FUB_WEBHOOK_SYNC_WORKER_URL": "https://bridge.example.run.app"},
+        clear=False,
+    )
+    @patch("providers.followupboss.oauth.emit_followupboss_webhooks_resynced")
+    @patch("providers.followupboss.oauth.save_fub_profile", return_value=({"ok": True}, 200))
+    @patch("providers.followupboss.oauth.enqueue_fub_webhook_sync", return_value=(True, None))
+    @patch(
+        "providers.followupboss.oauth.load_realtor_profile",
+        return_value=(
+            {
+                "integrations": {
+                    "followupboss": {
+                        "auth": {"accessTokenRef": "sm://access"},
+                        "connection": {"status": "connected"},
+                    }
+                }
+            },
+            200,
+        ),
+    )
+    @patch("providers.followupboss.oauth.resolve_realtor_bearer", return_value=({"uid": "u1"}, None, None))
+    def test_resync_enqueues_when_queue_configured(self, *_mocks):
+        req = DummyReq(method="POST")
+        body, status, _ = oauth.resync_webhooks(req)
+        self.assertEqual(status, 202)
+        payload = json.loads(body)
+        self.assertTrue(payload.get("deferred"))
+        self.assertEqual(payload.get("webhooks", {}).get("syncStatus"), "pending")
+
+
 if __name__ == "__main__":
     unittest.main()

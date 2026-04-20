@@ -37,3 +37,9 @@ variable "secrets_internal_jwt_audience" {
   default     = ""
   description = "OIDC audience for secrets-bridge (Cloud Function URL)."
 }
+
+variable "fub_webhook_sync_worker_url" {
+  type        = string
+  default     = ""
+  description = "integration-bridge HTTPS origin (no trailing slash); enables core-run synchronous FUB refresh+webhook sync via internal/webhook_sync."
+}

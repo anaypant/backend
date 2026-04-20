@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 from langgraph.graph import END, StateGraph
 
-from clients import llm_internal
+from clients import integration_bridge, llm_internal
 from state import acs_state
 from tools import registry as tool_registry
 
@@ -42,6 +42,20 @@ def _node_generate_joke(state: DemoState) -> dict[str, Any]:
         acs_state.append_error(acs, "user_id missing on state; cannot run demo workflow")
         acs_state.set_core_meta(acs, {"workflow_id": "demo.joke_to_profile_v1", "status": "failed", "phase": "llm"})
         return {"acs": acs, "joke": "", "failed": True}
+
+    if (os.environ.get("INTEGRATION_BRIDGE_BASE_URL") or "").strip():
+        prep, pst = integration_bridge.fub_refresh_and_sync_webhooks(uid.strip(), refresh_tokens_first=True)
+        meta0 = acs_state.ensure_metadata(acs)
+        meta0.setdefault("workflowDemo", {})
+        if isinstance(meta0["workflowDemo"], dict):
+            meta0["workflowDemo"]["fubPrepareHttpStatus"] = pst
+        if pst >= 400:
+            _logger.warning(
+                "demo.joke_to_profile_v1 fub_prepare failed status=%s body=%s",
+                pst,
+                prep,
+            )
+            acs_state.append_error(acs, f"fub_prepare (refresh+webhooks) failed: {pst}")
 
     provider = _default_llm_provider()
     model = _default_llm_model()

@@ -21,6 +21,7 @@ module "functions" {
   llm_internal_jwt_audience           = var.llm_internal_jwt_audience
   secrets_internal_gateway_hostname   = var.secrets_internal_gateway_hostname
   secrets_internal_jwt_audience       = var.secrets_internal_jwt_audience
+  fub_webhook_sync_worker_url         = var.fub_webhook_sync_worker_url
 }
 
 module "api" {
