@@ -1,10 +1,20 @@
 import os
 
-from providers.followupboss.egress import apply_outbound_actions as fub_apply
+from dispatcher.outbound_policy import action_is_volatile_external, partition_outbound_actions
+
+__all__ = [
+    "action_is_volatile_external",
+    "dispatch_provider_actions",
+    "extract_actions_from_state",
+    "outbound_enabled",
+    "partition_outbound_actions",
+]
 
 
 def dispatch_provider_actions(provider: str, connection_id: str, actions: list[dict]) -> dict:
     if provider == "followupboss":
+        from providers.followupboss.egress import apply_outbound_actions as fub_apply
+
         return fub_apply(connection_id, actions)
     return {"ok": False, "error": f"unsupported provider: {provider}"}
 

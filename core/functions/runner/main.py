@@ -58,13 +58,15 @@ def main(request):
 
     if workflow_id and wf_registry.is_registered(workflow_id):
         try:
+            exec_workflow_id = wf_registry.resolve_registered_workflow_id(workflow_id, out_state)
             _logger.info(
-                "workflow start workflow_id=%s correlation_id=%s user_id=%s",
+                "workflow start workflow_id=%s exec_workflow_id=%s correlation_id=%s user_id=%s",
                 workflow_id,
+                exec_workflow_id,
                 out_state.get("correlation_id"),
                 out_state.get("user_id"),
             )
-            out_state = wf_registry.run_workflow(workflow_id, out_state)
+            out_state = wf_registry.run_workflow(exec_workflow_id, out_state)
             meta = dict(out_state.get("metadata") or {})
             core_meta = meta.get("core") if isinstance(meta.get("core"), dict) else {}
             wf_status = core_meta.get("status")

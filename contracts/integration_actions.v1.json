@@ -13,7 +13,11 @@
         "required": ["name", "payload"],
         "properties": {
           "name": { "type": "string" },
-          "payload": { "type": "object" }
+          "payload": { "type": "object" },
+          "effect": {
+            "type": "string",
+            "description": "volatile_external (default) requires hands-on mode; internal skips CRM egress filtering."
+          }
         },
         "additionalProperties": true
       }

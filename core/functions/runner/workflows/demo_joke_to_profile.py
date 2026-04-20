@@ -13,6 +13,7 @@ from langgraph.graph import END, StateGraph
 
 from clients import integration_bridge, llm_internal
 from state import acs_state
+from state.execution_policy import integration_maintenance_allowed
 from tools import registry as tool_registry
 
 
@@ -44,18 +45,22 @@ def _node_generate_joke(state: DemoState) -> dict[str, Any]:
         return {"acs": acs, "joke": "", "failed": True}
 
     if (os.environ.get("INTEGRATION_BRIDGE_BASE_URL") or "").strip():
-        prep, pst = integration_bridge.fub_refresh_and_sync_webhooks(uid.strip(), refresh_tokens_first=True)
         meta0 = acs_state.ensure_metadata(acs)
         meta0.setdefault("workflowDemo", {})
-        if isinstance(meta0["workflowDemo"], dict):
-            meta0["workflowDemo"]["fubPrepareHttpStatus"] = pst
-        if pst >= 400:
-            _logger.warning(
-                "demo.joke_to_profile_v1 fub_prepare failed status=%s body=%s",
-                pst,
-                prep,
-            )
-            acs_state.append_error(acs, f"fub_prepare (refresh+webhooks) failed: {pst}")
+        if not integration_maintenance_allowed(acs):
+            if isinstance(meta0["workflowDemo"], dict):
+                meta0["workflowDemo"]["fubPrepareSkipped"] = "integration_maintenance_disabled"
+        else:
+            prep, pst = integration_bridge.fub_refresh_and_sync_webhooks(uid.strip(), refresh_tokens_first=True)
+            if isinstance(meta0["workflowDemo"], dict):
+                meta0["workflowDemo"]["fubPrepareHttpStatus"] = pst
+            if pst >= 400:
+                _logger.warning(
+                    "demo.joke_to_profile_v1 fub_prepare failed status=%s body=%s",
+                    pst,
+                    prep,
+                )
+                acs_state.append_error(acs, f"fub_prepare (refresh+webhooks) failed: {pst}")
 
     provider = _default_llm_provider()
     model = _default_llm_model()
@@ -134,6 +139,7 @@ def _node_merge_profile(state: DemoState) -> dict[str, Any]:
         "db.merge_realtor_profile",
         {"data": patch, "uid": uid.strip()},
         acting_uid=uid.strip(),
+        acs=acs,
     )
     if st >= 400:
         acs_state.append_error(acs, f"db merge failed: {st} {resp!r}")

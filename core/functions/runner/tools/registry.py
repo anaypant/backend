@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from state.execution_policy import volatile_external_allowed
 from tools import db_profile
 
 ToolFn = Callable[..., tuple[dict, int]]
@@ -11,6 +12,18 @@ ToolFn = Callable[..., tuple[dict, int]]
 _REGISTRY: dict[str, ToolFn] = {
     "db.merge_realtor_profile": db_profile.merge_realtor_profile,
 }
+
+# Tools not listed default to volatile_external=True (blocked in analytical mode).
+TOOL_META: dict[str, dict[str, bool]] = {
+    "db.merge_realtor_profile": {"volatile_external": False},
+}
+
+
+def tool_meta(tool_id: str) -> dict[str, bool]:
+    m = TOOL_META.get(tool_id)
+    if m is None:
+        return {"volatile_external": True}
+    return dict(m)
 
 
 def get_tool(name: str) -> ToolFn | None:
@@ -22,10 +35,22 @@ def run_tool(
     args: dict[str, Any],
     *,
     acting_uid: str,
+    acs: dict | None = None,
 ) -> tuple[dict, int]:
     fn = get_tool(name)
     if fn is None:
         return {"error": f"unknown tool: {name}"}, 400
+
+    meta = tool_meta(name)
+    if meta.get("volatile_external"):
+        if acs is None:
+            return {"error": "acs_required_for_volatile_tool", "tool": name}, 400
+        if not volatile_external_allowed(acs):
+            return {
+                "error": "tool_blocked_by_execution_policy",
+                "tool": name,
+                "detail": "volatile_external_not_allowed",
+            }, 403
     if name == "db.merge_realtor_profile":
         data = args.get("data")
         if not isinstance(data, dict):

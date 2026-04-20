@@ -6,7 +6,10 @@ import re
 import uuid
 
 from dispatcher.core_client import send_state_to_core
+from dispatcher.execution_policy import execution_policy_from_profile
 from dispatcher.egress import dispatch_provider_actions, extract_actions_from_state, outbound_enabled
+from dispatcher.outbound_policy import partition_outbound_actions
+from dispatcher.workflow_router import resolve_default_workflow_id
 from providers.followupboss.client import FubClient
 from store.authn import resolve_realtor_bearer
 from store.common import integration_auth_error_response, json_response
@@ -41,13 +44,33 @@ def _workflow_debug_payload(*, core_status: int, core_body: dict) -> dict:
         core_m = meta.get("core") if isinstance(meta.get("core"), dict) else {}
         wf_demo = meta.get("workflowDemo") if isinstance(meta.get("workflowDemo"), dict) else {}
         errs = st.get("errors") if isinstance(st.get("errors"), list) else []
+        oa = meta.get("outboundActions")
+        skipped_ob = meta.get("skipped_outbound")
         out["state"] = {
             "correlation_id": st.get("correlation_id"),
             "metadata_core": core_m,
             "metadata_workflowDemo": wf_demo,
+            "metadata_execution_policy": meta.get("execution_policy"),
+            "metadata_workflow_routing": meta.get("workflow_routing"),
+            "metadata_skipped_outbound": skipped_ob,
+            "outbound_actions_count": len(oa) if isinstance(oa, list) else 0,
+            "skipped_outbound_count": len(skipped_ob) if isinstance(skipped_ob, list) else 0,
             "errors": errs[:20],
         }
     return out
+
+
+def _merge_skipped_outbound_into_state(state: dict, skipped: list[dict]) -> None:
+    if not skipped or not isinstance(state, dict):
+        return
+    meta = dict(state.get("metadata") or {})
+    prior = meta.get("skipped_outbound")
+    merged: list[dict] = []
+    if isinstance(prior, list):
+        merged.extend(p for p in prior if isinstance(p, dict))
+    merged.extend(skipped)
+    meta["skipped_outbound"] = merged
+    state["metadata"] = meta
 
 
 def _process_webhook_event(
@@ -55,6 +78,7 @@ def _process_webhook_event(
     fub: dict,
     event_body: dict,
     *,
+    profile: dict | None = None,
     workflow_id: str | None = None,
     include_workflow_debug: bool = False,
 ):
@@ -72,8 +96,17 @@ def _process_webhook_event(
             dup["workflow_debug"] = {"note": "duplicate event_id; core run skipped"}
         return json_response(dup, 200)
 
+    policy = execution_policy_from_profile(profile)
     state = _to_acs_state(event_body, connection_id)
-    core_body, core_status = send_state_to_core(state, workflow_id=workflow_id)
+    meta = dict(state.get("metadata") or {})
+    meta["execution_policy"] = policy
+    state["metadata"] = meta
+
+    event_type = event_body.get("event") if isinstance(event_body.get("event"), str) else "unknown"
+    wf_explicit = (workflow_id or "").strip() or None
+    wf_resolved = wf_explicit or resolve_default_workflow_id(event_type, policy)
+
+    core_body, core_status = send_state_to_core(state, workflow_id=wf_resolved)
     if core_status >= 400:
         update_event_status(connection_id, event_id, "core_error", core_body)
         err_payload: dict = {"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}
@@ -82,13 +115,31 @@ def _process_webhook_event(
             err_payload["workflow_debug"] = _workflow_debug_payload(core_status=core_status, core_body=cb)
         return json_response(err_payload, 200)
 
-    result_state = core_body.get("state") if isinstance(core_body, dict) else {}
-    actions = extract_actions_from_state(result_state if isinstance(result_state, dict) else {})
-    if outbound_enabled() and actions:
-        outbound = dispatch_provider_actions("followupboss", connection_id, actions)
-        update_event_status(connection_id, event_id, "processed_with_outbound", outbound)
+    result_state = core_body.get("state") if isinstance(core_body, dict) else None
+    rs = result_state if isinstance(result_state, dict) else None
+    actions = extract_actions_from_state(rs or {})
+    to_apply, skipped_policy = partition_outbound_actions(actions, policy)
+    skipped: list[dict] = list(skipped_policy)
+    if not outbound_enabled():
+        for a in to_apply:
+            skipped.append({"action": a, "reason": "outbound_egress_globally_disabled"})
+        to_apply = []
+    if skipped and isinstance(core_body, dict) and isinstance(rs, dict):
+        _merge_skipped_outbound_into_state(rs, skipped)
+        core_body["state"] = rs
+    if outbound_enabled() and to_apply:
+        outbound = dispatch_provider_actions("followupboss", connection_id, to_apply)
+        detail = dict(outbound) if isinstance(outbound, dict) else {"detail": outbound}
+        if skipped:
+            detail["skipped_outbound_count"] = len(skipped)
+        update_event_status(connection_id, event_id, "processed_with_outbound", detail)
     else:
-        update_event_status(connection_id, event_id, "processed", {"actions": len(actions)})
+        update_event_status(
+            connection_id,
+            event_id,
+            "processed",
+            {"actions": len(actions), "applied": len(to_apply), "skipped": len(skipped)},
+        )
 
     uri = event_body.get("uri")
     if isinstance(uri, str) and uri:
@@ -127,7 +178,7 @@ def webhook_ingress(request):
     if not connection_id or not _CONNECTION_ID_RE.match(connection_id):
         return json_response({"error": "connectionId query parameter required"}, 400)
 
-    _, fub = load_fub_profile_by_connection_id(connection_id)
+    profile, fub = load_fub_profile_by_connection_id(connection_id)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
 
@@ -154,7 +205,13 @@ def webhook_ingress(request):
         return json_response({"error": "JSON object body required"}, 400)
 
     wf = (request.args.get("workflowId") or request.args.get("workflow_id") or "").strip()
-    return _process_webhook_event(connection_id, fub, event_body, workflow_id=wf or None)
+    return _process_webhook_event(
+        connection_id,
+        fub,
+        event_body,
+        profile=profile,
+        workflow_id=wf or None,
+    )
 
 
 def webhook_test(request):
@@ -172,7 +229,7 @@ def webhook_test(request):
     if not isinstance(event_body, dict):
         return json_response({"error": "JSON object body required"}, 400)
 
-    _, fub = load_fub_profile_by_connection_id(uid)
+    profile, fub = load_fub_profile_by_connection_id(uid)
     if not fub:
         return json_response({"error": "followupboss not configured"}, 404)
 
@@ -181,6 +238,7 @@ def webhook_test(request):
         uid,
         fub,
         event_body,
+        profile=profile,
         workflow_id=wf or None,
         include_workflow_debug=True,
     )

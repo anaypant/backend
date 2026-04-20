@@ -46,6 +46,44 @@ class DemoJokeWorkflowTest(unittest.TestCase):
         self.assertEqual(core.get("status"), "failed")
         mock_llm.assert_not_called()
 
+    @patch("workflows.demo_joke_to_profile.llm_internal.complete")
+    @patch("workflows.demo_joke_to_profile.integration_bridge.fub_refresh_and_sync_webhooks")
+    @patch("tools.db_profile.db_internal.upsert_merge")
+    def test_integration_maintenance_skipped_when_policy_disallows(
+        self,
+        mock_upsert,
+        mock_fub_prepare,
+        mock_llm,
+    ):
+        mock_llm.return_value = ({"text": "Joke here."}, 200)
+        mock_upsert.return_value = ({}, 200)
+        prev_bridge = os.environ.get("INTEGRATION_BRIDGE_BASE_URL")
+        os.environ["INTEGRATION_BRIDGE_BASE_URL"] = "https://bridge.example"
+        try:
+            acs = {
+                "state_version": 1,
+                "correlation_id": "c1",
+                "source": {"provider": "test", "event_type": "x"},
+                "payload": {},
+                "user_id": "realtor-uid-1",
+                "metadata": {
+                    "execution_policy": {
+                        "volatile_external_allowed": True,
+                        "integration_maintenance_allowed": False,
+                    }
+                },
+            }
+            out = wf_registry.run_workflow("demo.joke_to_profile_v1", acs)
+            mock_fub_prepare.assert_not_called()
+            meta = out.get("metadata") or {}
+            wf_demo = meta.get("workflowDemo") if isinstance(meta.get("workflowDemo"), dict) else {}
+            self.assertEqual(wf_demo.get("fubPrepareSkipped"), "integration_maintenance_disabled")
+        finally:
+            if prev_bridge is None:
+                os.environ.pop("INTEGRATION_BRIDGE_BASE_URL", None)
+            else:
+                os.environ["INTEGRATION_BRIDGE_BASE_URL"] = prev_bridge
+
 
 if __name__ == "__main__":
     unittest.main()
