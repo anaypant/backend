@@ -13,6 +13,12 @@ db_internal_gateway_hostname = ""
 # Firebase Console → Project settings → Your apps → Web API key (required for auth functions).
 firebase_web_api_key = "NULL"
 
+# -----------------------------------------------------------------------------
+# LLM (module.llm → llm-complete Cloud Function env OPENROUTER_API_KEY).
+# Set in HCP Terraform as a sensitive variable; leave empty locally to avoid committing secrets.
+# -----------------------------------------------------------------------------
+openrouter_api_key = ""
+
 # Optional: set both to manage Google sign-in via Terraform; otherwise enable Google in Firebase Console.
 google_oauth_client_id     = ""
 google_oauth_client_secret = ""
