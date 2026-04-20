@@ -6,6 +6,7 @@ resource "google_project_service" "gcp" {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudfunctions.googleapis.com",
+    "cloudtasks.googleapis.com",
     "compute.googleapis.com",
     "firestore.googleapis.com",
     "identitytoolkit.googleapis.com",
