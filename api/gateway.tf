@@ -442,6 +442,7 @@ locals {
         }
         responses = {
           "200" = { description = "OK" }
+          "202" = { description = "Accepted — webhook sync enqueued (Cloud Tasks)" }
           "400" = { description = "Bad request" }
           "401" = { description = "Unauthorized" }
           "403" = { description = "Forbidden" }

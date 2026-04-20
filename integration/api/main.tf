@@ -173,6 +173,7 @@ locals {
         "x-google-backend" = local.integration_backend
         responses = {
           "200" = { description = "OK" }
+          "202" = { description = "Accepted — webhook sync enqueued" }
           "400" = { description = "Bad request" }
           "401" = { description = "Unauthorized" }
           "403" = { description = "Forbidden" }

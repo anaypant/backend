@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import Any, TypedDict
+
+_logger = logging.getLogger(__name__)
 
 from langgraph.graph import END, StateGraph
 
@@ -29,6 +32,11 @@ def _default_llm_model() -> str:
 
 def _node_generate_joke(state: DemoState) -> dict[str, Any]:
     acs: dict = state["acs"]
+    _logger.info(
+        "demo.joke_to_profile_v1 node=generate_joke correlation_id=%s user_id=%s",
+        acs.get("correlation_id"),
+        acs.get("user_id"),
+    )
     uid = acs.get("user_id")
     if not isinstance(uid, str) or not uid.strip():
         acs_state.append_error(acs, "user_id missing on state; cannot run demo workflow")
@@ -85,6 +93,11 @@ def _node_generate_joke(state: DemoState) -> dict[str, Any]:
 
 def _node_merge_profile(state: DemoState) -> dict[str, Any]:
     acs: dict = state["acs"]
+    _logger.info(
+        "demo.joke_to_profile_v1 node=merge_profile correlation_id=%s failed=%s",
+        acs.get("correlation_id"),
+        bool(state.get("failed")),
+    )
     if state.get("failed"):
         acs_state.set_core_meta(acs, {"status": "failed", "workflow_id": "demo.joke_to_profile_v1"})
         return {"acs": acs}

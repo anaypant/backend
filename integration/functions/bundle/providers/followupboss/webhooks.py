@@ -28,12 +28,35 @@ def _signature_ok(raw_body: bytes, header_sig: str | None, x_system_key: str) ->
     return hmac.compare_digest(expected, header_sig.strip())
 
 
+def _workflow_debug_payload(*, core_status: int, core_body: dict) -> dict:
+    """Subset of core /run response for realtor-only webhook_test debugging (lite UI log)."""
+    out: dict = {"core_http_status": core_status}
+    out["core_run"] = {
+        "status": core_body.get("status"),
+        "error": core_body.get("error"),
+    }
+    st = core_body.get("state")
+    if isinstance(st, dict):
+        meta = st.get("metadata") if isinstance(st.get("metadata"), dict) else {}
+        core_m = meta.get("core") if isinstance(meta.get("core"), dict) else {}
+        wf_demo = meta.get("workflowDemo") if isinstance(meta.get("workflowDemo"), dict) else {}
+        errs = st.get("errors") if isinstance(st.get("errors"), list) else []
+        out["state"] = {
+            "correlation_id": st.get("correlation_id"),
+            "metadata_core": core_m,
+            "metadata_workflowDemo": wf_demo,
+            "errors": errs[:20],
+        }
+    return out
+
+
 def _process_webhook_event(
     connection_id: str,
     fub: dict,
     event_body: dict,
     *,
     workflow_id: str | None = None,
+    include_workflow_debug: bool = False,
 ):
     """Shared pipeline after signature (ingress) or Firebase auth (test).
 
@@ -44,13 +67,20 @@ def _process_webhook_event(
     event_id = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
     inserted, _ = put_event_ledger(connection_id, event_id, event_body)
     if not inserted:
-        return json_response({"ok": True, "duplicate": True, "eventId": event_id}, 200)
+        dup: dict = {"ok": True, "duplicate": True, "eventId": event_id}
+        if include_workflow_debug:
+            dup["workflow_debug"] = {"note": "duplicate event_id; core run skipped"}
+        return json_response(dup, 200)
 
     state = _to_acs_state(event_body, connection_id)
     core_body, core_status = send_state_to_core(state, workflow_id=workflow_id)
     if core_status >= 400:
         update_event_status(connection_id, event_id, "core_error", core_body)
-        return json_response({"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}, 200)
+        err_payload: dict = {"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}
+        if include_workflow_debug:
+            cb = core_body if isinstance(core_body, dict) else {}
+            err_payload["workflow_debug"] = _workflow_debug_payload(core_status=core_status, core_body=cb)
+        return json_response(err_payload, 200)
 
     result_state = core_body.get("state") if isinstance(core_body, dict) else {}
     actions = extract_actions_from_state(result_state if isinstance(result_state, dict) else {})
@@ -70,7 +100,11 @@ def _process_webhook_event(
         _r, _s = client.get_by_uri(uri)
         update_event_status(connection_id, event_id, "processed", {"fetchedUri": _s < 400})
 
-    return json_response({"ok": True, "accepted": True, "eventId": event_id}, 200)
+    ok_payload: dict = {"ok": True, "accepted": True, "eventId": event_id}
+    if include_workflow_debug:
+        cb = core_body if isinstance(core_body, dict) else {}
+        ok_payload["workflow_debug"] = _workflow_debug_payload(core_status=core_status, core_body=cb)
+    return json_response(ok_payload, 200)
 
 
 def _to_acs_state(event_body: dict, connection_id: str) -> dict:
@@ -143,4 +177,10 @@ def webhook_test(request):
         return json_response({"error": "followupboss not configured"}, 404)
 
     wf = (request.args.get("workflowId") or request.args.get("workflow_id") or "").strip()
-    return _process_webhook_event(uid, fub, event_body, workflow_id=wf or None)
+    return _process_webhook_event(
+        uid,
+        fub,
+        event_body,
+        workflow_id=wf or None,
+        include_workflow_debug=True,
+    )

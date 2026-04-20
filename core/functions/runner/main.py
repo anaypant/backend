@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import traceback
 import uuid
 
@@ -11,6 +12,8 @@ import functions_framework
 import acs_internal as acs
 
 from workflows import registry as wf_registry
+
+_logger = logging.getLogger(__name__)
 
 
 def _json_response(payload: dict, status: int):
@@ -52,6 +55,12 @@ def main(request):
 
     if workflow_id and wf_registry.is_registered(workflow_id):
         try:
+            _logger.info(
+                "workflow start workflow_id=%s correlation_id=%s user_id=%s",
+                workflow_id,
+                out_state.get("correlation_id"),
+                out_state.get("user_id"),
+            )
             out_state = wf_registry.run_workflow(workflow_id, out_state)
             meta = dict(out_state.get("metadata") or {})
             core_meta = meta.get("core") if isinstance(meta.get("core"), dict) else {}
@@ -61,6 +70,13 @@ def main(request):
             if wf_status == "failed":
                 http = 500
                 top = "failed"
+            _logger.info(
+                "workflow end workflow_id=%s correlation_id=%s top_status=%s wf_status=%s",
+                workflow_id,
+                out_state.get("correlation_id"),
+                top,
+                wf_status,
+            )
             out_state["metadata"] = meta
             return _json_response(
                 {
@@ -71,6 +87,11 @@ def main(request):
                 http,
             )
         except Exception:
+            _logger.exception(
+                "workflow raised workflow_id=%s correlation_id=%s",
+                workflow_id,
+                out_state.get("correlation_id"),
+            )
             err = traceback.format_exc()
             meta["core"] = dict(meta.get("core") or {})
             meta["core"]["handler"] = "workflow_error"

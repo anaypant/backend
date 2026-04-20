@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import os
 import re
 import urllib.parse
@@ -38,6 +39,90 @@ def _put_fub_secret(reference_id: str, value: str) -> tuple[str | None, str | No
 import bridge_token
 
 _STATE_RE = re.compile(r"^[a-zA-Z0-9._-]{8,512}$")
+
+
+def _fub_webhook_sync_queue_configured() -> bool:
+    return bool((os.environ.get("FUB_WEBHOOK_SYNC_QUEUE") or "").strip()) and bool(
+        (os.environ.get("FUB_WEBHOOK_SYNC_WORKER_URL") or "").strip()
+    )
+
+
+def refresh_fub_oauth_tokens_for_uid(uid: str) -> tuple[dict, int]:
+    """
+    Refresh Follow Up Boss OAuth access token using the stored refresh token (profile + secrets).
+    Same behavior as POST /integrations/followupboss/refresh but without Firebase request auth.
+    """
+    existing, status = load_realtor_profile(uid)
+    maybe_err = _maybe_return_profile_load_error(existing, status)
+    if maybe_err:
+        body, st, _ = maybe_err
+        try:
+            return json.loads(body), st
+        except json.JSONDecodeError:
+            return {"error": "upstream_non_json", "detail": body}, st
+
+    fub = fub_config_from_profile(existing)
+    if not fub:
+        return {"error": "followupboss not configured"}, 404
+
+    auth_block = dict(fub.get("auth") or {})
+    refresh_ref = auth_block.get("refreshTokenRef")
+    if not isinstance(refresh_ref, str) or not refresh_ref.strip():
+        return (
+            {
+                "error": "refresh_token_ref_missing",
+                "todo": (
+                    "No refreshTokenRef on the realtor profile (OAuth exchange may not have returned refresh_token, "
+                    "or connect predates refresh storage). Disconnect and reconnect with authorize URL using "
+                    "response_type=auth_code per Follow Up Boss docs."
+                ),
+            },
+            400,
+        )
+    refresh_token = get_secret(refresh_ref, acting_uid=uid)
+    if not refresh_token:
+        return (
+            {
+                "error": "refresh_token_secret_unreadable",
+                "detail": "refreshTokenRef is set but the secret value is empty or could not be read for this uid.",
+                "todo": "Verify secrets internal gateway + acs-sec scope for this realtor, or reconnect OAuth.",
+            },
+            400,
+        )
+
+    body, s = FubClient().refresh_token(refresh_token)
+    if s >= 400:
+        return {"error": "token_refresh_failed", "detail": body}, 502 if s >= 500 else s
+
+    new_access = body.get("access_token")
+    if isinstance(new_access, str) and new_access:
+        ref, err = _put_fub_secret(f"fub-access-{uid}", new_access)
+        if err:
+            return (
+                {"error": "secret_persist_failed", "phase": "access_token", "detail": err},
+                502,
+            )
+        auth_block["accessTokenRef"] = ref
+    new_refresh = body.get("refresh_token")
+    if isinstance(new_refresh, str) and new_refresh:
+        ref, err = _put_fub_secret(f"fub-refresh-{uid}", new_refresh)
+        if err:
+            return (
+                {"error": "secret_persist_failed", "phase": "refresh_token", "detail": err},
+                502,
+            )
+        auth_block["refreshTokenRef"] = ref
+
+    auth_block["expiresAtEpoch"] = now_epoch() + int(body.get("expires_in") or 3600)
+    fub["auth"] = auth_block
+    fub.setdefault("audit", {})
+    fub["audit"]["lastRefreshAtEpoch"] = now_epoch()
+
+    db_body, db_status = save_fub_profile(uid, fub)
+    if db_status >= 400:
+        return {"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status
+
+    return {"ok": True, "uid": uid, "db": db_body}, 200
 
 
 def _normalize_oauth_state_param(raw: str | None) -> str:
@@ -411,9 +496,7 @@ def oauth_callback(request):
     auth_block["xSystemKeyRef"] = auth_block.get("xSystemKeyRef") or "env://FUB_X_SYSTEM_KEY"
 
     callback_base = public_integration_base_url(request)
-    queue_configured = bool((os.environ.get("FUB_WEBHOOK_SYNC_QUEUE") or "").strip()) and bool(
-        (os.environ.get("FUB_WEBHOOK_SYNC_WORKER_URL") or "").strip()
-    )
+    queue_configured = _fub_webhook_sync_queue_configured()
     deferred = False
     if queue_configured:
         enq_ok, _enq_err = enqueue_fub_webhook_sync(uid)
@@ -479,8 +562,10 @@ def oauth_callback(request):
 
 def internal_webhook_sync(request):
     """
-    POST — Cloud Tasks worker: register all FUB webhooks for a realtor after OAuth.
+    POST — Cloud Tasks worker or core-run: register all FUB webhooks for a realtor.
     Secured with OIDC (platform service account); not for browser use.
+    Optional JSON ``refreshTokensFirst`` / ``refresh_tokens_first`` runs FUB OAuth refresh before sync
+    (same as ``refresh_fub_oauth_tokens_for_uid``) so workflows can refresh + reconcile in one call.
     """
     if request.method != "POST":
         return json_response({"error": "method not allowed"}, 405)
@@ -492,6 +577,18 @@ def internal_webhook_sync(request):
     if not isinstance(uid, str) or not uid.strip():
         return json_response({"error": "uid required"}, 400)
     uid = uid.strip()
+
+    refresh_first = False
+    if isinstance(body, dict):
+        rf = body.get("refreshTokensFirst")
+        if rf is None:
+            rf = body.get("refresh_tokens_first")
+        refresh_first = rf is True or (isinstance(rf, str) and rf.strip().lower() in ("1", "true", "yes"))
+
+    if refresh_first:
+        out, st = refresh_fub_oauth_tokens_for_uid(uid)
+        if st >= 400:
+            return json_response(out, st)
 
     existing, status = load_realtor_profile(uid)
     maybe_err = _maybe_return_profile_load_error(existing, status)
@@ -542,73 +639,8 @@ def refresh(request):
     if err:
         return integration_auth_error_response(err)
     uid = decoded["uid"]
-
-    existing, status = load_realtor_profile(uid)
-    maybe_err = _maybe_return_profile_load_error(existing, status)
-    if maybe_err:
-        return maybe_err
-    fub = fub_config_from_profile(existing)
-    if not fub:
-        return json_response({"error": "followupboss not configured"}, 404)
-
-    auth_block = dict(fub.get("auth") or {})
-    refresh_ref = auth_block.get("refreshTokenRef")
-    if not isinstance(refresh_ref, str) or not refresh_ref.strip():
-        return json_response(
-            {
-                "error": "refresh_token_ref_missing",
-                "todo": (
-                    "No refreshTokenRef on the realtor profile (OAuth exchange may not have returned refresh_token, "
-                    "or connect predates refresh storage). Disconnect and reconnect with authorize URL using "
-                    "response_type=auth_code per Follow Up Boss docs."
-                ),
-            },
-            400,
-        )
-    refresh_token = get_secret(refresh_ref, acting_uid=uid)
-    if not refresh_token:
-        return json_response(
-            {
-                "error": "refresh_token_secret_unreadable",
-                "detail": "refreshTokenRef is set but the secret value is empty or could not be read for this uid.",
-                "todo": "Verify secrets internal gateway + acs-sec scope for this realtor, or reconnect OAuth.",
-            },
-            400,
-        )
-
-    body, s = FubClient().refresh_token(refresh_token)
-    if s >= 400:
-        return json_response({"error": "token_refresh_failed", "detail": body}, 502 if s >= 500 else s)
-
-    new_access = body.get("access_token")
-    if isinstance(new_access, str) and new_access:
-        ref, err = _put_fub_secret(f"fub-access-{uid}", new_access)
-        if err:
-            return json_response(
-                {"error": "secret_persist_failed", "phase": "access_token", "detail": err},
-                502,
-            )
-        auth_block["accessTokenRef"] = ref
-    new_refresh = body.get("refresh_token")
-    if isinstance(new_refresh, str) and new_refresh:
-        ref, err = _put_fub_secret(f"fub-refresh-{uid}", new_refresh)
-        if err:
-            return json_response(
-                {"error": "secret_persist_failed", "phase": "refresh_token", "detail": err},
-                502,
-            )
-        auth_block["refreshTokenRef"] = ref
-
-    auth_block["expiresAtEpoch"] = now_epoch() + int(body.get("expires_in") or 3600)
-    fub["auth"] = auth_block
-    fub.setdefault("audit", {})
-    fub["audit"]["lastRefreshAtEpoch"] = now_epoch()
-
-    db_body, db_status = save_fub_profile(uid, fub)
-    if db_status >= 400:
-        return json_response({"error": "db upsert failed", "detail": db_body}, 502 if db_status >= 500 else db_status)
-
-    return json_response({"ok": True, "uid": uid, "db": db_body}, 200)
+    out, st = refresh_fub_oauth_tokens_for_uid(uid)
+    return json_response(out, st)
 
 
 def _delete_fub_webhook_with_auth_fallback(
@@ -882,6 +914,33 @@ def resync_webhooks(request):
     access_ref = auth_block.get("accessTokenRef")
     if not isinstance(access_ref, str) or not access_ref:
         return json_response({"error": "access token ref missing"}, 400)
+
+    if _fub_webhook_sync_queue_configured():
+        enq_ok, _enq_err = enqueue_fub_webhook_sync(uid)
+        if enq_ok:
+            pending = {
+                "syncStatus": "pending",
+                "deferred": True,
+                "resyncEnqueuedAtEpoch": now_epoch(),
+            }
+            fub["webhooks"] = pending
+            fub.setdefault("audit", {})
+            fub["audit"]["lastWebhookResyncAtEpoch"] = now_epoch()
+            save_fub_profile(uid, fub)
+            emit_followupboss_webhooks_resynced(uid, webhook_sync=pending)
+            return json_response(
+                {
+                    "ok": True,
+                    "uid": uid,
+                    "deferred": True,
+                    "webhooks": pending,
+                    "hint": (
+                        "Webhook registration was enqueued; it runs in the background. "
+                        "GET /integrations/followupboss/status or webhooks list after a short wait."
+                    ),
+                },
+                202,
+            )
 
     callback_base = public_integration_base_url(request)
     result, sync_status = _ensure_all_webhooks(
