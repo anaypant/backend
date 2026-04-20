@@ -26,3 +26,21 @@ def fub_refresh_and_sync_webhooks(uid: str, *, refresh_tokens_first: bool = True
         "refreshTokensFirst": refresh_tokens_first,
     }
     return post_json_with_bearer(url, payload, bearer=token, timeout=120)
+
+
+def apply_followupboss_outbound(uid: str, actions: list) -> tuple[dict[str, Any], int]:
+    """
+    Best-effort synchronous CRM apply via integration-bridge.
+
+    When ``INTEGRATION_BRIDGE_BASE_URL`` is unset or the worker URL is not deployed, returns
+    ``{ok: true, mode: "deferred"}`` so callers can rely on the integration webhook path to apply
+    ``metadata.outboundActions`` after core returns.
+    """
+    base = (os.environ.get("INTEGRATION_BRIDGE_BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        return {"ok": True, "mode": "deferred", "reason": "integration_bridge_not_configured"}, 200
+
+    token = gcp_identity.id_token_for_integration_bridge()
+    url = f"{base}/integrations/followupboss/internal/outbound_apply"
+    payload: dict[str, Any] = {"uid": uid.strip(), "actions": actions}
+    return post_json_with_bearer(url, payload, bearer=token, timeout=120)

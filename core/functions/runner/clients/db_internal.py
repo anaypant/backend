@@ -25,3 +25,35 @@ def upsert_merge(path: str, data: dict, *, acting_uid: str, timeout: int = 60) -
         bearer=token,
         timeout=timeout,
     )
+
+
+def read_document(path: str, *, acting_uid: str, timeout: int = 60) -> tuple[dict, int]:
+    token = gcp_identity.id_token_for_db_gateway()
+    url = db_origin().rstrip("/") + "/db/read/"
+    return post_json_platform_acting(
+        url,
+        {"path": path},
+        acting_uid=acting_uid,
+        bearer=token,
+        timeout=timeout,
+    )
+
+
+def query_collection(
+    path: str,
+    filters: list,
+    *,
+    acting_uid: str,
+    limit: int = 25,
+    timeout: int = 60,
+) -> tuple[dict, int]:
+    token = gcp_identity.id_token_for_db_gateway()
+    url = db_origin().rstrip("/") + "/db/query/"
+    payload: dict = {"path": path, "filters": filters, "limit": limit}
+    return post_json_platform_acting(
+        url,
+        payload,
+        acting_uid=acting_uid,
+        bearer=token,
+        timeout=timeout,
+    )

@@ -5,17 +5,19 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from state.execution_policy import volatile_external_allowed
-from tools import db_profile
+from tools import db_profile, integration_outbound
 
 ToolFn = Callable[..., tuple[dict, int]]
 
 _REGISTRY: dict[str, ToolFn] = {
     "db.merge_realtor_profile": db_profile.merge_realtor_profile,
+    "integration.apply_followupboss_outbound": integration_outbound.apply_followupboss_outbound,
 }
 
 # Tools not listed default to volatile_external=True (blocked in analytical mode).
 TOOL_META: dict[str, dict[str, bool]] = {
     "db.merge_realtor_profile": {"volatile_external": False},
+    "integration.apply_followupboss_outbound": {"volatile_external": True},
 }
 
 
@@ -59,4 +61,12 @@ def run_tool(
         if not isinstance(uid, str):
             return {"error": "args.uid must be a string when provided"}, 400
         return fn(uid.strip(), data)
+    if name == "integration.apply_followupboss_outbound":
+        uid = args.get("uid") or acting_uid
+        if not isinstance(uid, str):
+            return {"error": "args.uid must be a string when provided"}, 400
+        actions = args.get("actions")
+        if not isinstance(actions, list):
+            return {"error": "args.actions list required"}, 400
+        return fn(uid.strip(), actions)
     return {"error": "tool dispatch not implemented"}, 500

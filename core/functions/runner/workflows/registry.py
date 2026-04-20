@@ -6,13 +6,14 @@ from typing import Any, Callable
 
 from state import acs_state
 from state.execution_policy import get_execution_policy
-from workflows import analytical_stub, demo_joke_to_profile
+from workflows import analytical_stub, contact_enrichment_v1, demo_joke_to_profile
 
 _Runner = Callable[[dict], dict]
 
 _GRAPHS: dict[str, Any] = {
     "demo.joke_to_profile_v1": demo_joke_to_profile.build_demo_joke_graph(),
     "analytical.stub_v1": analytical_stub.build_analytical_stub_graph(),
+    "contact.enrichment_v1": contact_enrichment_v1.build_contact_enrichment_graph(),
 }
 
 # Unknown registered ids should not happen; unlisted workflow_ids passed to core are not in _GRAPHS.
@@ -23,6 +24,10 @@ WORKFLOW_CAPS: dict[str, dict[str, bool]] = {
         "requires_integration_maintenance": True,
     },
     "analytical.stub_v1": {
+        "volatile_external": False,
+        "requires_integration_maintenance": False,
+    },
+    "contact.enrichment_v1": {
         "volatile_external": False,
         "requires_integration_maintenance": False,
     },

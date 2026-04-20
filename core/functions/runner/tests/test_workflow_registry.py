@@ -4,6 +4,9 @@ from workflows import registry as wf_registry
 
 
 class WorkflowPolicyRoutingTest(unittest.TestCase):
+    def test_contact_enrichment_registered(self):
+        self.assertTrue(wf_registry.is_registered("contact.enrichment_v1"))
+
     def test_demo_allowed_in_analytical(self):
         acs: dict = {
             "metadata": {
