@@ -1,5 +1,6 @@
 import base64
 import os
+import urllib.parse
 
 from store.common import delete_json, get_json, post_form, post_json
 from store.secret_repo import get_secret
@@ -103,6 +104,27 @@ class FubClient:
 
     def get_by_uri(self, uri: str) -> tuple[dict, int]:
         return get_json(uri, headers=self._headers(), timeout=30)
+
+    def list_people(
+        self,
+        *,
+        limit: int = 100,
+        offset: int | None = None,
+        next_token: str | None = None,
+    ) -> tuple[dict, int]:
+        """
+        GET /v1/people — paginated. Prefer ``next_token`` from ``_metadata.next`` when present.
+
+        https://docs.followupboss.com/reference/people-get
+        """
+        lim = max(1, min(100, int(limit)))
+        params: dict[str, str] = {"limit": str(lim)}
+        if next_token and str(next_token).strip():
+            params["next"] = str(next_token).strip()
+        elif offset is not None:
+            params["offset"] = str(max(0, int(offset)))
+        q = urllib.parse.urlencode(params)
+        return get_json(f"{self.base}/people?{q}", headers=self._headers(), timeout=90)
 
     def create_note(self, person_id: int, body: str) -> tuple[dict, int]:
         return post_json(f"{self.base}/notes", {"personId": person_id, "body": body}, headers=self._headers())

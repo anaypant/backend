@@ -9,6 +9,7 @@ from providers.followupboss.oauth import (
     refresh,
     resync_webhooks,
 )
+from providers.followupboss.people_list import list_people_page
 from providers.followupboss.webhooks import webhook_ingress, webhook_test
 
 
@@ -44,6 +45,9 @@ class FollowUpBossProvider:
 
     def webhook_ingress(self, request):
         return webhook_ingress(request)
+
+    def list_people_page(self, request):
+        return list_people_page(request)
 
     def apply_outbound_actions(self, connection_id: str, actions: list[dict]) -> dict:
         return apply_outbound_actions(connection_id, actions)

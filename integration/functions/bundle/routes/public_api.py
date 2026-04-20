@@ -1,7 +1,22 @@
 from providers.provider_registry import PROVIDER_REGISTRY
+from state_bridge.handlers import internal_state_from_providers, internal_state_to_providers
 from store.browser_cors import cors_preflight_response, merge_cors_for_oauth_start_get
 from store.common import json_response
 from store.gcp_identity import SecretsOidcConfigError
+
+
+_STATE_ROUTES: list[tuple[str, object, set[str]]] = [
+    ("/integrations/internal/state/from_providers", internal_state_from_providers, {"POST"}),
+    ("/integrations/internal/state/to_providers", internal_state_to_providers, {"POST"}),
+]
+
+
+def _route_state(path: str) -> tuple[object, set[str]] | None:
+    p = (path or "").rstrip("/")
+    for suffix, fn, methods in _STATE_ROUTES:
+        if p.endswith(suffix):
+            return fn, methods
+    return None
 
 
 ROUTES = {
@@ -14,6 +29,7 @@ ROUTES = {
     "/integrations/followupboss/webhooks": ("followupboss", "list_webhooks", {"GET"}),
     "/integrations/followupboss/webhook_test": ("followupboss", "webhook_test", {"POST"}),
     "/integrations/followupboss/disconnect": ("followupboss", "disconnect", {"POST"}),
+    "/integrations/followupboss/people/list": ("followupboss", "list_people_page", {"POST"}),
     "/integrations/webhooks/followupboss": ("followupboss", "webhook_ingress", {"POST"}),
 }
 
@@ -31,6 +47,17 @@ def handle_request(request):
     pre = cors_preflight_response(request)
     if pre is not None:
         return pre
+
+    state_r = _route_state(path)
+    if state_r:
+        fn, methods = state_r
+        if request.method not in methods:
+            return json_response({"error": "method not allowed"}, 405)
+        try:
+            out = fn(request)
+        except SecretsOidcConfigError as e:
+            out = json_response(e.payload, e.http_status)
+        return merge_cors_for_oauth_start_get(request, out)
 
     routed = _route(path)
     if not routed:

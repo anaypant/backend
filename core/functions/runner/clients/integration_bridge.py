@@ -28,6 +28,40 @@ def fub_refresh_and_sync_webhooks(uid: str, *, refresh_tokens_first: bool = True
     return post_json_with_bearer(url, payload, bearer=token, timeout=120)
 
 
+def from_providers(uid: str, provider_states: list) -> tuple[dict[str, Any], int]:
+    """
+    Expand ``provider_states`` into an ``acs_patch`` via integration (platform OIDC).
+
+    Used by core workflows before internal normalization when the caller passes
+    ``payload.providerLoad`` instead of pre-built ``source_batches``.
+    """
+    base = (os.environ.get("INTEGRATION_BRIDGE_BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        return {"error": "integration_bridge_not_configured", "todo": "Set INTEGRATION_BRIDGE_BASE_URL on core-run"}, 503
+
+    token = gcp_identity.id_token_for_integration_bridge()
+    url = f"{base}/integrations/internal/state/from_providers"
+    payload: dict[str, Any] = {
+        "uid": uid.strip(),
+        "provider_states": provider_states if isinstance(provider_states, list) else [],
+    }
+    return post_json_with_bearer(url, payload, bearer=token, timeout=120)
+
+
+def to_providers(uid: str, acs_state: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    """
+    Project ACS into provider-shaped blocks (summaries, outbound echoes) for clients / BFF.
+    """
+    base = (os.environ.get("INTEGRATION_BRIDGE_BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        return {"provider_states": [], "skipped": True, "reason": "integration_bridge_not_configured"}, 200
+
+    token = gcp_identity.id_token_for_integration_bridge()
+    url = f"{base}/integrations/internal/state/to_providers"
+    payload: dict[str, Any] = {"uid": uid.strip(), "acs_state": acs_state}
+    return post_json_with_bearer(url, payload, bearer=token, timeout=60)
+
+
 def apply_followupboss_outbound(uid: str, actions: list) -> tuple[dict[str, Any], int]:
     """
     Best-effort synchronous CRM apply via integration-bridge.
