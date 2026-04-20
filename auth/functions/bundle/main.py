@@ -299,6 +299,80 @@ def _map_identity_error(status: int, body: dict) -> tuple[dict, int]:
     return {"error": msg}, 502 if status >= 500 else status
 
 
+def _normalize_email_addr(email: str | None) -> str:
+    return (email or "").strip().lower()
+
+
+def _sign_in_with_custom_token(custom_token: str) -> tuple[dict, int]:
+    key = _require_api_key()
+    url = (
+        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken"
+        f"?key={urllib.parse.quote(key)}"
+    )
+    return _post_json(
+        url,
+        {"token": custom_token, "returnSecureToken": True},
+    )
+
+
+def _google_login_resolve_canonical_uid(
+    raw: dict, role: str
+) -> tuple[dict, bool, str | None]:
+    """
+    When duplicate-email accounts exist, ``signInWithIdp`` may return a different ``localId``
+    than ``get_user_by_email`` (the user record that still has the password hash). Exchange the
+    Google IdP session for a Firebase session on the **canonical** UID so password sign-in and
+    Google sign-in target the same Auth user.
+    """
+    idp_uid = raw.get("localId")
+    email_raw = raw.get("email")
+    if not idp_uid or not isinstance(email_raw, str) or not email_raw.strip():
+        return raw, False, None
+    norm = _normalize_email_addr(email_raw)
+    try:
+        canonical_uid = auth.get_user_by_email(norm).uid
+    except Exception:
+        return raw, False, None
+    if canonical_uid == idp_uid:
+        return raw, False, None
+    try:
+        canon_user = auth.get_user(canonical_uid)
+        idp_user = auth.get_user(idp_uid)
+    except fb_exc.FirebaseError:
+        return raw, False, None
+    if _normalize_email_addr(canon_user.email) != norm:
+        return raw, False, None
+    if _normalize_email_addr(idp_user.email) != norm:
+        return raw, False, None
+    _set_role_claim(canonical_uid, role)
+    try:
+        custom_tok = auth.create_custom_token(canonical_uid, {"role": role})
+    except fb_exc.FirebaseError as e:
+        logging.getLogger(__name__).warning(
+            "canonical uid custom token failed (keeping IdP session): %s", e
+        )
+        return raw, False, None
+    raw2, st2 = _sign_in_with_custom_token(custom_tok)
+    if st2 != 200:
+        logging.getLogger(__name__).warning(
+            "signInWithCustomToken failed st=%s (keeping IdP session): %s", st2, raw2
+        )
+        return raw, False, None
+    return raw2, True, custom_tok
+
+
+def _send_password_reset_email(email: str) -> tuple[dict, int]:
+    key = _require_api_key()
+    url = (
+        "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode"
+        f"?key={urllib.parse.quote(key)}"
+    )
+    return _post_json(
+        url,
+        {"requestType": "PASSWORD_RESET", "email": email.strip()},
+    )
+
+
 def _parse_request_json(request) -> tuple[dict | None, tuple | None]:
     try:
         body = request.get_json(silent=True)
@@ -451,6 +525,7 @@ def _handle_login(request, role: str):
             raw, st = _sign_in_google_id_token(google_id_token.strip())
             if st != 200:
                 return _map_identity_error(st, raw)
+            raw, merged_dup, custom_for_client = _google_login_resolve_canonical_uid(raw, role)
             id_tok = raw.get("idToken")
             if not id_tok:
                 return _json_response({"error": "missing idToken"}, 502)
@@ -476,7 +551,11 @@ def _handle_login(request, role: str):
                     503,
                 )
             _best_effort_reconcile_profile(id_tok, uid, raw.get("email"), role)
-            return _json_response(_normalize_token_bundle(raw), 200)
+            out = _normalize_token_bundle(raw)
+            if merged_dup and custom_for_client:
+                out["mergedDuplicateGoogleAccount"] = True
+                out["customToken"] = custom_for_client
+            return _json_response(out, 200)
 
         if not email or not isinstance(email, str):
             return _json_response({"error": "email required"}, 400)
@@ -537,3 +616,33 @@ def realtor_login(request):
 @functions_framework.http
 def internal_login(request):
     return _handle_login(request, "internal")
+
+
+@functions_framework.http
+def password_reset(request):
+    """POST JSON { email } — Identity Toolkit PASSWORD_RESET (same as Firebase client sendPasswordResetEmail)."""
+    if request.method != "POST":
+        return _json_response({"error": "method not allowed"}, 405)
+
+    body, err = _parse_request_json(request)
+    if err:
+        return err
+
+    _ensure_firebase()
+
+    try:
+        _require_api_key()
+    except RuntimeError as e:
+        return _json_response({"error": str(e)}, 500)
+
+    email = body.get("email")
+    if not email or not isinstance(email, str) or not email.strip():
+        return _json_response({"error": "email required"}, 400)
+
+    raw, st = _send_password_reset_email(email.strip())
+    if st != 200:
+        if not isinstance(raw, dict):
+            raw = {"error": str(raw)}
+        return _map_identity_error(st, raw)
+
+    return _json_response({"ok": True}, 200)

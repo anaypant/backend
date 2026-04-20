@@ -10,6 +10,7 @@ import re
 import firebase_admin
 import functions_framework
 from firebase_admin import auth, firestore
+from google.api_core import exceptions as gapi_exceptions
 from google.cloud.firestore import Query as FsQuery
 
 
@@ -222,7 +223,10 @@ def main(request):
         return _json_response({"error": "filters must be a list"}, 400)
     if not isinstance(order_by, list):
         return _json_response({"error": "orderBy must be a list"}, 400)
-    if not isinstance(limit, int) or limit < 1:
+    # JSON numbers may decode as float in some runtimes; Firestore expects a plain int limit.
+    if isinstance(limit, float) and limit.is_integer():
+        limit = int(limit)
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
         return _json_response({"error": "limit must be a positive integer"}, 400)
     limit = min(limit, _MAX_LIMIT)
     if page_token is not None and (not isinstance(page_token, str) or not page_token.strip()):
@@ -306,6 +310,15 @@ def main(request):
     fetch_limit = limit + 1
     try:
         snaps = list(query.limit(fetch_limit).stream())
+    except gapi_exceptions.FailedPrecondition as e:
+        return _json_response(
+            {
+                "error": str(e),
+                "code": "firestore_index_required",
+                "hint": "Create the composite index in the GCP/Firestore console (link is often included in the error text), or apply backend/db Terraform which defines indexes for lite-frontend queries.",
+            },
+            400,
+        )
     except Exception as e:
         return _json_response(
             {"error": f"query failed (missing index?): {e!s}"},

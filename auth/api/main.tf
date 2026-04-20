@@ -20,6 +20,7 @@ locals {
     realtor_login   = "/auth/realtor/login"
     internal_signup = "/auth/internal/signup"
     internal_login  = "/auth/internal/login"
+    password_reset  = "/auth/password-reset"
   }
 
   health_path = {
@@ -125,6 +126,6 @@ resource "google_api_gateway_gateway" "internal" {
 }
 
 output "gateway_hostname" {
-  description = "POST https://<hostname>/auth/realtor/signup|login, /auth/internal/signup|login — same JSON bodies as calling each function URL."
+  description = "POST https://<hostname>/auth/realtor/signup|login, /auth/internal/signup|login, /auth/password-reset — same JSON bodies as calling each function URL."
   value       = google_api_gateway_gateway.internal.default_hostname
 }

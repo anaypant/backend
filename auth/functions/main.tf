@@ -12,7 +12,13 @@ terraform {
 }
 
 locals {
-  function_keys = toset(["realtor_signup", "realtor_login", "internal_signup", "internal_login"])
+  function_keys = toset([
+    "realtor_signup",
+    "realtor_login",
+    "internal_signup",
+    "internal_login",
+    "password_reset",
+  ])
 }
 
 data "archive_file" "bundle" {
