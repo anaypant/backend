@@ -15,6 +15,9 @@ from workflows import registry as wf_registry
 
 _logger = logging.getLogger(__name__)
 
+# Default root level is WARNING; workflow modules log at INFO and would be dropped.
+logging.getLogger().setLevel(logging.INFO)
+
 
 def _json_response(payload: dict, status: int):
     return (json.dumps(payload), status, {"Content-Type": "application/json"})
