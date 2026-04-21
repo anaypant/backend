@@ -239,7 +239,20 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
     if isinstance(ce, dict):
         ce["synthesis"] = {"http_status": st, "keys": list(updates.keys())}
 
-    workflow_audit.audit_log_node(acs, "synthesis", duration_ms=(time.perf_counter() - t0) * 1000)
+    sn = updates.get("suggested_note")
+    sn_len = len(sn.strip()) if isinstance(sn, str) else 0
+    tags = updates.get("tags")
+    tag_n = len(tags) if isinstance(tags, list) else 0
+    workflow_audit.audit_log_node(
+        acs,
+        "synthesis",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={
+            "update_keys": list(updates.keys()),
+            "suggested_note_len": sn_len,
+            "tags_len": tag_n,
+        },
+    )
     return {"acs": acs, "synthesis_updates": updates}
 
 
@@ -285,7 +298,12 @@ def _node_policy_screen(state: EnrichmentState) -> dict[str, Any]:
     if isinstance(ce, dict):
         ce["policyScreened"] = {"allowed_keys": list(screened.keys())}
 
-    workflow_audit.audit_log_node(acs, "policy_screen", duration_ms=(time.perf_counter() - t0) * 1000)
+    workflow_audit.audit_log_node(
+        acs,
+        "policy_screen",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={"screened_keys": list(screened.keys())},
+    )
     return {"acs": acs, "screened_updates": screened}
 
 
@@ -317,7 +335,20 @@ def _node_map_provider(state: EnrichmentState) -> dict[str, Any]:
     if isinstance(ce, dict):
         ce["mappedActions"] = len(actions)
 
-    workflow_audit.audit_log_node(acs, "map_provider", duration_ms=(time.perf_counter() - t0) * 1000, extra={"actions": len(actions)})
+    sn2 = screened.get("suggested_note")
+    note_ok = isinstance(sn2, str) and bool(sn2.strip())
+    workflow_audit.audit_log_node(
+        acs,
+        "map_provider",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={
+            "actions": len(actions),
+            "person_id": norm.get("person_id"),
+            "screened_keys": list(screened.keys()),
+            "fub_maps_note_only": True,
+            "note_nonempty": note_ok,
+        },
+    )
     return {"acs": acs}
 
 
