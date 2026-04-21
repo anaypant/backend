@@ -19,6 +19,56 @@ _logger = logging.getLogger(__name__)
 logging.getLogger().setLevel(logging.INFO)
 
 
+def _log_workflow_outcome(exec_workflow_id: str, out_state: dict) -> None:
+    """One stderr line for Logs Explorer: phase, graph path, outbound count, common skip reasons."""
+    meta = out_state.get("metadata") if isinstance(out_state.get("metadata"), dict) else {}
+    core = meta.get("core") if isinstance(meta.get("core"), dict) else {}
+    phase = core.get("phase")
+    wa = meta.get("workflowAudit") if isinstance(meta.get("workflowAudit"), dict) else {}
+    nodes = wa.get("nodes") if isinstance(wa.get("nodes"), list) else []
+    trail = "->".join(
+        str(n.get("node")) for n in nodes if isinstance(n, dict) and isinstance(n.get("node"), str)
+    )
+    if len(trail) > 600:
+        trail = trail[:600] + "...[truncated]"
+
+    oa = meta.get("outboundActions")
+    oa_n = len(oa) if isinstance(oa, list) else 0
+
+    ce = meta.get("contactEnrichment") if isinstance(meta.get("contactEnrichment"), dict) else {}
+    hints: list[str] = []
+    if ce.get("internalClientExists") is True:
+        hints.append("duplicate_internal_client")
+    egress = ce.get("egress")
+    if isinstance(egress, dict):
+        mode = egress.get("mode")
+        http = egress.get("http_status")
+        if mode:
+            hints.append(f"egress_mode={mode}")
+        elif http is not None:
+            hints.append(f"egress_http={http}")
+
+    err_list = out_state.get("errors")
+    err_n = len(err_list) if isinstance(err_list, list) else 0
+
+    wr = meta.get("workflow_routing") if isinstance(meta.get("workflow_routing"), dict) else {}
+    routing = ""
+    if isinstance(wr.get("substituted_workflow_id"), str) and wr["substituted_workflow_id"].strip():
+        routing = f" substituted={wr.get('substituted_workflow_id')}"
+
+    _logger.info(
+        "workflow outcome exec_workflow_id=%s correlation_id=%s phase=%s node_trail=%s outbound_actions=%s error_count=%s hints=%s%s",
+        exec_workflow_id,
+        out_state.get("correlation_id"),
+        phase,
+        trail or "(none)",
+        oa_n,
+        err_n,
+        ",".join(hints) if hints else "-",
+        routing,
+    )
+
+
 def _json_response(payload: dict, status: int):
     return (json.dumps(payload), status, {"Content-Type": "application/json"})
 
@@ -75,6 +125,7 @@ def main(request):
             if wf_status == "failed":
                 http = 500
                 top = "failed"
+            _log_workflow_outcome(exec_workflow_id, out_state)
             _logger.info(
                 "workflow end workflow_id=%s correlation_id=%s top_status=%s wf_status=%s",
                 workflow_id,

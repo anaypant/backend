@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import time
 import uuid
 from typing import Any
 
 from state import acs_state
+
+_logger = logging.getLogger(__name__)
+
+
+def _correlation_id(acs: dict) -> str:
+    c = acs.get("correlation_id")
+    return c.strip() if isinstance(c, str) and c.strip() else ""
+
+
+def _extra_for_log(extra: dict[str, Any] | None) -> str:
+    if not extra:
+        return "{}"
+    try:
+        s = json.dumps(extra, default=str, sort_keys=True)
+    except TypeError:
+        s = str(extra)
+    if len(s) > 800:
+        return s[:800] + "...[truncated]"
+    return s
 
 
 def _audit_bucket(acs: dict) -> dict[str, Any]:
@@ -26,6 +47,12 @@ def audit_run_start(acs: dict, workflow_id: str) -> None:
     a = _audit_bucket(acs)
     a["workflow_id"] = workflow_id
     a["started_at_epoch_ms"] = int(time.time() * 1000)
+    _logger.info(
+        "workflow_audit run_start workflow_id=%s correlation_id=%s user_id=%s",
+        workflow_id,
+        _correlation_id(acs),
+        acs.get("user_id") if isinstance(acs.get("user_id"), str) else "",
+    )
 
 
 def audit_run_finish(acs: dict, *, status: str, detail: str | None = None) -> None:
@@ -37,6 +64,19 @@ def audit_run_finish(acs: dict, *, status: str, detail: str | None = None) -> No
     a["status"] = status
     if detail:
         a["detail"] = detail
+    nodes = a.get("nodes")
+    n_nodes = len(nodes) if isinstance(nodes, list) else 0
+    b = a.get("billing") if isinstance(a.get("billing"), dict) else {}
+    _logger.info(
+        "workflow_audit run_finish workflow_id=%s correlation_id=%s status=%s detail=%s duration_ms=%s node_count=%s billing=%s",
+        a.get("workflow_id"),
+        _correlation_id(acs),
+        status,
+        detail or "",
+        a.get("duration_ms"),
+        n_nodes,
+        _extra_for_log(b if isinstance(b, dict) else None),
+    )
 
 
 def audit_log_node(
@@ -57,6 +97,13 @@ def audit_log_node(
     if extra:
         entry["extra"] = extra
     nodes.append(entry)
+    _logger.info(
+        "workflow_audit node=%s correlation_id=%s duration_ms=%s extra=%s",
+        node,
+        _correlation_id(acs),
+        round(duration_ms, 3) if duration_ms is not None else None,
+        _extra_for_log(extra),
+    )
 
 
 def audit_bump_llm(acs: dict) -> None:
