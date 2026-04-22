@@ -1,6 +1,5 @@
-# Runs Python unit tests for backend Cloud Function bundles.
-# Failing jobs mark the commit/PR as failed (use branch protection → "Require status checks"
-# to block merges; pushes to the default branch still complete, but show a red X).
+# Runs Python unit tests for Cloud Function bundles (repo root = this backend project).
+# Failing jobs mark the commit/PR as failed (branch protection → require these checks to block merges).
 
 name: Backend Python tests
 
@@ -8,11 +7,13 @@ on:
   push:
     branches: [main, master, dev]
     paths:
-      - "backend/**"
+      - "core/**"
+      - "integration/**"
       - ".github/workflows/backend-python-tests.yml"
   pull_request:
     paths:
-      - "backend/**"
+      - "core/**"
+      - "integration/**"
       - ".github/workflows/backend-python-tests.yml"
   workflow_dispatch:
 
@@ -29,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend/core/functions/runner
+        working-directory: core/functions/runner
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +39,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/core/functions/runner/requirements.txt
+          cache-dependency-path: core/functions/runner/requirements.txt
 
       - name: Install dependencies
         run: pip install --upgrade pip && pip install -r requirements.txt pytest
@@ -53,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend/integration/functions/bundle
+        working-directory: integration/functions/bundle
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +63,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/integration/functions/bundle/requirements.txt
+          cache-dependency-path: integration/functions/bundle/requirements.txt
 
       - name: Install dependencies
         run: pip install --upgrade pip && pip install -r requirements.txt pytest
