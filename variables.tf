@@ -153,6 +153,11 @@ variable "openrouter_api_key" {
 
 variable "enable_core_dev_lab" {
   type        = bool
-  default     = false
-  description = "When true, core-run sets ACS_ENABLE_DEV_LAB=1 so POST /core/v1/run accepts __ACS_DEV_LAB__ catalog/run_tool requests (lite-frontend dev lab). Never enable in prod."
+  nullable    = true
+  default     = null
+  description = <<-EOT
+    When true, core-run sets ACS_ENABLE_DEV_LAB=1 (lite-frontend workflow lab: __ACS_DEV_LAB__ catalog/run_tool).
+    When false, dev lab is off even in dev. When null (default), enabled only if environment is "dev".
+    Set true explicitly for a non-dev stack only if you accept the risk; keep false or null for prod.
+  EOT
 }

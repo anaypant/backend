@@ -9,12 +9,12 @@ class DevLabHttpTest(unittest.TestCase):
     def test_non_dev_body_returns_none(self):
         self.assertIsNone(try_dev_lab_response({"workflow_id": "contact.enrichment_v1", "state": {}}))
 
-    def test_marker_without_env_returns_403(self):
+    def test_marker_without_env_returns_501(self):
         os.environ.pop("ACS_ENABLE_DEV_LAB", None)
         out = try_dev_lab_response({"__ACS_DEV_LAB__": "catalog"})
         self.assertIsNotNone(out)
         payload, st = out
-        self.assertEqual(st, 403)
+        self.assertEqual(st, 501)
         self.assertEqual(payload.get("error"), "dev_lab_disabled")
 
     def test_catalog_when_enabled(self):

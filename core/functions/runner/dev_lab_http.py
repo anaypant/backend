@@ -29,12 +29,13 @@ def try_dev_lab_response(body: dict[str, Any]) -> tuple[dict[str, Any], int] | N
         return None
 
     if not dev_lab_enabled():
+        # 501 (not 403): avoids confusion with Firebase/ESP "forbidden" and execution-policy denials.
         return (
             {
                 "error": "dev_lab_disabled",
-                "hint": "Set ACS_ENABLE_DEV_LAB=1 on the core-run service (use only in non-prod).",
+                "hint": "Set ACS_ENABLE_DEV_LAB=1 on core-run (root Terraform variable enable_core_dev_lab; null defaults to on when environment is dev).",
             },
-            403,
+            501,
         )
 
     if marker == "catalog":

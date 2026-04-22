@@ -55,6 +55,9 @@ locals {
   )
   secrets_jwt_aud_norm_effective = lower(trimspace(trimsuffix(local.secrets_internal_jwt_audience_effective, "/")))
   secrets_jwt_aud_norm_bridge    = lower(trimspace(trimsuffix(local._secrets_bridge_invoker_audience, "/")))
+
+  # null = auto: on in dev only (see variable enable_core_dev_lab).
+  enable_core_dev_lab_effective = coalesce(var.enable_core_dev_lab, var.environment == "dev")
 }
 
 provider "google" {
@@ -148,7 +151,7 @@ module "core" {
   secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
   secrets_internal_jwt_audience     = local.secrets_internal_jwt_audience_effective
   fub_webhook_sync_worker_url       = var.fub_webhook_sync_worker_url
-  enable_core_dev_lab               = var.enable_core_dev_lab
+  enable_core_dev_lab               = local.enable_core_dev_lab_effective
   providers = {
     google      = google
     google-beta = google-beta
