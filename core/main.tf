@@ -12,17 +12,17 @@ terraform {
 }
 
 module "functions" {
-  source                              = "./functions"
-  project_id                          = var.project_id
-  region                              = var.region
-  backend_service_account_email       = var.platform_sa_email
-  db_internal_gateway_hostname        = var.db_internal_gateway_hostname
-  llm_internal_gateway_hostname       = var.llm_internal_gateway_hostname
-  llm_internal_jwt_audience           = var.llm_internal_jwt_audience
-  secrets_internal_gateway_hostname   = var.secrets_internal_gateway_hostname
-  secrets_internal_jwt_audience       = var.secrets_internal_jwt_audience
-  fub_webhook_sync_worker_url         = var.fub_webhook_sync_worker_url
-  enable_core_dev_lab                 = var.enable_core_dev_lab
+  source                            = "./functions"
+  project_id                        = var.project_id
+  region                            = var.region
+  backend_service_account_email     = var.platform_sa_email
+  db_internal_gateway_hostname      = var.db_internal_gateway_hostname
+  llm_internal_gateway_hostname     = var.llm_internal_gateway_hostname
+  llm_internal_jwt_audience         = var.llm_internal_jwt_audience
+  secrets_internal_gateway_hostname = var.secrets_internal_gateway_hostname
+  secrets_internal_jwt_audience     = var.secrets_internal_jwt_audience
+  fub_webhook_sync_worker_url       = var.fub_webhook_sync_worker_url
+  enable_core_dev_lab               = var.enable_core_dev_lab
 }
 
 module "api" {

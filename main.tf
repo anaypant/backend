@@ -40,10 +40,10 @@ locals {
   _db_gw_host_only                        = local._db_gw_after_http != "" ? split("/", local._db_gw_after_http)[0] : ""
   db_internal_gateway_hostname_normalized = local._db_gw_raw == "" ? "" : local._db_gw_host_only
 
-  _ev_gw_raw         = trimspace(var.events_internal_gateway_hostname)
-  _ev_gw_after_https = local._ev_gw_raw != "" && startswith(lower(local._ev_gw_raw), "https://") ? trimspace(trim(substr(local._ev_gw_raw, 8, length(local._ev_gw_raw) - 8), "/")) : local._ev_gw_raw
-  _ev_gw_after_http  = local._ev_gw_after_https != "" && startswith(lower(local._ev_gw_after_https), "http://") ? trimspace(trim(substr(local._ev_gw_after_https, 7, length(local._ev_gw_after_https) - 7), "/")) : local._ev_gw_after_https
-  _ev_gw_host_only   = local._ev_gw_after_http != "" ? split("/", local._ev_gw_after_http)[0] : ""
+  _ev_gw_raw                                  = trimspace(var.events_internal_gateway_hostname)
+  _ev_gw_after_https                          = local._ev_gw_raw != "" && startswith(lower(local._ev_gw_raw), "https://") ? trimspace(trim(substr(local._ev_gw_raw, 8, length(local._ev_gw_raw) - 8), "/")) : local._ev_gw_raw
+  _ev_gw_after_http                           = local._ev_gw_after_https != "" && startswith(lower(local._ev_gw_after_https), "http://") ? trimspace(trim(substr(local._ev_gw_after_https, 7, length(local._ev_gw_after_https) - 7), "/")) : local._ev_gw_after_https
+  _ev_gw_host_only                            = local._ev_gw_after_http != "" ? split("/", local._ev_gw_after_http)[0] : ""
   events_internal_gateway_hostname_normalized = local._ev_gw_raw == "" ? "" : local._ev_gw_host_only
 
   # OIDC audience for calling secrets via the internal gateway must be the secrets-bridge function URL.
@@ -97,11 +97,11 @@ module "auth" {
 }
 
 module "events" {
-  source                              = "./events"
-  project_id                          = local.project_id
-  region                              = var.region
-  platform_sa_email                   = google_service_account.platform.email
-  events_internal_gateway_hostname    = local.events_internal_gateway_hostname_normalized
+  source                           = "./events"
+  project_id                       = local.project_id
+  region                           = var.region
+  platform_sa_email                = google_service_account.platform.email
+  events_internal_gateway_hostname = local.events_internal_gateway_hostname_normalized
   providers = {
     google      = google
     google-beta = google-beta
@@ -110,11 +110,11 @@ module "events" {
 }
 
 module "secrets" {
-  source                              = "./secrets"
-  project_id                          = local.project_id
-  region                              = var.region
-  platform_sa_email                   = google_service_account.platform.email
-  secrets_internal_gateway_hostname   = var.secrets_internal_gateway_hostname
+  source                            = "./secrets"
+  project_id                        = local.project_id
+  region                            = var.region
+  platform_sa_email                 = google_service_account.platform.email
+  secrets_internal_gateway_hostname = var.secrets_internal_gateway_hostname
   providers = {
     google      = google
     google-beta = google-beta
@@ -138,17 +138,17 @@ module "llm" {
 }
 
 module "core" {
-  source                              = "./core"
-  project_id                          = local.project_id
-  region                              = var.region
-  platform_sa_email                   = google_service_account.platform.email
-  db_internal_gateway_hostname        = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
-  llm_internal_gateway_hostname       = module.llm.llm_gateway_hostname
-  llm_internal_jwt_audience           = module.llm.llm_function_url
-  secrets_internal_gateway_hostname   = nonsensitive(module.secrets.secrets_gateway_hostname)
-  secrets_internal_jwt_audience       = local.secrets_internal_jwt_audience_effective
-  fub_webhook_sync_worker_url         = var.fub_webhook_sync_worker_url
-  enable_core_dev_lab                 = var.enable_core_dev_lab
+  source                            = "./core"
+  project_id                        = local.project_id
+  region                            = var.region
+  platform_sa_email                 = google_service_account.platform.email
+  db_internal_gateway_hostname      = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
+  llm_internal_gateway_hostname     = module.llm.llm_gateway_hostname
+  llm_internal_jwt_audience         = module.llm.llm_function_url
+  secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
+  secrets_internal_jwt_audience     = local.secrets_internal_jwt_audience_effective
+  fub_webhook_sync_worker_url       = var.fub_webhook_sync_worker_url
+  enable_core_dev_lab               = var.enable_core_dev_lab
   providers = {
     google      = google
     google-beta = google-beta
@@ -243,6 +243,7 @@ module "api" {
   db_internal_gateway_hostname          = module.db.db_gateway_hostname
   auth_internal_gateway_hostname        = module.auth.auth_gateway_hostname
   integration_internal_gateway_hostname = module.integration.integration_gateway_hostname
+  core_internal_gateway_hostname        = module.core.core_gateway_hostname
   platform_service_account_email        = google_service_account.platform.email
   acs_public_integration_base_url       = var.acs_public_integration_base_url
   acs_callback_bridge_secret            = var.acs_callback_bridge_secret
@@ -255,6 +256,7 @@ module "api" {
     google_project_service.gcp,
     module.db,
     module.auth,
+    module.core,
     module.integration,
     module.secrets,
     google_service_account.platform

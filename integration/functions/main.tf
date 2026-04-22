@@ -51,13 +51,13 @@ locals {
     FUB_WEBHOOK_SYNC_QUEUE            = google_cloud_tasks_queue.fub_webhook_sync.id
     FUB_WEBHOOK_SYNC_WORKER_URL       = var.fub_webhook_sync_worker_url
     FUB_WEBHOOK_SYNC_OIDC_AUDIENCE    = var.fub_webhook_sync_worker_url
-    EVENTS_INTERNAL_GATEWAY_HOSTNAME   = var.events_internal_gateway_hostname
+    EVENTS_INTERNAL_GATEWAY_HOSTNAME  = var.events_internal_gateway_hostname
   }
   integration_env_secret = {
-    FUB_OAUTH_CLIENT_SECRET       = var.fub_oauth_client_secret
-    FUB_X_SYSTEM_KEY              = var.fub_x_system_key
-    ACS_OAUTH_STATE_SECRET        = var.acs_oauth_state_secret
-    ACS_CALLBACK_BRIDGE_SECRET   = var.acs_callback_bridge_secret
+    FUB_OAUTH_CLIENT_SECRET    = var.fub_oauth_client_secret
+    FUB_X_SYSTEM_KEY           = var.fub_x_system_key
+    ACS_OAUTH_STATE_SECRET     = var.acs_oauth_state_secret
+    ACS_CALLBACK_BRIDGE_SECRET = var.acs_callback_bridge_secret
   }
 }
 

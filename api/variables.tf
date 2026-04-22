@@ -23,6 +23,11 @@ variable "integration_internal_gateway_hostname" {
   description = "Hostname of the internal Integration API Gateway without https:// — used to proxy /integrations/* on the public gateway."
 }
 
+variable "core_internal_gateway_hostname" {
+  type        = string
+  description = "Hostname of the internal Core API Gateway (module.core) without https:// — used to proxy POST /core/v1/run on the public gateway."
+}
+
 variable "platform_service_account_email" {
   type        = string
   description = "Root google_service_account.platform.email — ESP backend identity for the public gateway."

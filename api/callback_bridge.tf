@@ -37,8 +37,8 @@ resource "google_cloudfunctions2_function" "callback_bridge" {
   }
 
   service_config {
-    max_instance_count               = 10
-    available_memory                 = "256Mi"
+    max_instance_count = 10
+    available_memory   = "256Mi"
     # Concurrency > 1 requires >= 1 vCPU on Cloud Run (default CPU at 256Mi is fractional).
     available_cpu                    = "1"
     timeout_seconds                  = 60

@@ -23,11 +23,11 @@ resource "google_pubsub_topic_iam_member" "platform_publisher" {
 }
 
 module "functions" {
-  source                          = "./functions"
-  project_id                      = var.project_id
-  region                          = var.region
-  backend_service_account_email   = var.platform_sa_email
-  pubsub_topic_id                 = google_pubsub_topic.domain_events.id
+  source                           = "./functions"
+  project_id                       = var.project_id
+  region                           = var.region
+  backend_service_account_email    = var.platform_sa_email
+  pubsub_topic_id                  = google_pubsub_topic.domain_events.id
   events_internal_gateway_hostname = var.events_internal_gateway_hostname
 }
 

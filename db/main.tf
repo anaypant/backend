@@ -66,8 +66,8 @@ resource "google_firestore_database" "default" {
 module "indexes" {
   source = "./indexes"
 
-  project_id              = var.project_id
-  firestore_database_id   = google_firestore_database.default.name
+  project_id            = var.project_id
+  firestore_database_id = google_firestore_database.default.name
 
   depends_on = [google_firestore_database.default]
 }

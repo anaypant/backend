@@ -1,4 +1,4 @@
-# Public API Gateway — /health plus /db/* proxied to the internal DB API Gateway (same paths and JSON bodies).
+# Public API Gateway — /health, /db/*, /auth/*, /integrations/*, POST /core/v1/run — proxied to internal gateways.
 #
 # Secured routes: Authorization: Bearer <Firebase ID token>. ESP validates JWT and forwards claims as
 # X-Endpoint-API-UserInfo; backends verify Firebase or trust UserInfo when set by ESP (acs_internal).
@@ -10,10 +10,14 @@ locals {
   db_internal_base          = "https://${trimsuffix(var.db_internal_gateway_hostname, "/")}"
   auth_internal_base        = "https://${trimsuffix(var.auth_internal_gateway_hostname, "/")}"
   integration_internal_base = "https://${trimsuffix(var.integration_internal_gateway_hostname, "/")}"
+  core_internal_base        = "https://${trimsuffix(var.core_internal_gateway_hostname, "/")}"
 
   # ESPv2 defaults to a 15s backend deadline; OAuth + FUB webhook sync exceeds it (504 response_timeout).
   # Align with integration / callback_bridge Cloud Functions (timeout_seconds = 60).
   integration_upstream_deadline = 60.0
+
+  # Core runner Cloud Function timeout is 120s; keep ESP deadline in range.
+  core_upstream_deadline = 120.0
 
   # Routes where OpenAPI `security` is empty: no Firebase / application JWT required at the public edge.
   # Keep in sync with `paths` below (operations using security: []).
@@ -64,8 +68,8 @@ locals {
       type     = "object"
       required = ["path", "data"]
       properties = {
-        path = { type = "string" }
-        data = { type = "object" }
+        path  = { type = "string" }
+        data  = { type = "object" }
         merge = { type = "boolean" }
       }
     }
@@ -92,11 +96,11 @@ locals {
       type     = "object"
       required = ["path"]
       properties = {
-        path = { type = "string" }
-        filters = { type = "array" }
-        orderBy = { type = "array" }
-        limit = { type = "integer" }
-        pageToken = { type = "string" }
+        path            = { type = "string" }
+        filters         = { type = "array" }
+        orderBy         = { type = "array" }
+        limit           = { type = "integer" }
+        pageToken       = { type = "string" }
         collectionGroup = { type = "boolean" }
       }
     }
@@ -360,7 +364,7 @@ locals {
         produces    = ["application/json"]
         # No gateway Firebase check: ESP 401s omit CORS headers, so browser SPAs see a bogus CORS block.
         # JWT is still required and verified inside integration-bridge (same pattern as oauth/callback).
-        security    = []
+        security = []
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/oauth/start/"
           path_translation = "CONSTANT_ADDRESS"
@@ -529,6 +533,35 @@ locals {
     }
   }
 
+  core_proxy_paths = {
+    "/core/v1/run" = {
+      post = {
+        summary     = "Core workflow run (proxied to internal core API gateway)"
+        operationId = "core_v1_run"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.core_internal_base}/core/v1/run/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.core_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "500" = { description = "Error" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+  }
+
   openapi_struct = {
     swagger             = "2.0"
     securityDefinitions = local.firebase_security_definitions
@@ -558,7 +591,8 @@ locals {
       },
       local.db_proxy_paths,
       local.auth_proxy_paths,
-      local.integration_proxy_paths
+      local.integration_proxy_paths,
+      local.core_proxy_paths
     )
   }
   openapi_yaml = yamlencode(local.openapi_struct)
