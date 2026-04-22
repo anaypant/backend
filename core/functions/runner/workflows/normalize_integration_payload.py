@@ -4,19 +4,60 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import parse_qs, urlparse
+
 _URI_PERSON_RE = re.compile(r"/people/(\d+)\s*$", re.IGNORECASE)
 
 
-def _extract_fub_person_id(uri: str | None) -> int | None:
+def _fub_person_id_from_resource_ids(payload: dict[str, Any]) -> int | None:
+    ri = payload.get("resourceIds")
+    if not isinstance(ri, list):
+        return None
+    for x in ri:
+        if isinstance(x, int) and x > 0:
+            return x
+        if isinstance(x, str) and x.strip().isdigit():
+            return int(x.strip())
+    return None
+
+
+def _fub_person_id_from_uri(uri: str | None) -> int | None:
+    """Resolve FUB person id from webhook ``uri`` (path or query style)."""
     if not isinstance(uri, str) or not uri.strip():
         return None
-    m = _URI_PERSON_RE.search(uri.strip())
-    if not m:
-        return None
+    s = uri.strip()
+    m = _URI_PERSON_RE.search(s)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    # e.g. https://api.followupboss.com/v1/people?id=1 (see FUB docs / lite sample payloads)
     try:
-        return int(m.group(1))
-    except ValueError:
+        parsed = urlparse(s)
+        path_l = (parsed.path or "").lower()
+        if "people" not in path_l:
+            return None
+        qs = parse_qs(parsed.query)
+        for key in ("id", "personId", "person_id"):
+            vals = qs.get(key)
+            if not vals:
+                continue
+            raw = str(vals[0]).strip()
+            if raw.isdigit():
+                v = int(raw)
+                return v if v > 0 else None
+    except (TypeError, ValueError):
         return None
+    return None
+
+
+def _resolve_fub_person_id(payload: dict[str, Any]) -> int | None:
+    uri = payload.get("uri") if isinstance(payload.get("uri"), str) else None
+    pid = _fub_person_id_from_uri(uri)
+    if pid is not None:
+        return pid
+    return _fub_person_id_from_resource_ids(payload)
 
 
 def normalize_contact(acs: dict) -> dict[str, Any]:
@@ -37,7 +78,7 @@ def normalize_contact(acs: dict) -> dict[str, Any]:
 
     if provider == "followupboss":
         uri = payload.get("uri") if isinstance(payload.get("uri"), str) else None
-        pid = _extract_fub_person_id(uri)
+        pid = _resolve_fub_person_id(payload if isinstance(payload, dict) else {})
         event_type = payload.get("event") if isinstance(payload.get("event"), str) else ""
         return {
             "provider": "followupboss",
