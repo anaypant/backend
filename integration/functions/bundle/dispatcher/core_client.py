@@ -1,9 +1,9 @@
 """Invoke core-run with ACS state.
 
-Integration calls core **only** from Follow Up Boss webhook ingress (and realtor ``webhook_test``),
-where normalized external events become ``ACSStateV1`` and run a workflow. Provider OAuth, CRM
-read APIs (e.g. ``people/list``), and refresh stay in integration without invoking core; clients
-call ``/core/v1/run`` via the gateway when they need a workflow.
+Integration calls core from Follow Up Boss webhook ingress (and realtor ``webhook_test``) after
+any CRM-side enrichment (e.g. ``fubPerson`` via ``GET`` webhook ``uri``) so core does not need
+integration credentials for that path. Provider OAuth, list APIs, and refresh stay in integration;
+clients call ``/core/v1/run`` via the gateway when they need a workflow.
 """
 
 from typing import Any

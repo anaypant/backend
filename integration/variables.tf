@@ -87,7 +87,7 @@ variable "secrets_internal_jwt_audience" {
 variable "fub_webhook_sync_worker_url" {
   type        = string
   default     = ""
-  description = "Integration-bridge HTTPS base URL for Cloud Tasks deferred webhook sync; pass module.functions bridge_function.url after first deploy."
+  description = "Same origin as root fub_webhook_sync_worker_url (integration-bridge URL, no slash). Wired from root output after bootstrap; feeds Cloud Tasks OIDC target on the integration function."
 }
 
 variable "events_internal_gateway_hostname" {

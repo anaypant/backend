@@ -10,7 +10,7 @@ from dispatcher.execution_policy import execution_policy_from_profile
 from dispatcher.egress import dispatch_provider_actions, extract_actions_from_state, outbound_enabled
 from dispatcher.outbound_policy import partition_outbound_actions
 from dispatcher.workflow_router import resolve_default_workflow_id
-from providers.followupboss.client import FubClient
+from providers.followupboss.webhook_payload_enrich import merge_fub_person_from_api
 from store.authn import resolve_realtor_bearer
 from store.common import integration_auth_error_response, json_response
 from store.profile_repo import (
@@ -86,8 +86,6 @@ def _process_webhook_event(
 
     Optional ``workflow_id`` query param (e.g. ``demo.joke_to_profile_v1``) is forwarded to core for testing.
     """
-    auth = dict(fub.get("auth") or {})
-
     event_id = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
     inserted, _ = put_event_ledger(connection_id, event_id, event_body)
     if not inserted:
@@ -97,6 +95,8 @@ def _process_webhook_event(
         return json_response(dup, 200)
 
     policy = execution_policy_from_profile(profile)
+    # Core-run should not call back into integration for CRM reads; hydrate here (tokens already loaded).
+    merge_fub_person_from_api(connection_id, fub, event_body)
     state = _to_acs_state(event_body, connection_id)
     meta = dict(state.get("metadata") or {})
     meta["execution_policy"] = policy
@@ -140,16 +140,6 @@ def _process_webhook_event(
             "processed",
             {"actions": len(actions), "applied": len(to_apply), "skipped": len(skipped)},
         )
-
-    uri = event_body.get("uri")
-    if isinstance(uri, str) and uri:
-        client = FubClient(
-            access_token_ref=auth.get("accessTokenRef"),
-            api_key_ref=auth.get("apiKeyRef"),
-            acting_uid=connection_id,
-        )
-        _r, _s = client.get_by_uri(uri)
-        update_event_status(connection_id, event_id, "processed", {"fetchedUri": _s < 400})
 
     ok_payload: dict = {"ok": True, "accepted": True, "eventId": event_id}
     if include_workflow_debug:

@@ -41,5 +41,5 @@ variable "secrets_internal_jwt_audience" {
 variable "fub_webhook_sync_worker_url" {
   type        = string
   default     = ""
-  description = "integration-bridge HTTPS origin (no trailing slash); enables core-run synchronous FUB refresh+webhook sync via internal/webhook_sync."
+  description = "integration-bridge HTTPS origin (no trailing slash) → core-run INTEGRATION_BRIDGE_BASE_URL. Optional unless a core workflow calls integration (e.g. migration.from_providers, sync outbound). FUB webhooks hydrate CRM payloads in integration before invoking core."
 }

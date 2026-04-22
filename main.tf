@@ -19,6 +19,20 @@ locals {
     prod    = var.prod_project_id
   }[var.environment]
 
+  # --- Stack dependency DAG (root = operator / HCP inputs; everything else flows via module outputs) ---
+  # L0: GCP project APIs + platform SA (google_project_service, google_service_account.platform).
+  # L1: Data plane — module.db (Firestore rules, internal DB gateway hostname output).
+  # L2: Security + sidecars — module.secrets, module.auth, module.events (each consume L1 hostnames/outputs as wired below).
+  # L3: LLM edge — module.llm (secrets hostname + JWT audience from secrets module).
+  # L4: Core API — module.core (db + secrets + llm outputs only; no dependency on module.integration).
+  # L5: Integration — module.integration (db + core gateway + events + secrets; publishes integration_bridge_function_url).
+  #
+  # Cross-cutting URLs: set only at root when Terraform cannot infer without a cycle.
+  # Example: fub_webhook_sync_worker_url should equal terraform output integration_bridge_function_url
+  # for Cloud Tasks + optional core-run INTEGRATION_BRIDGE_BASE_URL (core workflows that call integration).
+  # FUB webhook person hydration is done in integration before POST /core/v1/run, so contact enrichment
+  # does not require core to reach back into integration.
+
   # Accept hostname or full URL in tfvars/HCP; db + integration need hostname only (no cycle: no module.db ref).
   _db_gw_raw                              = trimspace(var.db_internal_gateway_hostname)
   _db_gw_after_https                      = local._db_gw_raw != "" && startswith(lower(local._db_gw_raw), "https://") ? trimspace(trim(substr(local._db_gw_raw, 8, length(local._db_gw_raw) - 8), "/")) : local._db_gw_raw

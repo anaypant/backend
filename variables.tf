@@ -127,7 +127,15 @@ variable "integration_oauth_browser_cors_origins" {
 variable "fub_webhook_sync_worker_url" {
   type        = string
   default     = ""
-  description = "Integration-bridge HTTPS base URL (no trailing slash) for Cloud Tasks deferred FUB webhook sync. Set to module.integration.integration_bridge_function_url after first deploy, then re-apply."
+  description = <<-EOT
+    Integration-bridge HTTPS origin (no trailing slash), used by:
+    (1) integration Cloud Tasks / OIDC worker (FUB_WEBHOOK_SYNC_WORKER_URL),
+    (2) optional core-run INTEGRATION_BRIDGE_BASE_URL when core workflows call integration (e.g. migrations).
+
+    Terraform cannot set this from module.integration in the same apply as module.core (integration depends on core).
+    After the first deploy that creates integration-bridge, set this to: terraform output -raw integration_bridge_function_url
+    then re-apply so integration tasks and core get the same origin.
+    EOT
 }
 
 variable "events_internal_gateway_hostname" {
