@@ -21,6 +21,7 @@ class ContactEnrichmentWorkflowTest(unittest.TestCase):
         self.assertEqual(n["person_id"], 42)
         self.assertEqual(n["external_person_id"], "42")
 
+    @patch("workflows.contact_enrichment_v1.integration_bridge.from_providers")
     @patch("workflows.contact_enrichment_v1.tool_registry.run_tool")
     @patch("workflows.contact_enrichment_v1.llm_internal.complete")
     @patch("workflows.contact_enrichment_v1.web_research_internal.research_query_to_summary")
@@ -31,6 +32,7 @@ class ContactEnrichmentWorkflowTest(unittest.TestCase):
         mock_research,
         mock_llm,
         mock_run_tool,
+        mock_from_providers,
     ):
         def _read(path: str, **kwargs):
             if path == "Realtors/u1":
@@ -40,6 +42,21 @@ class ContactEnrichmentWorkflowTest(unittest.TestCase):
             return {"error": "unexpected"}, 500
 
         mock_read.side_effect = _read
+        mock_from_providers.return_value = (
+            {
+                "acs_patch": {
+                    "payload": {
+                        "fubPerson": {
+                            "id": 7,
+                            "firstName": "Pat",
+                            "lastName": "Seven",
+                            "emails": [{"value": "pat@example.com"}],
+                        }
+                    }
+                }
+            },
+            200,
+        )
         mock_research.return_value = (
             {"summary": "Local market active.", "sources": [], "mode": "llm_structured"},
             200,
@@ -79,8 +96,9 @@ class ContactEnrichmentWorkflowTest(unittest.TestCase):
         self.assertEqual(audit.get("status"), "completed")
         self.assertGreaterEqual(audit.get("billing", {}).get("llm_calls", 0), 2)
 
+    @patch("workflows.contact_enrichment_v1.integration_bridge.from_providers")
     @patch("workflows.contact_enrichment_v1.db_internal.read_document")
-    def test_duplicate_internal_client_short_circuits(self, mock_read):
+    def test_duplicate_internal_client_short_circuits(self, mock_read, mock_from_providers):
         def _read(path: str, **kwargs):
             if path == "Realtors/u1":
                 return {"data": {}}, 200
@@ -89,6 +107,7 @@ class ContactEnrichmentWorkflowTest(unittest.TestCase):
             return {"error": "not found"}, 404
 
         mock_read.side_effect = _read
+        mock_from_providers.return_value = ({}, 503)
 
         acs = {
             "state_version": 1,

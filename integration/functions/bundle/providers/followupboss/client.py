@@ -105,6 +105,10 @@ class FubClient:
     def get_by_uri(self, uri: str) -> tuple[dict, int]:
         return get_json(uri, headers=self._headers(), timeout=30)
 
+    def get_person(self, person_id: int) -> tuple[dict, int]:
+        """GET /v1/people/{id} — full person record."""
+        return get_json(f"{self.base}/people/{int(person_id)}", headers=self._headers(), timeout=45)
+
     def list_people(
         self,
         *,

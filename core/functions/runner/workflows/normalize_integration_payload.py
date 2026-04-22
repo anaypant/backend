@@ -60,6 +60,53 @@ def _resolve_fub_person_id(payload: dict[str, Any]) -> int | None:
     return _fub_person_id_from_resource_ids(payload)
 
 
+def _fub_display_name(person: dict[str, Any]) -> str:
+    fn = person.get("firstName") if isinstance(person.get("firstName"), str) else ""
+    ln = person.get("lastName") if isinstance(person.get("lastName"), str) else ""
+    parts = f"{fn} {ln}".strip()
+    if parts:
+        return parts[:500]
+    name = person.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()[:500]
+    pid = person.get("id")
+    if isinstance(pid, int):
+        return f"person {pid}"
+    return ""
+
+
+def _fub_emails(person: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    raw = person.get("emails")
+    if not isinstance(raw, list):
+        return out
+    for e in raw[:30]:
+        if not isinstance(e, dict):
+            continue
+        v = e.get("value") if isinstance(e.get("value"), str) else None
+        if v and v.strip():
+            out.append(v.strip()[:320])
+            continue
+        ev = e.get("email") if isinstance(e.get("email"), str) else None
+        if ev and ev.strip():
+            out.append(ev.strip()[:320])
+    return out[:20]
+
+
+def _fub_phones(person: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    raw = person.get("phones")
+    if not isinstance(raw, list):
+        return out
+    for p in raw[:30]:
+        if not isinstance(p, dict):
+            continue
+        v = p.get("value") if isinstance(p.get("value"), str) else None
+        if v and v.strip():
+            out.append(v.strip()[:40])
+    return out[:20]
+
+
 def normalize_contact(acs: dict) -> dict[str, Any]:
     """
     InternalContactV1 (informal contract):
@@ -80,15 +127,31 @@ def normalize_contact(acs: dict) -> dict[str, Any]:
         uri = payload.get("uri") if isinstance(payload.get("uri"), str) else None
         pid = _resolve_fub_person_id(payload if isinstance(payload, dict) else {})
         event_type = payload.get("event") if isinstance(payload.get("event"), str) else ""
+        fp = payload.get("fubPerson")
+        display_name = ""
+        emails: list[str] = []
+        phones: list[str] = []
+        if isinstance(fp, dict):
+            display_name = _fub_display_name(fp)
+            emails = _fub_emails(fp)
+            phones = _fub_phones(fp)
+            fp_id = fp.get("id")
+            if isinstance(fp_id, int) and fp_id > 0:
+                pid = fp_id
         return {
             "provider": "followupboss",
             "external_person_id": str(pid) if pid is not None else "",
-            "display_name": "",
-            "emails": [],
-            "phones": [],
+            "display_name": display_name[:500],
+            "emails": emails[:20],
+            "phones": phones[:20],
             "person_id": pid,
             "event_type": event_type,
-            "raw": {"uri": uri, "event": event_type, "eventId": payload.get("eventId")},
+            "raw": {
+                "uri": uri,
+                "event": event_type,
+                "eventId": payload.get("eventId"),
+                "has_fub_person": isinstance(fp, dict),
+            },
         }
 
     # Generic passthrough for future providers

@@ -64,6 +64,28 @@ def _from_followupboss_block(uid: str, kind: str, payload: dict[str, Any]) -> tu
             "source": {"provider": "followupboss", "event_type": "state_bridge.raw_records"},
         }, None
 
+    if kind == "person_by_id":
+        pid_raw = payload.get("personId")
+        pid: int | None
+        if isinstance(pid_raw, int) and pid_raw > 0:
+            pid = pid_raw
+        elif isinstance(pid_raw, str) and pid_raw.strip().isdigit():
+            pid = int(pid_raw.strip())
+        else:
+            return None, "person_by_id_invalid_personId"
+        person, err_st = fub_people_ops.fetch_person_by_id(uid, pid)
+        if err_st is not None:
+            return None, f"fub_person_fetch_{err_st}"
+        if not isinstance(person, dict):
+            return None, "fub_person_fetch_empty"
+        return {
+            "payload": {
+                "fubPerson": person,
+                "_integration": {"fubPersonFetch": {"personId": pid, "ok": True}},
+            },
+            "source": {"provider": "followupboss", "event_type": "state_bridge.person_by_id"},
+        }, None
+
     return None, f"unsupported_followupboss_kind:{kind}"
 
 
@@ -96,8 +118,9 @@ def _collect_from_providers(uid: str, blocks: list[Any]) -> tuple[dict[str, Any]
         pf = patch.get("payload")
         if isinstance(pf, dict):
             _merge_payload_fragment(merged["payload"], pf)
-    if not merged["payload"].get("source_batches"):
-        return None, "no_source_batches_produced"
+    pl = merged["payload"]
+    if not pl.get("source_batches") and not isinstance(pl.get("fubPerson"), dict):
+        return None, "no_provider_payload_produced"
     return merged, None
 
 

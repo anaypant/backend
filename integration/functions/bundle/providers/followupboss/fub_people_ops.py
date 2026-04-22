@@ -68,3 +68,36 @@ def parse_list_request(payload: dict[str, Any]) -> tuple[int, int | None, str | 
     except (TypeError, ValueError):
         offset = 0
     return batch_size, max(0, offset), None
+
+
+def fetch_person_by_id(uid: str, person_id: int) -> tuple[dict[str, Any] | None, int | None]:
+    """
+    GET /v1/people/{id} for one person.
+
+    Returns ``(person_dict, None)`` on success, or ``(None, http_status)`` on failure.
+    """
+    uid = uid.strip()
+    if not uid:
+        return None, 400
+    if not isinstance(person_id, int) or person_id <= 0:
+        return None, 400
+
+    profile, st = load_realtor_profile(uid)
+    if st not in (200, 404) or not isinstance(profile, dict):
+        return None, st
+    fub = fub_config_from_profile(profile)
+    if not fub:
+        return None, 404
+
+    auth = dict(fub.get("auth") or {})
+    client = FubClient(
+        access_token_ref=auth.get("accessTokenRef"),
+        api_key_ref=auth.get("apiKeyRef"),
+        acting_uid=uid,
+    )
+    body, fub_st = client.get_person(person_id)
+    if fub_st >= 400:
+        return None, fub_st
+    if not isinstance(body, dict):
+        return None, 502
+    return body, None

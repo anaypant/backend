@@ -11,7 +11,7 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from clients import db_internal, llm_internal
+from clients import db_internal, integration_bridge, llm_internal
 from clients import web_research_internal
 from state import acs_state
 from state.execution_policy import volatile_external_allowed
@@ -79,6 +79,79 @@ def _node_load_contact(state: EnrichmentState) -> dict[str, Any]:
     payload = acs.get("payload") if isinstance(acs.get("payload"), dict) else {}
     workflow_audit.audit_log_node(acs, "load_contact", duration_ms=(time.perf_counter() - t0) * 1000, extra={"keys": list(payload.keys())[:20]})
     return {"acs": acs, "raw_contact": dict(payload)}
+
+
+def _node_hydrate_fub_person(state: EnrichmentState) -> dict[str, Any]:
+    """Load full FUB person via integration-bridge so research/synthesis see name/email/phone."""
+    acs: dict = state["acs"]
+    t0 = time.perf_counter()
+    if state.get("failed"):
+        return {"acs": acs}
+    uid = _uid(acs)
+    src = acs.get("source") if isinstance(acs.get("source"), dict) else {}
+    if src.get("provider") != "followupboss" or not uid:
+        workflow_audit.audit_log_node(
+            acs,
+            "hydrate_fub_person",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"skipped": "not_fub_or_no_uid"},
+        )
+        return {"acs": acs}
+    payload = acs.get("payload") if isinstance(acs.get("payload"), dict) else {}
+    if isinstance(payload.get("fubPerson"), dict):
+        workflow_audit.audit_log_node(
+            acs,
+            "hydrate_fub_person",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"skipped": "already_hydrated"},
+        )
+        return {"acs": acs}
+    norm = normalize_integration_payload.normalize_contact(acs)
+    pid = norm.get("person_id")
+    if not isinstance(pid, int) or pid <= 0:
+        workflow_audit.audit_log_node(
+            acs,
+            "hydrate_fub_person",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"skipped": "no_person_id"},
+        )
+        return {"acs": acs}
+
+    resp, st = integration_bridge.from_providers(
+        uid,
+        [{"provider": "followupboss", "kind": "person_by_id", "payload": {"personId": pid}}],
+    )
+    if st >= 400:
+        detail = resp.get("detail") if isinstance(resp, dict) else None
+        err = resp.get("error") if isinstance(resp, dict) else None
+        workflow_audit.audit_log_node(
+            acs,
+            "hydrate_fub_person",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"http": st, "error": err, "detail": detail},
+        )
+        return {"acs": acs}
+    patch = resp.get("acs_patch") if isinstance(resp, dict) else None
+    if not isinstance(patch, dict) or not patch:
+        workflow_audit.audit_log_node(
+            acs,
+            "hydrate_fub_person",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"skipped": "no_acs_patch"},
+        )
+        return {"acs": acs}
+    acs_state.merge_state_bridge_patch(acs, patch)
+    meta = acs_state.ensure_metadata(acs)
+    ce = meta.setdefault("contactEnrichment", {})
+    if isinstance(ce, dict):
+        ce["fubPersonHydrated"] = True
+    workflow_audit.audit_log_node(
+        acs,
+        "hydrate_fub_person",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={"http": st, "personId": pid},
+    )
+    return {"acs": acs}
 
 
 def _node_check_internal_client(state: EnrichmentState) -> dict[str, Any]:
@@ -436,6 +509,7 @@ def build_contact_enrichment_graph():
     g = StateGraph(EnrichmentState)
     g.add_node("load_realtor_profile", _node_load_realtor_profile)
     g.add_node("load_contact", _node_load_contact)
+    g.add_node("hydrate_fub_person", _node_hydrate_fub_person)
     g.add_node("check_internal_client", _node_check_internal_client)
     g.add_node("normalize", _node_normalize)
     g.add_node("web_research", _node_web_research)
@@ -448,7 +522,8 @@ def build_contact_enrichment_graph():
 
     g.set_entry_point("load_realtor_profile")
     g.add_edge("load_realtor_profile", "load_contact")
-    g.add_edge("load_contact", "check_internal_client")
+    g.add_edge("load_contact", "hydrate_fub_person")
+    g.add_edge("hydrate_fub_person", "check_internal_client")
     g.add_conditional_edges(
         "check_internal_client",
         _route_after_internal_check,

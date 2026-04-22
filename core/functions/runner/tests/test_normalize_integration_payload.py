@@ -38,6 +38,27 @@ class NormalizeIntegrationPayloadTest(unittest.TestCase):
         n = normalize_integration_payload.normalize_contact(acs)
         self.assertEqual(n["person_id"], 55)
 
+    def test_followupboss_fub_person_enriches_contact(self):
+        acs = {
+            "source": {"provider": "followupboss", "event_type": "peopleCreated"},
+            "payload": {
+                "event": "peopleCreated",
+                "uri": "https://api.followupboss.com/v1/people/12",
+                "fubPerson": {
+                    "id": 12,
+                    "firstName": "Ada",
+                    "lastName": "Lovelace",
+                    "emails": [{"value": "ada@example.com"}],
+                    "phones": [{"value": "+15551234567"}],
+                },
+            },
+        }
+        n = normalize_integration_payload.normalize_contact(acs)
+        self.assertEqual(n["person_id"], 12)
+        self.assertEqual(n["display_name"], "Ada Lovelace")
+        self.assertEqual(n["emails"], ["ada@example.com"])
+        self.assertEqual(n["phones"], ["+15551234567"])
+
 
 if __name__ == "__main__":
     unittest.main()
