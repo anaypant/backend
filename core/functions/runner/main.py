@@ -37,6 +37,19 @@ def _log_workflow_outcome(exec_workflow_id: str, out_state: dict) -> None:
 
     ce = meta.get("contactEnrichment") if isinstance(meta.get("contactEnrichment"), dict) else {}
     hints: list[str] = []
+    ie = meta.get("integrationEnrich") if isinstance(meta.get("integrationEnrich"), dict) else {}
+    if ie:
+        if ie.get("fubPersonSet") is True:
+            hints.append("fub_person_enriched")
+        sk = ie.get("skipped")
+        if isinstance(sk, str) and sk.strip():
+            hints.append(f"int_enrich_skip={sk}")
+        fh = ie.get("final_http")
+        if fh is not None:
+            hints.append(f"int_enrich_http={fh}")
+        if ie.get("oauthRefreshed") is True:
+            hints.append("int_oauth_refreshed")
+
     if ce.get("internalClientExists") is True:
         hints.append("duplicate_internal_client")
     egress = ce.get("egress")

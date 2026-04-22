@@ -96,10 +96,11 @@ def _process_webhook_event(
 
     policy = execution_policy_from_profile(profile)
     # Core-run should not call back into integration for CRM reads; hydrate here (tokens already loaded).
-    merge_fub_person_from_api(connection_id, fub, event_body)
+    enrich_status = merge_fub_person_from_api(connection_id, fub, event_body)
     state = _to_acs_state(event_body, connection_id)
     meta = dict(state.get("metadata") or {})
     meta["execution_policy"] = policy
+    meta["integrationEnrich"] = enrich_status
     state["metadata"] = meta
 
     event_type = event_body.get("event") if isinstance(event_body.get("event"), str) else "unknown"
