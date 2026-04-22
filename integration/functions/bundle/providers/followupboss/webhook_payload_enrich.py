@@ -11,6 +11,18 @@ from providers.followupboss.fub_payload_person_id import person_id_from_fub_webh
 _logger = logging.getLogger(__name__)
 
 
+def _coerce_fub_person_record(body: Any) -> dict[str, Any] | None:
+    """FUB sometimes wraps the person in ``person``; list endpoints may nest differently."""
+    if not isinstance(body, dict):
+        return None
+    inner = body.get("person")
+    if isinstance(inner, dict) and (inner.get("id") is not None or inner.get("firstName") is not None):
+        return inner
+    if body.get("id") is not None or body.get("firstName") is not None or body.get("name") is not None:
+        return body
+    return None
+
+
 def merge_fub_person_from_api(connection_id: str, fub: dict, payload: dict[str, Any]) -> dict[str, Any] | None:
     """
     For people-related webhooks, GET the person and set ``fubPerson`` on ``payload``.
@@ -24,7 +36,7 @@ def merge_fub_person_from_api(connection_id: str, fub: dict, payload: dict[str, 
     if isinstance(payload.get("fubPerson"), dict):
         return None
     ev = payload.get("event") if isinstance(payload.get("event"), str) else ""
-    if not ev.startswith("people"):
+    if not str(ev).lower().startswith("people"):
         return None
 
     auth = dict(fub.get("auth") or {})
@@ -37,28 +49,32 @@ def merge_fub_person_from_api(connection_id: str, fub: dict, payload: dict[str, 
     uri = payload.get("uri")
     if isinstance(uri, str) and uri.strip():
         body, st = client.get_by_uri(uri.strip())
-        if st < 400 and isinstance(body, dict):
-            payload["fubPerson"] = body
-            _logger.info(
-                "fub_webhook_enrich ok via=uri connection_id=%s event=%s http=%s",
+        rec = _coerce_fub_person_record(body)
+        if st < 400 and rec is not None:
+            payload["fubPerson"] = rec
+            _logger.warning(
+                "fub_webhook_enrich ok via=uri connection_id=%s event=%s http=%s person_id=%s",
                 connection_id,
                 ev,
                 st,
+                rec.get("id"),
             )
             return {"http": st, "via": "uri"}
-        _logger.info(
-            "fub_webhook_enrich uri_fetch_failed connection_id=%s event=%s http=%s",
+        _logger.warning(
+            "fub_webhook_enrich uri_fetch_failed connection_id=%s event=%s http=%s body_keys=%s",
             connection_id,
             ev,
             st,
+            list(body.keys())[:12] if isinstance(body, dict) else None,
         )
 
     pid = person_id_from_fub_webhook_payload(payload)
     if isinstance(pid, int) and pid > 0:
         body2, st2 = client.get_person(pid)
-        if st2 < 400 and isinstance(body2, dict):
-            payload["fubPerson"] = body2
-            _logger.info(
+        rec2 = _coerce_fub_person_record(body2)
+        if st2 < 400 and rec2 is not None:
+            payload["fubPerson"] = rec2
+            _logger.warning(
                 "fub_webhook_enrich ok via=person_id connection_id=%s event=%s person_id=%s http=%s",
                 connection_id,
                 ev,
@@ -66,16 +82,17 @@ def merge_fub_person_from_api(connection_id: str, fub: dict, payload: dict[str, 
                 st2,
             )
             return {"http": st2, "via": "person_id"}
-        _logger.info(
-            "fub_webhook_enrich person_fetch_failed connection_id=%s event=%s person_id=%s http=%s",
+        _logger.warning(
+            "fub_webhook_enrich person_fetch_failed connection_id=%s event=%s person_id=%s http=%s body_keys=%s",
             connection_id,
             ev,
             pid,
             st2,
+            list(body2.keys())[:12] if isinstance(body2, dict) else None,
         )
         return {"http": st2, "via": "person_id_failed"}
 
-    _logger.info(
+    _logger.warning(
         "fub_webhook_enrich skipped_no_person_ref connection_id=%s event=%s keys=%s",
         connection_id,
         ev,

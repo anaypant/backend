@@ -1,0 +1,7 @@
+{
+  "eventId": "simulate-people-created-001",
+  "eventCreated": "2026-04-22T12:00:00Z",
+  "event": "peopleCreated",
+  "resourceIds": [153],
+  "uri": "https://api.followupboss.com/v1/people?id=153"
+}
