@@ -41,10 +41,13 @@ class WebhookExecutionPolicyTest(unittest.TestCase):
     @patch("providers.followupboss.webhooks.put_event_ledger", return_value=(True, {}))
     @patch("providers.followupboss.webhooks.update_event_status")
     @patch("providers.followupboss.webhooks.dispatch_provider_actions")
-    @patch("providers.followupboss.webhooks.FubClient")
+    @patch(
+        "providers.followupboss.webhooks.merge_fub_person_from_api",
+        return_value={"fubPersonSet": False, "skipped": "test"},
+    )
     def test_analytical_skips_outbound_dispatch(
         self,
-        mock_fub_cls,
+        _mock_merge,
         mock_dispatch,
         mock_update,
         mock_ledger,
@@ -53,8 +56,6 @@ class WebhookExecutionPolicyTest(unittest.TestCase):
         mock_sig,
         mock_load_fub,
     ):
-        inst = mock_fub_cls.return_value
-        inst.get_by_uri.return_value = ({}, 200)
         body, status, _ = webhooks.webhook_ingress(DummyReq())
         self.assertEqual(status, 200)
         self.assertIn("accepted", body)
@@ -84,10 +85,13 @@ class WebhookExecutionPolicyTest(unittest.TestCase):
     @patch("providers.followupboss.webhooks.put_event_ledger", return_value=(True, {}))
     @patch("providers.followupboss.webhooks.update_event_status")
     @patch("providers.followupboss.webhooks.dispatch_provider_actions")
-    @patch("providers.followupboss.webhooks.FubClient")
+    @patch(
+        "providers.followupboss.webhooks.merge_fub_person_from_api",
+        return_value={"fubPersonSet": False, "skipped": "test"},
+    )
     def test_hands_on_calls_dispatch(
         self,
-        mock_fub_cls,
+        _mock_merge,
         mock_dispatch,
         mock_update,
         mock_ledger,
@@ -97,8 +101,6 @@ class WebhookExecutionPolicyTest(unittest.TestCase):
         mock_load_fub,
     ):
         mock_dispatch.return_value = {"ok": True, "results": []}
-        inst = mock_fub_cls.return_value
-        inst.get_by_uri.return_value = ({}, 200)
         body, status, _ = webhooks.webhook_ingress(DummyReq())
         self.assertEqual(status, 200)
         mock_dispatch.assert_called_once()

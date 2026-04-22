@@ -21,6 +21,10 @@ class WebhookIngestTest(unittest.TestCase):
     @patch("providers.followupboss.webhooks.get_secret", return_value="xkey")
     @patch("providers.followupboss.webhooks._signature_ok", return_value=True)
     @patch("providers.followupboss.webhooks.load_fub_profile_by_connection_id", return_value=({}, {"auth": {"xSystemKeyRef": "env://FUB_X_SYSTEM_KEY"}}))
+    @patch(
+        "providers.followupboss.webhooks.merge_fub_person_from_api",
+        return_value={"fubPersonSet": False, "skipped": "test"},
+    )
     def test_webhook_ingress_accepted(self, *_mocks):
         body, status, _ = webhooks.webhook_ingress(DummyReq())
         self.assertEqual(status, 200)
