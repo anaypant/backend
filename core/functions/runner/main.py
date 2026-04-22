@@ -52,6 +52,9 @@ def _log_workflow_outcome(exec_workflow_id: str, out_state: dict) -> None:
 
     if ce.get("internalClientExists") is True:
         hints.append("duplicate_internal_client")
+    syn = ce.get("synthesis") if isinstance(ce.get("synthesis"), dict) else {}
+    if syn.get("fallback_note") is True:
+        hints.append("synthesis_fallback_note")
     egress = ce.get("egress")
     if isinstance(egress, dict):
         mode = egress.get("mode")

@@ -178,6 +178,53 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     return {"acs": acs, "research": res}
 
 
+def _coerce_synthesis_updates(parsed: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """
+    Models sometimes return ``suggested_note`` / ``tags`` at the top level instead of under ``updates``.
+    Returns ``(updates_dict, coercion_label)`` for audit.
+    """
+    if not isinstance(parsed, dict):
+        return {}, "not_dict"
+    out: dict[str, Any] = {}
+    inner = parsed.get("updates")
+    if isinstance(inner, dict):
+        for k in ("suggested_note", "tags", "custom_fields"):
+            if k in inner:
+                out[k] = inner[k]
+    if isinstance(parsed.get("suggested_note"), str) and str(parsed["suggested_note"]).strip():
+        if not (isinstance(out.get("suggested_note"), str) and out["suggested_note"].strip()):
+            out["suggested_note"] = parsed["suggested_note"]
+    if isinstance(parsed.get("tags"), list) and not out.get("tags"):
+        out["tags"] = parsed["tags"]
+    if isinstance(parsed.get("custom_fields"), dict) and not out.get("custom_fields"):
+        out["custom_fields"] = parsed["custom_fields"]
+    if not out:
+        return {}, "empty"
+    if isinstance(inner, dict) and any(k in inner for k in ("suggested_note", "tags", "custom_fields")):
+        return out, "nested_updates"
+    return out, "top_level_fields"
+
+
+def _fallback_suggested_note_fub(norm: dict[str, Any], research: dict[str, Any]) -> str:
+    """Deterministic note when the enrichment LLM returns no text but we have a CRM person."""
+    pid = norm.get("person_id")
+    name = (norm.get("display_name") or "").strip()
+    if not name and isinstance(pid, int):
+        name = f"FUB person {pid}"
+    if not name:
+        name = "FUB contact"
+    emails = norm.get("emails") if isinstance(norm.get("emails"), list) else []
+    first_email = emails[0].strip() if emails and isinstance(emails[0], str) else ""
+    email_seg = f" On file: {first_email}." if first_email else ""
+    summ = (research.get("summary") or "").strip()
+    if summ:
+        return f"ACS enrichment — {name}.{email_seg} Web summary: {summ[:2000]}".strip()
+    return (
+        f"ACS enrichment — {name}.{email_seg} "
+        "No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+    ).strip()
+
+
 def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
     acs: dict = state["acs"]
     t0 = time.perf_counter()
@@ -186,11 +233,26 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
 
     norm = state.get("normalized_contact") or {}
     research = state.get("research") or {}
+    must_note = (
+        norm.get("provider") == "followupboss"
+        and isinstance(norm.get("person_id"), int)
+        and norm["person_id"] > 0
+    )
+    note_rule = (
+        "When normalized_contact.provider is followupboss and normalized_contact.person_id is a positive integer, "
+        "the object updates MUST include suggested_note as a non-empty string (at least one full sentence). "
+        "Combine display_name, emails, phones from normalized_contact with research_summary. "
+        "If research_summary is empty or research_sources is empty, still write a short CRM-only summary "
+        "from normalized_contact — do not return an empty updates object."
+        if must_note
+        else ""
+    )
     schema = (
         "Return JSON only with keys: "
         "updates (object with optional keys: suggested_note string, tags array of strings, "
         "custom_fields object of string->string), confidence (string), rationale (string). "
-        "Do not include SSN, credit card numbers, or passwords. Keep suggested_note short."
+        "Do not include SSN, credit card numbers, or passwords. Keep suggested_note under 4000 characters. "
+        f"{note_rule}"
     )
     messages = [
         {
@@ -226,18 +288,32 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
 
     raw = body.get("text") if isinstance(body.get("text"), str) else ""
     updates: dict[str, Any] = {}
+    coercion = "empty_body"
     try:
         parsed = json.loads(raw) if raw.strip() else {}
         if isinstance(parsed, dict):
-            u = parsed.get("updates")
-            updates = u if isinstance(u, dict) else {}
+            updates, coercion = _coerce_synthesis_updates(parsed)
+        else:
+            updates, coercion = {}, "not_object_json"
     except json.JSONDecodeError:
         updates = {}
+        coercion = "json_decode_error"
+
+    sn0 = updates.get("suggested_note")
+    used_fallback = False
+    if must_note and (not isinstance(sn0, str) or not sn0.strip()):
+        updates["suggested_note"] = _fallback_suggested_note_fub(norm, research)
+        used_fallback = True
 
     meta = acs_state.ensure_metadata(acs)
     ce = meta.setdefault("contactEnrichment", {})
     if isinstance(ce, dict):
-        ce["synthesis"] = {"http_status": st, "keys": list(updates.keys())}
+        ce["synthesis"] = {
+            "http_status": st,
+            "keys": list(updates.keys()),
+            "coercion": coercion,
+            "fallback_note": used_fallback,
+        }
 
     sn = updates.get("suggested_note")
     sn_len = len(sn.strip()) if isinstance(sn, str) else 0
@@ -251,6 +327,8 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
             "update_keys": list(updates.keys()),
             "suggested_note_len": sn_len,
             "tags_len": tag_n,
+            "coercion": coercion,
+            "fallback_note": used_fallback,
         },
     )
     return {"acs": acs, "synthesis_updates": updates}
