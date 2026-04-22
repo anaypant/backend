@@ -22,6 +22,7 @@ module "functions" {
   secrets_internal_gateway_hostname   = var.secrets_internal_gateway_hostname
   secrets_internal_jwt_audience       = var.secrets_internal_jwt_audience
   fub_webhook_sync_worker_url         = var.fub_webhook_sync_worker_url
+  enable_core_dev_lab                 = var.enable_core_dev_lab
 }
 
 module "api" {

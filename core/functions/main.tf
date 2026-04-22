@@ -23,6 +23,7 @@ locals {
       BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
     },
     local._bridge_base != "" ? { INTEGRATION_BRIDGE_BASE_URL = trimsuffix(local._bridge_base, "/") } : {},
+    var.enable_core_dev_lab ? { ACS_ENABLE_DEV_LAB = "1" } : {},
   )
 }
 

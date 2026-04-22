@@ -32,6 +32,11 @@ def get_tool(name: str) -> ToolFn | None:
     return _REGISTRY.get(name)
 
 
+def list_tool_ids() -> list[str]:
+    """Stable tool ids for dev UIs (sorted)."""
+    return sorted(_REGISTRY.keys())
+
+
 def run_tool(
     name: str,
     args: dict[str, Any],

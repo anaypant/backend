@@ -150,3 +150,9 @@ variable "openrouter_api_key" {
   default     = ""
   description = "Optional. OpenRouter API key for llm-complete Cloud Function; leave empty to use echo provider only until configured."
 }
+
+variable "enable_core_dev_lab" {
+  type        = bool
+  default     = false
+  description = "When true, core-run sets ACS_ENABLE_DEV_LAB=1 so POST /core/v1/run accepts __ACS_DEV_LAB__ catalog/run_tool requests (lite-frontend dev lab). Never enable in prod."
+}

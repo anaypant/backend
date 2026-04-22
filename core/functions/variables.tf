@@ -38,3 +38,9 @@ variable "fub_webhook_sync_worker_url" {
   default     = ""
   description = "integration-bridge base URL for core-run internal FUB calls (optional)."
 }
+
+variable "enable_core_dev_lab" {
+  type        = bool
+  default     = false
+  description = "When true, sets ACS_ENABLE_DEV_LAB=1 on core-run."
+}

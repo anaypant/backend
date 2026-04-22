@@ -148,6 +148,7 @@ module "core" {
   secrets_internal_gateway_hostname   = nonsensitive(module.secrets.secrets_gateway_hostname)
   secrets_internal_jwt_audience       = local.secrets_internal_jwt_audience_effective
   fub_webhook_sync_worker_url         = var.fub_webhook_sync_worker_url
+  enable_core_dev_lab                 = var.enable_core_dev_lab
   providers = {
     google      = google
     google-beta = google-beta

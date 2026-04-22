@@ -81,3 +81,8 @@ def run_workflow(workflow_id: str, acs: dict) -> dict:
 
 def is_registered(workflow_id: str) -> bool:
     return workflow_id in _GRAPHS
+
+
+def list_registered_workflow_ids() -> list[str]:
+    """Stable ids for dev UIs and introspection (sorted)."""
+    return sorted(_GRAPHS.keys())

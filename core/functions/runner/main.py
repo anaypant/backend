@@ -11,6 +11,7 @@ import functions_framework
 
 import acs_internal as acs
 
+from dev_lab_http import try_dev_lab_response
 from workflows import registry as wf_registry
 
 _logger = logging.getLogger(__name__)
@@ -103,6 +104,11 @@ def main(request):
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _json_response({"error": "JSON object body required"}, 400)
+
+    dev_out = try_dev_lab_response(body)
+    if dev_out is not None:
+        dev_payload, dev_status = dev_out
+        return _json_response(dev_payload, dev_status)
 
     state = body.get("state")
     if not isinstance(state, dict):

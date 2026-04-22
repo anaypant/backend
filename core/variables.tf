@@ -43,3 +43,9 @@ variable "fub_webhook_sync_worker_url" {
   default     = ""
   description = "integration-bridge HTTPS origin (no trailing slash) → core-run INTEGRATION_BRIDGE_BASE_URL. Optional unless a core workflow calls integration (e.g. migration.from_providers, sync outbound). FUB webhooks hydrate CRM payloads in integration before invoking core."
 }
+
+variable "enable_core_dev_lab" {
+  type        = bool
+  default     = false
+  description = "Sets ACS_ENABLE_DEV_LAB=1 on core-run for catalog + run_tool JSON API (see dev_lab_http.py)."
+}
