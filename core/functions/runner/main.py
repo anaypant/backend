@@ -95,8 +95,20 @@ def main(request):
     """
     POST /core/v1/run (via internal API Gateway).
 
-    Body (CoreRunRequestV1): { "workflow_id"?: str, "state": ACSStateV1 }
-    Response: { "status", "state", "error"?: str }
+    **Contract (production):** Body is ``CoreRunRequestV1``:
+    ``{ "workflow_id"?: str, "state": ACSStateV1 }`` where ``ACSStateV1`` matches
+    ``backend/contracts/acs_state.v1.json``. Integration is responsible for CRM auth,
+    webhook ingress, ``IntegrationWebhookEventV1`` → ``ACSStateV1`` conversion
+    (``schema/canonical_webhook`` + ``to_acs_state_v1``), webhook→workflow routing,
+    and optional multi-workflow fan-out (each run gets its own POST here). Core runs
+    LangGraph workflows and returns enriched ``state`` plus top-level ``status`` /
+    ``error``.
+
+    **Dev-only:** Top-level ``__ACS_DEV_LAB__`` markers (never inside ``state``) are
+    handled by ``dev_lab_http`` when ``ACS_ENABLE_DEV_LAB=1`` (catalog, run_tool,
+    run_unit_checks).
+
+    Response: ``{ "status", "state", "error"?: str }``.
     """
     if request.method != "POST":
         return _json_response({"error": "method not allowed"}, 405)

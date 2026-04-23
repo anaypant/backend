@@ -10,6 +10,7 @@ from providers.followupboss.oauth import (
     resync_webhooks,
 )
 from providers.followupboss.people_list import list_people_page
+from providers.followupboss.qa_http import qa_unit_checks
 from providers.followupboss.webhooks import webhook_ingress, webhook_test
 
 
@@ -42,6 +43,9 @@ class FollowUpBossProvider:
 
     def webhook_test(self, request):
         return webhook_test(request)
+
+    def qa_unit_checks(self, request):
+        return qa_unit_checks(request)
 
     def webhook_ingress(self, request):
         return webhook_ingress(request)

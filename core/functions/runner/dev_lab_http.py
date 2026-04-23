@@ -25,7 +25,7 @@ def try_dev_lab_response(body: dict[str, Any]) -> tuple[dict[str, Any], int] | N
     Otherwise return ``None`` so the normal core handler can run.
     """
     marker = body.get("__ACS_DEV_LAB__")
-    if marker not in ("catalog", "run_tool"):
+    if marker not in ("catalog", "run_tool", "run_unit_checks"):
         return None
 
     if not dev_lab_enabled():
@@ -40,6 +40,16 @@ def try_dev_lab_response(body: dict[str, Any]) -> tuple[dict[str, Any], int] | N
 
     if marker == "catalog":
         return _catalog_payload(), 200
+
+    if marker == "run_unit_checks":
+        acting_uid = body.get("acting_uid")
+        if not isinstance(acting_uid, str) or not acting_uid.strip():
+            return {"error": "acting_uid string required"}, 400
+        _ = acting_uid.strip()
+        from qa.unit_checks import run_all_unit_checks
+
+        payload = run_all_unit_checks()
+        return payload, 200
 
     # run_tool
     tool_id = body.get("tool_id")
@@ -93,5 +103,9 @@ def _catalog_payload() -> dict[str, Any]:
                 '"args": {...}, "acting_uid": "...", "acs": {...}?}'
             ),
             "run_workflow": 'POST JSON: {"workflow_id": "contact.enrichment_v1", "state": { ... }} (normal core run)',
+            "run_unit_checks": (
+                'POST JSON: {"__ACS_DEV_LAB__": "run_unit_checks", "acting_uid": "<firebase-uid>"} '
+                "(requires ACS_ENABLE_DEV_LAB=1)"
+            ),
         },
     }

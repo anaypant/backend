@@ -1,4 +1,5 @@
 import base64
+import copy
 import hashlib
 import hmac
 import json
@@ -9,8 +10,9 @@ from dispatcher.core_client import send_state_to_core
 from dispatcher.execution_policy import execution_policy_from_profile
 from dispatcher.egress import dispatch_provider_actions, extract_actions_from_state, outbound_enabled
 from dispatcher.outbound_policy import partition_outbound_actions
-from dispatcher.workflow_router import resolve_default_workflow_id
+from dispatcher.webhook_workflow_map import resolve_workflow_ids_for_webhook
 from providers.followupboss.webhook_payload_enrich import merge_fub_person_from_api
+from schema.canonical_webhook import build_canonical_webhook_event_v1, to_acs_state_v1
 from store.authn import resolve_realtor_bearer
 from store.common import integration_auth_error_response, json_response
 from store.profile_repo import (
@@ -97,7 +99,13 @@ def _process_webhook_event(
     policy = execution_policy_from_profile(profile)
     # Core-run should not call back into integration for CRM reads; hydrate here (tokens already loaded).
     enrich_status = merge_fub_person_from_api(connection_id, fub, event_body)
-    state = _to_acs_state(event_body, connection_id)
+
+    canonical = build_canonical_webhook_event_v1(
+        provider="followupboss",
+        connection_id=connection_id,
+        raw_provider_body=event_body,
+    )
+    state = to_acs_state_v1(canonical, connection_id=connection_id)
     meta = dict(state.get("metadata") or {})
     meta["execution_policy"] = policy
     meta["integrationEnrich"] = enrich_status
@@ -105,62 +113,126 @@ def _process_webhook_event(
 
     event_type = event_body.get("event") if isinstance(event_body.get("event"), str) else "unknown"
     wf_explicit = (workflow_id or "").strip() or None
-    wf_resolved = wf_explicit or resolve_default_workflow_id(event_type, policy)
+    wf_ids = resolve_workflow_ids_for_webhook(
+        "followupboss",
+        event_type,
+        explicit_workflow_id=wf_explicit,
+        policy=policy,
+    )
 
-    core_body, core_status = send_state_to_core(state, workflow_id=wf_resolved)
-    if core_status >= 400:
-        update_event_status(connection_id, event_id, "core_error", core_body)
-        err_payload: dict = {"ok": True, "accepted": True, "eventId": event_id, "status": "core_error"}
+    if not wf_ids:
+        update_event_status(
+            connection_id,
+            event_id,
+            "processed_no_workflow",
+            {"eventType": event_type, "reason": "no_workflow_mapping"},
+        )
+        body: dict = {
+            "ok": True,
+            "accepted": True,
+            "eventId": event_id,
+            "status": "processed_no_workflow",
+            "workflows": [],
+        }
         if include_workflow_debug:
-            cb = core_body if isinstance(core_body, dict) else {}
-            err_payload["workflow_debug"] = _workflow_debug_payload(core_status=core_status, core_body=cb)
+            body["workflow_debug"] = {"note": "no workflow_ids resolved for event type; core not invoked"}
+        return json_response(body, 200)
+
+    dispatch_records: list[dict] = []
+    last_core_body: dict = {}
+    last_core_status = 200
+    all_actions: list[dict] = []
+    any_core_error = False
+
+    for wf in wf_ids:
+        state_run = copy.deepcopy(state)
+        core_body, core_status = send_state_to_core(state_run, workflow_id=wf)
+        last_core_body = core_body if isinstance(core_body, dict) else {}
+        last_core_status = core_status
+        rec: dict = {"workflow_id": wf, "core_http_status": core_status}
+        if core_status >= 400:
+            any_core_error = True
+            rec["error"] = last_core_body.get("error") if isinstance(last_core_body, dict) else "core_error"
+        dispatch_records.append(rec)
+        if core_status < 400:
+            rs = last_core_body.get("state") if isinstance(last_core_body.get("state"), dict) else {}
+            all_actions.extend(extract_actions_from_state(rs))
+
+    meta_dispatch = dict(state.get("metadata") or {})
+    meta_dispatch["webhook_dispatch"] = {"runs": dispatch_records}
+    state["metadata"] = meta_dispatch
+
+    all_core_failed = bool(dispatch_records) and all(
+        d.get("core_http_status", 500) >= 400 for d in dispatch_records
+    )
+    if all_core_failed:
+        update_event_status(
+            connection_id,
+            event_id,
+            "core_error",
+            {"dispatch": dispatch_records, "last_core_response": last_core_body},
+        )
+        err_payload: dict = {
+            "ok": True,
+            "accepted": True,
+            "eventId": event_id,
+            "status": "core_error",
+            "workflows": wf_ids,
+            "webhook_dispatch": dispatch_records,
+        }
+        if include_workflow_debug:
+            err_payload["workflow_debug"] = _workflow_debug_payload(
+                core_status=last_core_status, core_body=last_core_body
+            )
+            err_payload["workflow_debug"]["dispatch"] = dispatch_records
         return json_response(err_payload, 200)
 
-    result_state = core_body.get("state") if isinstance(core_body, dict) else None
-    rs = result_state if isinstance(result_state, dict) else None
-    actions = extract_actions_from_state(rs or {})
-    to_apply, skipped_policy = partition_outbound_actions(actions, policy)
+    # Merge outbound from all successful runs into one partition/dispatch (same connection).
+    to_apply, skipped_policy = partition_outbound_actions(all_actions, policy)
     skipped: list[dict] = list(skipped_policy)
     if not outbound_enabled():
         for a in to_apply:
             skipped.append({"action": a, "reason": "outbound_egress_globally_disabled"})
         to_apply = []
-    if skipped and isinstance(core_body, dict) and isinstance(rs, dict):
+    # Attach skipped_outbound to the last result state if present (debug / realtor UI).
+    result_state = last_core_body.get("state") if isinstance(last_core_body.get("state"), dict) else None
+    rs = result_state if isinstance(result_state, dict) else None
+    if skipped and isinstance(last_core_body, dict) and isinstance(rs, dict):
         _merge_skipped_outbound_into_state(rs, skipped)
-        core_body["state"] = rs
+        last_core_body["state"] = rs
     if outbound_enabled() and to_apply:
         outbound = dispatch_provider_actions("followupboss", connection_id, to_apply)
         detail = dict(outbound) if isinstance(outbound, dict) else {"detail": outbound}
+        detail["webhook_dispatch"] = dispatch_records
+        if any_core_error:
+            detail["partial_core_error"] = True
         if skipped:
             detail["skipped_outbound_count"] = len(skipped)
         update_event_status(connection_id, event_id, "processed_with_outbound", detail)
     else:
-        update_event_status(
-            connection_id,
-            event_id,
-            "processed",
-            {"actions": len(actions), "applied": len(to_apply), "skipped": len(skipped)},
-        )
+        detail_end: dict = {
+            "actions": len(all_actions),
+            "applied": len(to_apply),
+            "skipped": len(skipped),
+            "webhook_dispatch": dispatch_records,
+        }
+        if any_core_error:
+            detail_end["partial_core_error"] = True
+        update_event_status(connection_id, event_id, "processed", detail_end)
 
-    ok_payload: dict = {"ok": True, "accepted": True, "eventId": event_id}
-    if include_workflow_debug:
-        cb = core_body if isinstance(core_body, dict) else {}
-        ok_payload["workflow_debug"] = _workflow_debug_payload(core_status=core_status, core_body=cb)
-    return json_response(ok_payload, 200)
-
-
-def _to_acs_state(event_body: dict, connection_id: str) -> dict:
-    event_type = event_body.get("event") if isinstance(event_body.get("event"), str) else "unknown"
-    correlation = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
-    return {
-        "state_version": 1,
-        "correlation_id": correlation,
-        "tenant_id": None,
-        "user_id": connection_id,
-        "source": {"provider": "followupboss", "event_type": event_type},
-        "payload": event_body,
-        "metadata": {"connection_id": connection_id},
+    ok_payload: dict = {
+        "ok": True,
+        "accepted": True,
+        "eventId": event_id,
+        "workflows": wf_ids,
+        "webhook_dispatch": dispatch_records,
     }
+    if any_core_error:
+        ok_payload["status"] = "partial_core_error"
+    if include_workflow_debug:
+        ok_payload["workflow_debug"] = _workflow_debug_payload(core_status=last_core_status, core_body=last_core_body)
+        ok_payload["workflow_debug"]["dispatch"] = dispatch_records
+    return json_response(ok_payload, 200)
 
 
 def webhook_ingress(request):

@@ -1,9 +1,12 @@
 """Invoke core-run with ACS state.
 
-Integration calls core from Follow Up Boss webhook ingress (and realtor ``webhook_test``) after
-any CRM-side enrichment (e.g. ``fubPerson`` via ``GET`` webhook ``uri``) so core does not need
-integration credentials for that path. Provider OAuth, list APIs, and refresh stay in integration;
-clients call ``/core/v1/run`` via the gateway when they need a workflow.
+**Ownership:** Integration performs CRM auth, webhook verification, optional person hydration,
+canonical ``IntegrationWebhookEventV1`` → ``ACSStateV1`` (``schema/canonical_webhook``), resolves
+one or more ``workflow_id`` values, then POSTs here **once per workflow** with a deep-copied
+``state``. Core never holds FUB OAuth secrets for the webhook read path.
+
+Provider OAuth, list APIs, and refresh remain in integration; browser or internal clients may
+also call ``/core/v1/run`` via the public gateway when running workflows directly.
 """
 
 from typing import Any

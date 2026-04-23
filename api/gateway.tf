@@ -28,6 +28,7 @@ locals {
     "POST /auth/internal/signup",
     "POST /auth/internal/login",
     "POST /integrations/webhooks/followupboss",
+    "POST /integrations/webhooks/v1/{provider}",
     "GET /integrations/followupboss/oauth/start",
     "OPTIONS /integrations/followupboss/oauth/start",
     "OPTIONS /integrations/followupboss/status",
@@ -299,6 +300,40 @@ locals {
         }
       }
     }
+    "/integrations/webhooks/v1/{provider}" = {
+      post = {
+        summary     = "Integration webhooks v1 by provider (proxied to internal integration gateway)"
+        operationId = "integrations_webhooks_v1_provider"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
+        parameters = [
+          {
+            name     = "provider"
+            in       = "path"
+            required = true
+            type     = "string"
+          }
+        ]
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/webhooks/v1/{provider}/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "501" = { description = "Not implemented" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
     "/integrations/followupboss/status" = {
       options = {
         summary     = "CORS preflight for followupboss/status (browser integration UI)"
@@ -490,6 +525,31 @@ locals {
         security    = local.firebase_sec
         "x-google-backend" = {
           address          = "${local.integration_internal_base}/integrations/followupboss/webhook_test/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/qa/unit_checks" = {
+      post = {
+        summary     = "Integration followupboss in-process QA unit checks (Firebase JWT)"
+        operationId = "integrations_followupboss_qa_unit_checks"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/qa/unit_checks/"
           path_translation = "CONSTANT_ADDRESS"
           protocol         = "h2"
           deadline         = local.integration_upstream_deadline

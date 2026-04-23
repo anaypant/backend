@@ -32,6 +32,29 @@ class DevLabHttpTest(unittest.TestCase):
         finally:
             os.environ.pop("ACS_ENABLE_DEV_LAB", None)
 
+    def test_run_unit_checks_when_enabled(self):
+        os.environ["ACS_ENABLE_DEV_LAB"] = "1"
+        try:
+            out = try_dev_lab_response({"__ACS_DEV_LAB__": "run_unit_checks", "acting_uid": "uid-test"})
+            self.assertIsNotNone(out)
+            payload, st = out
+            self.assertEqual(st, 200)
+            self.assertIn("summary", payload)
+            self.assertTrue(payload.get("ok"), payload)
+        finally:
+            os.environ.pop("ACS_ENABLE_DEV_LAB", None)
+
+    def test_run_unit_checks_requires_acting_uid(self):
+        os.environ["ACS_ENABLE_DEV_LAB"] = "1"
+        try:
+            out = try_dev_lab_response({"__ACS_DEV_LAB__": "run_unit_checks"})
+            self.assertIsNotNone(out)
+            payload, st = out
+            self.assertEqual(st, 400)
+            self.assertEqual(payload.get("error"), "acting_uid string required")
+        finally:
+            os.environ.pop("ACS_ENABLE_DEV_LAB", None)
+
     @patch("dev_lab_http.tool_registry.run_tool")
     def test_run_tool_delegates(self, mock_run):
         os.environ["ACS_ENABLE_DEV_LAB"] = "1"

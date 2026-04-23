@@ -63,6 +63,35 @@ locals {
         }
       }
     }
+    "/integrations/webhooks/v1/{provider}" = {
+      post = {
+        summary            = "Integration webhooks v1 by provider"
+        operationId        = "integrations_webhooks_v1_provider"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        parameters = [
+          {
+            name     = "provider"
+            in       = "path"
+            required = true
+            type     = "string"
+          }
+        ]
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "501" = { description = "Not implemented" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
     "/integrations/followupboss/status" = {
       options = {
         summary            = "CORS preflight for connection status"
@@ -207,6 +236,26 @@ locals {
       post = {
         summary            = "Integration followupboss/webhook_test"
         operationId        = "integrations_followupboss_webhook_test"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/followupboss/qa/unit_checks" = {
+      post = {
+        summary            = "Integration followupboss QA unit checks (Firebase JWT at bridge)"
+        operationId        = "integrations_followupboss_qa_unit_checks"
         consumes           = ["application/json"]
         produces           = ["application/json"]
         security           = []

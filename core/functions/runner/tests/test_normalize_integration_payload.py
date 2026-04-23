@@ -59,6 +59,18 @@ class NormalizeIntegrationPayloadTest(unittest.TestCase):
         self.assertEqual(n["emails"], ["ada@example.com"])
         self.assertEqual(n["phones"], ["+15551234567"])
 
+    def test_followupboss_no_person_id_when_unresolvable(self):
+        acs = {
+            "source": {"provider": "followupboss", "event_type": "peopleCreated"},
+            "payload": {
+                "event": "peopleCreated",
+                "uri": "https://example.com/not-a-person-endpoint",
+            },
+        }
+        n = normalize_integration_payload.normalize_contact(acs)
+        self.assertIsNone(n.get("person_id"))
+        self.assertEqual(n.get("external_person_id"), "")
+
 
 if __name__ == "__main__":
     unittest.main()

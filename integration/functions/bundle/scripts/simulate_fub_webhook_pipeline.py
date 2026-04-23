@@ -46,23 +46,7 @@ if _BUNDLE_ROOT not in sys.path:
     sys.path.insert(0, _BUNDLE_ROOT)
 
 from providers.followupboss.fub_payload_person_id import person_id_from_fub_webhook_payload
-
-
-def _to_acs_state(event_body: dict[str, Any], connection_id: str) -> dict[str, Any]:
-    """Mirror ``webhooks._to_acs_state`` (minimal copy for offline debug)."""
-    import uuid
-
-    event_type = event_body.get("event") if isinstance(event_body.get("event"), str) else "unknown"
-    correlation = event_body.get("eventId") if isinstance(event_body.get("eventId"), str) else str(uuid.uuid4())
-    return {
-        "state_version": 1,
-        "correlation_id": correlation,
-        "tenant_id": None,
-        "user_id": connection_id,
-        "source": {"provider": "followupboss", "event_type": event_type},
-        "payload": event_body,
-        "metadata": {"connection_id": connection_id},
-    }
+from schema.canonical_webhook import build_canonical_webhook_event_v1, to_acs_state_v1
 
 
 def _normalize_core_run_url(raw: str) -> str:
@@ -191,7 +175,12 @@ def main() -> int:
         fp = body["fubPerson"]
         print(f"  fubPerson.id: {fp.get('id')!r}  firstName: {fp.get('firstName')!r}")
 
-    state = _to_acs_state(body, args.connection_id)
+    canon = build_canonical_webhook_event_v1(
+        provider="followupboss",
+        connection_id=args.connection_id,
+        raw_provider_body=body,
+    )
+    state = to_acs_state_v1(canon, connection_id=args.connection_id)
     if args.volatile_ok:
         meta = dict(state.get("metadata") or {})
         pol = dict(meta.get("execution_policy") or {})

@@ -1,8 +1,17 @@
+import re
+
 from providers.provider_registry import PROVIDER_REGISTRY
 from state_bridge.handlers import internal_state_from_providers, internal_state_to_providers
 from store.browser_cors import cors_preflight_response, merge_cors_for_oauth_start_get
 from store.common import json_response
 from store.gcp_identity import SecretsOidcConfigError
+
+_WEBHOOK_V1_PATH = re.compile(r"/integrations/webhooks/v1/([^/]+)/?$", re.IGNORECASE)
+
+
+def _webhook_v1_provider_key(path: str) -> str | None:
+    m = _WEBHOOK_V1_PATH.search((path or "").rstrip("/"))
+    return m.group(1).strip().lower() if m else None
 
 
 _STATE_ROUTES: list[tuple[str, object, set[str]]] = [
@@ -28,6 +37,7 @@ ROUTES = {
     "/integrations/followupboss/resync_webhooks": ("followupboss", "resync_webhooks", {"POST"}),
     "/integrations/followupboss/webhooks": ("followupboss", "list_webhooks", {"GET"}),
     "/integrations/followupboss/webhook_test": ("followupboss", "webhook_test", {"POST"}),
+    "/integrations/followupboss/qa/unit_checks": ("followupboss", "qa_unit_checks", {"POST"}),
     "/integrations/followupboss/disconnect": ("followupboss", "disconnect", {"POST"}),
     "/integrations/followupboss/people/list": ("followupboss", "list_people_page", {"POST"}),
     "/integrations/webhooks/followupboss": ("followupboss", "webhook_ingress", {"POST"}),
@@ -47,6 +57,16 @@ def handle_request(request):
     pre = cors_preflight_response(request)
     if pre is not None:
         return pre
+
+    wv = _webhook_v1_provider_key(path)
+    if wv and request.method == "POST":
+        from dispatcher.webhook_dispatcher import handle_webhook_v1_request
+
+        try:
+            out = handle_webhook_v1_request(request, wv)
+        except SecretsOidcConfigError as e:
+            out = json_response(e.payload, e.http_status)
+        return merge_cors_for_oauth_start_get(request, out)
 
     state_r = _route_state(path)
     if state_r:
