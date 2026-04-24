@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "glyde_score.v1",
+  "title": "GlydeScoreV1",
+  "description": "Lead score output from lead.scoring_v1, stored on the lead document.",
+  "type": "object",
+  "properties": {
+    "glydeScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Combined score: deterministic (0-60) + LLM qualitative (0-40)."
+    },
+    "glydeScoreUpdatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when the score was last computed."
+    },
+    "glydeIsHot": {
+      "type": "boolean",
+      "description": "True when glydeScore >= GlydeSettings.hotLeadThreshold."
+    },
+    "glydeQuarantined": {
+      "type": "boolean",
+      "description": "When true the lead is excluded from drip campaigns.",
+      "default": false
+    },
+    "glydeDripLastSentAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the last drip message sent to this lead."
+    },
+    "glydeDripLastTrigger": {
+      "type": ["string", "null"],
+      "enum": ["birthday", "home_anniversary", "reminder", null],
+      "description": "What triggered the last drip message."
+    },
+    "_glydeScoreDetail": {
+      "type": "object",
+      "description": "Optional debug detail — deterministic + LLM sub-scores and reasons.",
+      "properties": {
+        "deterministic": {
+          "type": "object",
+          "properties": {
+            "score": { "type": "integer" },
+            "reasons": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "llm": {
+          "type": "object",
+          "properties": {
+            "score": { "type": "integer" },
+            "rationale": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

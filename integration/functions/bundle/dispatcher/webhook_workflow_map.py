@@ -11,8 +11,16 @@ from typing import Any
 
 # Keys: normalized lookup token (lowercase, underscores). Values: workflow ids in run order.
 _FUB_EVENT_TO_WORKFLOWS: dict[str, list[str]] = {
-    "peoplecreated": ["contact.enrichment_v1"],
-    "peopleupdated": ["contact.enrichment_v1"],
+    # Contact lifecycle — enrichment + scoring on every create/update
+    "peoplecreated": ["contact.enrichment_v1", "lead.scoring_v1"],
+    "peopleupdated": ["lead.scoring_v1"],
+    # Appointment events — generate prep document
+    "appointmentcreated": ["appointment.prep_v1"],
+    "appointmentupdated": ["appointment.prep_v1"],
+    # Inbound communication — draft or send auto-reply
+    "textreceived": ["communication.auto_reply_v1"],
+    "emailreceived": ["communication.auto_reply_v1"],
+    "notecreated": ["communication.auto_reply_v1"],
 }
 
 

@@ -6,7 +6,17 @@ from typing import Any, Callable
 
 from state import acs_state
 from state.execution_policy import get_execution_policy
-from workflows import analytical_stub, contact_enrichment_v1, demo_joke_to_profile
+from workflows import (
+    analytical_stub,
+    appointment_prep_v1,
+    auto_reply_v1,
+    ads_management_v1,
+    contact_enrichment_v1,
+    demo_joke_to_profile,
+    drip_campaign_v1,
+    hot_leads_v1,
+    lead_scoring_v1,
+)
 from workflows.migrations import import_leads_v1
 
 _Runner = Callable[[dict], dict]
@@ -16,6 +26,13 @@ _GRAPHS: dict[str, Any] = {
     "analytical.stub_v1": analytical_stub.build_analytical_stub_graph(),
     "contact.enrichment_v1": contact_enrichment_v1.build_contact_enrichment_graph(),
     "migration.import_leads_v1": import_leads_v1.build_import_leads_graph(),
+    # Glyde workflows
+    "appointment.prep_v1": appointment_prep_v1.build_appointment_prep_graph(),
+    "lead.scoring_v1": lead_scoring_v1.build_lead_scoring_graph(),
+    "communication.auto_reply_v1": auto_reply_v1.build_auto_reply_graph(),
+    "campaign.drip_v1": drip_campaign_v1.build_drip_campaign_graph(),
+    "ads.management_v1": ads_management_v1.build_ads_management_graph(),
+    "lead.hot_notify_v1": hot_leads_v1.build_hot_leads_graph(),
 }
 
 # Unknown registered ids should not happen; unlisted workflow_ids passed to core are not in _GRAPHS.
@@ -34,6 +51,35 @@ WORKFLOW_CAPS: dict[str, dict[str, bool]] = {
         "requires_integration_maintenance": False,
     },
     "migration.import_leads_v1": {
+        "volatile_external": False,
+        "requires_integration_maintenance": False,
+    },
+    # Glyde workflow caps
+    "appointment.prep_v1": {
+        "volatile_external": False,
+        "requires_integration_maintenance": False,
+    },
+    "lead.scoring_v1": {
+        "volatile_external": False,
+        "requires_integration_maintenance": False,
+    },
+    "communication.auto_reply_v1": {
+        # Sends messages; requires explicit realtor opt-in via GlydeSettings.autoReplyEnabled
+        "volatile_external": True,
+        "requires_integration_maintenance": False,
+    },
+    "campaign.drip_v1": {
+        # Sends campaign messages via FUB; requires volatile_external policy
+        "volatile_external": True,
+        "requires_integration_maintenance": False,
+    },
+    "ads.management_v1": {
+        # Creates/updates/deletes ads on Google + Meta; requires volatile_external policy
+        "volatile_external": True,
+        "requires_integration_maintenance": False,
+    },
+    "lead.hot_notify_v1": {
+        # Assist-only: creates notifications, no actions on leads themselves
         "volatile_external": False,
         "requires_integration_maintenance": False,
     },

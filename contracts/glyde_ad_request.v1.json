@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "glyde_ad_request.v1",
+  "title": "GlydeAdRequestV1",
+  "description": "Payload for ads.management_v1 — create, update, pause, or delete an ad campaign.",
+  "type": "object",
+  "required": ["action"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["create", "update", "pause", "delete"],
+      "description": "Operation to perform on the campaign."
+    },
+    "campaignId": {
+      "type": ["string", "null"],
+      "description": "Existing campaign ID for update/pause/delete. Omit or null for create."
+    },
+    "platforms": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["google_ads", "meta_ads"] },
+      "description": "Ad platforms to target. Defaults to both when omitted.",
+      "default": ["google_ads", "meta_ads"]
+    },
+    "urls": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "description": "Landing page URLs to advertise. Required for create/update."
+    },
+    "headline": {
+      "type": ["string", "null"],
+      "maxLength": 30,
+      "description": "Ad headline (max 30 chars). If omitted for create/update, LLM generates one."
+    },
+    "description": {
+      "type": ["string", "null"],
+      "maxLength": 90,
+      "description": "Ad description (max 90 chars). If omitted for create/update, LLM generates one."
+    },
+    "call_to_action": {
+      "type": ["string", "null"],
+      "maxLength": 20,
+      "description": "Call-to-action text (e.g. 'Learn More', 'Contact Us')."
+    },
+    "dailyBudgetUsd": {
+      "type": ["number", "null"],
+      "minimum": 1,
+      "description": "Daily budget in USD. Required for create."
+    },
+    "objective": {
+      "type": ["string", "null"],
+      "description": "Campaign objective (e.g. 'traffic', 'leads', 'brand_awareness').",
+      "default": "traffic"
+    },
+    "targetAudience": {
+      "type": ["string", "null"],
+      "description": "Free-text description of target audience for LLM copy generation."
+    }
+  },
+  "additionalProperties": false
+}

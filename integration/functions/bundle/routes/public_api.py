@@ -41,6 +41,14 @@ ROUTES = {
     "/integrations/followupboss/disconnect": ("followupboss", "disconnect", {"POST"}),
     "/integrations/followupboss/people/list": ("followupboss", "list_people_page", {"POST"}),
     "/integrations/webhooks/followupboss": ("followupboss", "webhook_ingress", {"POST"}),
+    # Glyde routes
+    "/integrations/glyde/settings": ("glyde", "get_settings", {"GET"}),
+    "/integrations/glyde/settings/update": ("glyde", "update_settings", {"POST"}),
+    "/integrations/glyde/ads": ("glyde", "manage_ads", {"POST"}),
+    "/integrations/glyde/ads/list": ("glyde", "list_campaigns", {"GET"}),
+    "/integrations/glyde/hot-leads/refresh": ("glyde", "refresh_hot_leads", {"POST"}),
+    "/integrations/glyde/drip/quarantine": ("glyde", "manage_quarantine", {"POST"}),
+    "/integrations/internal/glyde/scheduler": ("glyde", "scheduler_trigger", {"POST"}),
 }
 
 

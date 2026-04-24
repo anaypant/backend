@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "glyde_settings.v1",
+  "title": "GlydeSettingsV1",
+  "description": "Per-realtor Glyde workflow configuration stored at Realtors/{uid}/GlydeSettings/config.",
+  "type": "object",
+  "properties": {
+    "ownerUid": {
+      "type": "string",
+      "description": "Firebase UID of the realtor who owns this settings document."
+    },
+    "enabledWorkflows": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of workflow_ids that are enabled for this realtor.",
+      "examples": [
+        ["appointment.prep_v1", "lead.scoring_v1", "lead.hot_notify_v1"]
+      ]
+    },
+    "autoReplyEnabled": {
+      "type": "boolean",
+      "description": "When true AND execution_policy allows volatile_external, auto-reply will send live messages. Default false.",
+      "default": false
+    },
+    "autoReplyTone": {
+      "type": "string",
+      "description": "Tone instruction for auto-reply LLM (e.g. 'professional and warm').",
+      "default": "professional and warm"
+    },
+    "dripCooldownDays": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Minimum days between drip touches for a single lead. Default 30.",
+      "default": 30
+    },
+    "hotLeadThreshold": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Minimum glydeScore (0-100) to classify a lead as hot. Default 70.",
+      "default": 70
+    },
+    "hotLeadMaxCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "Maximum number of leads in the hot shortlist. Default 10.",
+      "default": 10
+    },
+    "googleAdsAccountId": {
+      "type": ["string", "null"],
+      "description": "Google Ads customer ID (e.g. '123-456-7890') for this realtor."
+    },
+    "metaAdsAccountId": {
+      "type": ["string", "null"],
+      "description": "Meta Ads account ID (e.g. 'act_123456789') for this realtor."
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of last settings update."
+    }
+  },
+  "additionalProperties": true
+}
