@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import logging
 import traceback
@@ -11,6 +12,7 @@ import functions_framework
 
 import acs_internal as acs
 
+from clients import db_internal
 from dev_lab_http import try_dev_lab_response
 from workflows import registry as wf_registry
 
@@ -90,6 +92,37 @@ def _json_response(payload: dict, status: int):
     return (json.dumps(payload), status, {"Content-Type": "application/json"})
 
 
+def _persist_workflow_audit(exec_workflow_id: str, top: str, out_state: dict) -> None:
+    """Best-effort write of workflowAudit to Realtors/{uid}/WorkflowActivity/{correlation_id}."""
+    uid = out_state.get("user_id")
+    if not isinstance(uid, str) or not uid.strip():
+        return
+    correlation = out_state.get("correlation_id")
+    if not isinstance(correlation, str) or not correlation.strip():
+        correlation = str(uuid.uuid4())
+
+    meta = out_state.get("metadata") if isinstance(out_state.get("metadata"), dict) else {}
+    wa = meta.get("workflowAudit") if isinstance(meta.get("workflowAudit"), dict) else {}
+
+    doc_path = f"Realtors/{uid.strip()}/WorkflowActivity/{correlation.strip()}"
+    doc_data: dict = {
+        "ownerUid": uid.strip(),
+        "workflowId": exec_workflow_id,
+        "status": top,
+        "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "metadata": {
+            "workflowAudit": wa,
+            "core": meta.get("core") if isinstance(meta.get("core"), dict) else {},
+        },
+    }
+    try:
+        _, http = db_internal.upsert_merge(doc_path, doc_data, acting_uid=uid.strip(), timeout=10)
+        if http not in (200, 201):
+            _logger.warning("workflow_audit_persist: db upsert returned %s for %s", http, doc_path)
+    except Exception:
+        _logger.warning("workflow_audit_persist: failed to write audit for %s", doc_path, exc_info=True)
+
+
 @functions_framework.http
 def main(request):
     """
@@ -160,6 +193,7 @@ def main(request):
                 http = 500
                 top = "failed"
             _log_workflow_outcome(exec_workflow_id, out_state)
+            _persist_workflow_audit(exec_workflow_id, top, out_state)
             _logger.info(
                 "workflow end workflow_id=%s correlation_id=%s top_status=%s wf_status=%s",
                 workflow_id,
