@@ -68,7 +68,8 @@ resource "google_cloudfunctions2_function" "core_run" {
     available_memory                 = "512Mi"
     timeout_seconds                  = 120
     ingress_settings                 = "ALLOW_ALL"
-    max_instance_request_concurrency = 1
+    # Raised from 1 to support concurrent lab SSE streams alongside regular runs.
+    max_instance_request_concurrency = 4
     service_account_email            = var.backend_service_account_email
     environment_variables            = local.core_env_public
   }

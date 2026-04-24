@@ -56,6 +56,76 @@ locals {
         }
       }
     }
+
+    # Glyde Lab endpoints — path is preserved via APPEND_PATH_TO_ADDRESS so
+    # main.py can route on request.path.  Streaming SSE is served from /lab/run.
+    "/core/v1/lab/graphs" = {
+      get = {
+        summary     = "List all workflow graph topologies"
+        operationId = "lab_graphs"
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = trimsuffix(var.core_run_function.url, "/")
+          path_translation = "APPEND_PATH_TO_ADDRESS"
+          protocol         = "h2"
+          jwt_audience     = trimsuffix(var.core_run_function.url, "/")
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "500" = { description = "Error" }
+        }
+      }
+    }
+
+    "/core/v1/lab/graph/{workflow_id}" = {
+      get = {
+        summary     = "Get topology for a single workflow"
+        operationId = "lab_graph"
+        produces    = ["application/json"]
+        security    = []
+        parameters = [
+          {
+            name     = "workflow_id"
+            in       = "path"
+            required = true
+            type     = "string"
+          }
+        ]
+        "x-google-backend" = {
+          address          = trimsuffix(var.core_run_function.url, "/")
+          path_translation = "APPEND_PATH_TO_ADDRESS"
+          protocol         = "h2"
+          jwt_audience     = trimsuffix(var.core_run_function.url, "/")
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "404" = { description = "Not found" }
+          "500" = { description = "Error" }
+        }
+      }
+    }
+
+    "/core/v1/lab/run" = {
+      post = {
+        summary     = "SSE streaming workflow run for Glyde Lab"
+        operationId = "lab_run"
+        consumes    = ["application/json"]
+        produces    = ["text/event-stream"]
+        security    = []
+        "x-google-backend" = {
+          address          = trimsuffix(var.core_run_function.url, "/")
+          path_translation = "APPEND_PATH_TO_ADDRESS"
+          protocol         = "h2"
+          jwt_audience     = trimsuffix(var.core_run_function.url, "/")
+        }
+        responses = {
+          "200" = { description = "SSE stream" }
+          "400" = { description = "Bad request" }
+          "500" = { description = "Error" }
+        }
+      }
+    }
   }
 
   openapi_struct = {

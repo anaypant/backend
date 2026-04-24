@@ -123,6 +123,100 @@ def _persist_workflow_audit(exec_workflow_id: str, top: str, out_state: dict) ->
         _logger.warning("workflow_audit_persist: failed to write audit for %s", doc_path, exc_info=True)
 
 
+# ---------------------------------------------------------------------------
+# Glyde Lab handlers
+# ---------------------------------------------------------------------------
+# These endpoints live at /core/v1/lab/* and are registered in the API Gateway
+# with path_translation = APPEND_PATH_TO_ADDRESS, so request.path contains the
+# full path (e.g. "/core/v1/lab/graphs").  The existing /core/v1/run endpoint
+# uses CONSTANT_ADDRESS so its requests arrive at path "/" — that path is
+# handled by the standard workflow block below, unchanged.
+# ---------------------------------------------------------------------------
+
+
+def _handle_lab_request(request, path: str):
+    """Route and serve all /core/v1/lab/* requests."""
+    # Import locally to avoid loading lab modules during cold-start of prod runs.
+    import lab_graph as _lab_graph
+    import lab_stream as _lab_stream
+    from flask import Response, stream_with_context
+
+    # ------------------------------------------------------------------
+    # GET /core/v1/lab/graphs  →  list all workflow topologies
+    # ------------------------------------------------------------------
+    if path == "/core/v1/lab/graphs" and request.method == "GET":
+        try:
+            topologies = _lab_graph.list_topologies()
+            return _json_response({"graphs": topologies}, 200)
+        except Exception:
+            _logger.exception("lab: list_topologies failed")
+            return _json_response({"error": "topology extraction failed"}, 500)
+
+    # ------------------------------------------------------------------
+    # GET /core/v1/lab/graph/{workflow_id}  →  single workflow topology
+    # ------------------------------------------------------------------
+    prefix = "/core/v1/lab/graph/"
+    if path.startswith(prefix) and request.method == "GET":
+        wid = path[len(prefix):]
+        if not wid:
+            return _json_response({"error": "workflow_id required"}, 400)
+        try:
+            topo = _lab_graph.get_graph_topology(wid)
+            return _json_response(topo, 200)
+        except KeyError:
+            return _json_response({"error": f"unknown workflow_id: {wid}"}, 404)
+        except Exception:
+            _logger.exception("lab: get_graph_topology failed wid=%s", wid)
+            return _json_response({"error": "topology extraction failed"}, 500)
+
+    # ------------------------------------------------------------------
+    # POST /core/v1/lab/run  →  SSE streaming workflow execution
+    # ------------------------------------------------------------------
+    if path == "/core/v1/lab/run" and request.method == "POST":
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return _json_response({"error": "JSON object body required"}, 400)
+
+        workflow_id = body.get("workflow_id")
+        if not isinstance(workflow_id, str) or not workflow_id.strip():
+            return _json_response({"error": "workflow_id string required"}, 400)
+
+        state = body.get("state")
+        if not isinstance(state, dict):
+            return _json_response({"error": "state object required"}, 400)
+
+        correlation_id: str | None = body.get("correlation_id") or state.get("correlation_id")
+
+        _logger.info(
+            "lab run_start workflow_id=%s correlation_id=%s user_id=%s",
+            workflow_id,
+            correlation_id or "(none)",
+            state.get("user_id"),
+        )
+
+        gen = _lab_stream.stream_workflow_run(
+            workflow_id.strip(),
+            state,
+            correlation_id=correlation_id,
+        )
+        return Response(
+            stream_with_context(gen),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
+    return _json_response({"error": "lab endpoint not found", "path": path}, 404)
+
+
+# ---------------------------------------------------------------------------
+# Main HTTP handler
+# ---------------------------------------------------------------------------
+
+
 @functions_framework.http
 def main(request):
     """
@@ -141,8 +235,18 @@ def main(request):
     handled by ``dev_lab_http`` when ``ACS_ENABLE_DEV_LAB=1`` (catalog, run_tool,
     run_unit_checks).
 
+    **Lab endpoints:** GET/POST /core/v1/lab/* are served by ``_handle_lab_request``
+    and registered in the API Gateway with ``path_translation = APPEND_PATH_TO_ADDRESS``
+    so the path is preserved in ``request.path``.
+
     Response: ``{ "status", "state", "error"?: str }``.
     """
+    # Lab endpoints arrive with their full path preserved (APPEND_PATH_TO_ADDRESS).
+    path = (request.path or "/").rstrip("/") or "/"
+    if path.startswith("/core/v1/lab"):
+        return _handle_lab_request(request, path)
+
+    # All remaining paths use the existing POST-only workflow handler.
     if request.method != "POST":
         return _json_response({"error": "method not allowed"}, 405)
 
