@@ -27,6 +27,7 @@ locals {
     "POST /auth/realtor/login",
     "POST /auth/internal/signup",
     "POST /auth/internal/login",
+    "POST /auth/password-reset",
     "POST /integrations/webhooks/followupboss",
     "POST /integrations/webhooks/v1/{provider}",
     "GET /integrations/followupboss/oauth/start",
@@ -247,6 +248,7 @@ locals {
       "/auth/realtor/login",
       "/auth/internal/signup",
       "/auth/internal/login",
+      "/auth/password-reset",
       ] : path => {
       post = {
         summary     = "Auth ${trimprefix(path, "/auth/")} (proxied to internal auth gateway)"
