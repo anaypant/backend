@@ -66,6 +66,8 @@ resource "google_cloudfunctions2_function" "core_run" {
   service_config {
     max_instance_count               = 5
     available_memory                 = "512Mi"
+    # Cloud Run requires >= 1 CPU when max_instance_request_concurrency > 1.
+    available_cpu                    = "1"
     timeout_seconds                  = 120
     ingress_settings                 = "ALLOW_ALL"
     # Raised from 1 to support concurrent lab SSE streams alongside regular runs.
