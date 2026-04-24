@@ -16,6 +16,7 @@ module "functions" {
   project_id                        = var.project_id
   region                            = var.region
   backend_service_account_email     = var.platform_sa_email
+  core_internal_gateway_hostname    = var.core_internal_gateway_hostname
   db_internal_gateway_hostname      = var.db_internal_gateway_hostname
   llm_internal_gateway_hostname     = var.llm_internal_gateway_hostname
   llm_internal_jwt_audience         = var.llm_internal_jwt_audience

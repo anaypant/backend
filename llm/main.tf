@@ -16,6 +16,7 @@ module "functions" {
   project_id                        = var.project_id
   region                            = var.region
   backend_service_account_email     = var.platform_sa_email
+  llm_internal_jwt_audience         = var.llm_internal_jwt_audience
   secrets_internal_gateway_hostname = var.secrets_internal_gateway_hostname
   secrets_internal_jwt_audience     = var.secrets_internal_jwt_audience
   openrouter_api_key                = var.openrouter_api_key

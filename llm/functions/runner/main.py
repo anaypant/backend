@@ -7,6 +7,7 @@ from typing import Any
 
 import functions_framework
 
+import platform_auth
 from providers.registry import get_provider
 
 
@@ -33,6 +34,10 @@ def _parse_messages(raw: Any) -> list[dict[str, Any]] | None:
 def main(request):
     if request.method != "POST":
         return _json_response({"error": "method not allowed"}, 405)
+
+    ok, plat_err = platform_auth.verify_platform_caller(request)
+    if not ok:
+        return _json_response({"error": plat_err or "unauthorized"}, 401)
 
     body = request.get_json(silent=True)
     if not isinstance(body, dict):

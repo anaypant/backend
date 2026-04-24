@@ -11,6 +11,12 @@ variable "platform_sa_email" {
   description = "ACS platform SA — gateway backend + function runtime."
 }
 
+variable "llm_internal_jwt_audience" {
+  type        = string
+  default     = ""
+  description = "OIDC audience for this service (= LLM Cloud Function URL). Used for in-handler OIDC verification. Bootstrap: leave empty on first deploy; set to llm_function_url output and redeploy."
+}
+
 variable "secrets_internal_gateway_hostname" {
   type        = string
   default     = ""

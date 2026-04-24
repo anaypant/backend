@@ -12,6 +12,7 @@ also call ``/core/v1/run`` via the public gateway when running workflows directl
 from typing import Any
 
 from store.common import core_origin, post_json
+from store.gcp_identity import id_token_for_core_gateway
 
 
 def send_state_to_core(
@@ -23,4 +24,10 @@ def send_state_to_core(
     payload: dict[str, Any] = {"state": state}
     if workflow_id:
         payload["workflow_id"] = workflow_id
-    return post_json(core_origin() + "/core/v1/run/", payload, timeout=timeout)
+    token = id_token_for_core_gateway()
+    return post_json(
+        core_origin() + "/core/v1/run/",
+        payload,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=timeout,
+    )

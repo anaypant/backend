@@ -15,6 +15,7 @@ locals {
   _bridge_base = trimspace(var.fub_webhook_sync_worker_url)
   core_env_public = merge(
     {
+      CORE_INTERNAL_GATEWAY_HOSTNAME    = var.core_internal_gateway_hostname
       DB_INTERNAL_GATEWAY_HOSTNAME      = var.db_internal_gateway_hostname
       LLM_INTERNAL_GATEWAY_HOSTNAME     = var.llm_internal_gateway_hostname
       LLM_INTERNAL_JWT_AUDIENCE         = var.llm_internal_jwt_audience

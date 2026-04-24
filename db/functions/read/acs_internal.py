@@ -1,13 +1,11 @@
 """ACS end-user identity for HTTP handlers.
 
-**Internal contract:** ``Authorization`` = Google OIDC (transport). ``X-ACS-Application-Authorization``
-= Firebase (or future ACS) JWT for application identity.
+**Public API:** ``Authorization: Bearer <Firebase ID token>``. ESP validates and sets
+``X-Endpoint-API-UserInfo``.
 
-**Legacy:** ``X-ACS-User-Authorization`` (same as application JWT). ``X-GCP-Identity`` for OIDC
-invoker (deprecated; prefer ``Authorization`` for OIDC on new callers).
+**Internal hops:** ``Authorization`` = Google OIDC; ``X-ACS-Application-Authorization`` = Firebase JWT.
 
-**Public API:** clients may send Firebase in ``Authorization`` at the public gateway; ESP validates
-and may set ``X-Endpoint-API-UserInfo``.
+**Legacy:** ``X-GCP-Identity`` (OIDC invoker), ``X-ACS-User-Authorization``.
 """
 
 import base64

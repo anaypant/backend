@@ -11,6 +11,12 @@ variable "platform_sa_email" {
   description = "ACS platform SA — gateway backend + function runtime (same as db/auth)."
 }
 
+variable "core_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = "This service's own API gateway hostname (acs-core-internal, no scheme); used for in-handler OIDC verification. Bootstrap: leave empty on first deploy; set after gateway is created and redeploy."
+}
+
 variable "db_internal_gateway_hostname" {
   type        = string
   description = "Internal DB API Gateway hostname (no scheme)."

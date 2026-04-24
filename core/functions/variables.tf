@@ -11,6 +11,11 @@ variable "backend_service_account_email" {
   description = "SA used as API Gateway backend identity and Cloud Run runtime (matches platform SA)."
 }
 
+variable "core_internal_gateway_hostname" {
+  type        = string
+  description = "Hostname of this service's own API gateway (acs-core-internal); used for in-handler OIDC audience verification."
+}
+
 variable "db_internal_gateway_hostname" {
   type = string
 }

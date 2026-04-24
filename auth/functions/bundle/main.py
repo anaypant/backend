@@ -266,7 +266,10 @@ def _sync_profile_login(id_token: str, uid: str, email: str | None, role: str) -
 
 
 def _set_role_claim(uid: str, role: str):
-    auth.set_custom_user_claims(uid, {"role": role})
+    if role == "internal":
+        auth.set_custom_user_claims(uid, {"role": "internal", "admin": True})
+    else:
+        auth.set_custom_user_claims(uid, {"role": role})
 
 
 def _verify_role_from_id_token(id_token: str, expected_role: str) -> tuple[dict | None, str | None]:
@@ -616,6 +619,74 @@ def realtor_login(request):
 @functions_framework.http
 def internal_login(request):
     return _handle_login(request, "internal")
+
+
+@functions_framework.http
+def promote_admin(request):
+    """POST JSON { "uid": str } — elevate an existing user to internal+admin.
+
+    Caller must supply one of:
+      - Platform OIDC: Authorization: Bearer <SA OIDC> where SA email == BACKEND_SERVICE_ACCOUNT_EMAIL
+      - Existing admin Firebase JWT: X-ACS-Application-Authorization: Bearer <id_token> with admin==true
+
+    This endpoint exists so ACS developers can promote existing accounts without re-signup.
+    The uid must already exist in Firebase Auth; their role claim is set to {"role":"internal","admin":true}.
+    """
+    if request.method != "POST":
+        return _json_response({"error": "method not allowed"}, 405)
+
+    _ensure_firebase()
+
+    body, err = _parse_request_json(request)
+    if err:
+        return err
+
+    uid_to_promote = (body.get("uid") or "").strip()
+    if not uid_to_promote:
+        return _json_response({"error": "uid is required"}, 400)
+
+    caller_authorized = False
+
+    # Path 1: platform OIDC SA token.
+    platform_email = (os.environ.get("BACKEND_SERVICE_ACCOUNT_EMAIL") or "").strip()
+    authz_header = request.headers.get("Authorization") or ""
+    if authz_header.startswith("Bearer ") and platform_email:
+        token = authz_header[7:].strip()
+        try:
+            claims = oauth_id_token.verify_oauth2_token(token, Request(), audience=None)
+            if (claims.get("email") or "").strip() == platform_email:
+                caller_authorized = True
+        except Exception:
+            pass
+
+    # Path 2: existing admin's Firebase JWT.
+    if not caller_authorized:
+        app_jwt_header = request.headers.get(acs.APPLICATION_AUTHORIZATION_HEADER) or ""
+        if app_jwt_header.startswith("Bearer "):
+            app_token = app_jwt_header[7:].strip()
+            try:
+                decoded = auth.verify_id_token(app_token, check_revoked=True)
+                if decoded.get("admin") is True or decoded.get("role") == "admin":
+                    caller_authorized = True
+            except Exception:
+                pass
+
+    if not caller_authorized:
+        return _json_response({"error": "forbidden: platform SA or existing admin token required"}, 403)
+
+    try:
+        auth.get_user(uid_to_promote)
+    except auth.UserNotFoundError:
+        return _json_response({"error": "user not found"}, 404)
+    except fb_exc.FirebaseError as e:
+        return _json_response({"error": str(e)}, 500)
+
+    try:
+        auth.set_custom_user_claims(uid_to_promote, {"role": "internal", "admin": True})
+    except fb_exc.FirebaseError as e:
+        return _json_response({"error": str(e)}, 500)
+
+    return _json_response({"ok": True, "uid": uid_to_promote, "claims": {"role": "internal", "admin": True}}, 200)
 
 
 @functions_framework.http

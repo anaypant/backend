@@ -9,6 +9,7 @@ import re
 
 import firebase_admin
 import functions_framework
+import platform_auth
 from firebase_admin import auth, firestore
 from google.api_core import exceptions as gapi_exceptions
 from google.cloud.firestore import Query as FsQuery
@@ -196,10 +197,15 @@ def main(request):
 
     _ensure_firebase()
 
-    decoded, verr = _decode_firebase_from_request(request)
-    if verr:
-        st = 503 if verr == "auth verification unavailable" else 401
-        return _json_response({"error": verr}, st)
+    decoded, plat_err = platform_auth.try_platform_actor(request)
+    if plat_err is not None:
+        body, st = plat_err
+        return _json_response(body, st)
+    if decoded is None:
+        decoded, verr = _decode_firebase_from_request(request)
+        if verr:
+            st = 503 if verr == "auth verification unavailable" else 401
+            return _json_response({"error": verr}, st)
 
     uid = decoded["uid"]
 

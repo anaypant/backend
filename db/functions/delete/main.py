@@ -7,6 +7,7 @@ import os
 
 import firebase_admin
 import functions_framework
+import platform_auth
 from firebase_admin import auth, firestore
 
 
@@ -93,22 +94,29 @@ def main(request):
     Headers:
         Authorization: Bearer <Google OIDC> (transport)
         X-ACS-Application-Authorization: Bearer <Firebase ID token> (legacy: X-ACS-User-Authorization)
+        X-ACS-Acting-Uid: <uid>  + X-ACS-Platform-Authorization: Bearer <OIDC> for platform callers
 
     JSON body:
         path (str): slash-separated path from root collection to leaf document, e.g.
             "People/abc" or "Organizations/org1/Realtors/r1"
 
     Authz:
+        - Platform SA OIDC + X-ACS-Acting-Uid (internal services acting on behalf of user), or
         - Firebase custom claim admin: true, or role == "admin", or
         - Document field ownerUid or createdBy equals the token uid.
     """
 
     _ensure_firebase()
 
-    decoded, verr = _decode_firebase_from_request(request)
-    if verr:
-        st = 503 if verr == "auth verification unavailable" else 401
-        return _json_response({"error": verr}, st)
+    decoded, plat_err = platform_auth.try_platform_actor(request)
+    if plat_err is not None:
+        body, st = plat_err
+        return _json_response(body, st)
+    if decoded is None:
+        decoded, verr = _decode_firebase_from_request(request)
+        if verr:
+            st = 503 if verr == "auth verification unavailable" else 401
+            return _json_response({"error": verr}, st)
 
     try:
         request_body = request.get_json(silent=True) or {}

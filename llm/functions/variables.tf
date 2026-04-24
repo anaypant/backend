@@ -10,6 +10,12 @@ variable "backend_service_account_email" {
   type = string
 }
 
+variable "llm_internal_jwt_audience" {
+  type        = string
+  default     = ""
+  description = "OIDC audience for this service (LLM Cloud Function URL). Used for in-handler OIDC verification. Set to the llm-complete function URL after first deploy."
+}
+
 variable "secrets_internal_gateway_hostname" {
   type    = string
   default = ""

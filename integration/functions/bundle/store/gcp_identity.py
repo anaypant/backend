@@ -45,6 +45,15 @@ def id_token_for_db_gateway() -> str:
     return oauth_id_token.fetch_id_token(Request(), audience)
 
 
+def id_token_for_core_gateway() -> str:
+    """Google ID token for calling acs-core-internal; audience must match core platform_auth verification."""
+    host = normalize_internal_gateway_hostname(os.environ.get("CORE_INTERNAL_GATEWAY_HOSTNAME") or "")
+    if not host:
+        raise RuntimeError("CORE_INTERNAL_GATEWAY_HOSTNAME is not set")
+    audience = f"https://{host}"
+    return oauth_id_token.fetch_id_token(Request(), audience)
+
+
 def id_token_for_secrets_gateway() -> str:
     """
     Google ID token for calling the internal secrets API Gateway.

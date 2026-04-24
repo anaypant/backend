@@ -19,6 +19,8 @@ data "archive_file" "fn" {
 
 locals {
   llm_env_public = {
+    BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
+    LLM_INTERNAL_JWT_AUDIENCE         = var.llm_internal_jwt_audience
     SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
     SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
   }
