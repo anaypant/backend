@@ -412,11 +412,32 @@ def _handle_signup(request, role: str):
             raw, st = _sign_in_google_id_token(google_id_token.strip())
             if st != 200:
                 return _map_identity_error(st, raw)
-            if raw.get("isNewUser") is False:
-                return _json_response({"error": "account already exists"}, 409)
             uid = raw.get("localId")
             if not uid:
                 return _json_response({"error": "missing localId from IdP response"}, 502)
+            # True when Firebase just created the account via signInWithIdp; False when the
+            # Firebase Auth account already existed (created by a prior Google sign-in, SDK test,
+            # Firebase console, etc.).  In the "False" case we still allow first-time ACS
+            # provisioning — but only if the account has no ACS role claim yet.
+            is_new_firebase_account = raw.get("isNewUser") is not False
+            if not is_new_firebase_account:
+                try:
+                    fb_user = auth.get_user(uid)
+                    existing_role = (fb_user.custom_claims or {}).get("role")
+                    if existing_role:
+                        # Account is already provisioned in ACS — this is a true duplicate.
+                        return _json_response({"error": "account already exists"}, 409)
+                    # No ACS role claim: Firebase account exists but was never onboarded through
+                    # ACS signup.  Provision it now so the user is not caught in a dead-end where
+                    # signup returns 409 and login returns 403.
+                    logging.getLogger(__name__).info(
+                        "Provisioning existing Firebase account %s as first-time ACS %s", uid, role
+                    )
+                except fb_exc.FirebaseError as e:
+                    logging.getLogger(__name__).warning(
+                        "Could not check custom claims for uid %s: %s — treating as duplicate", uid, e
+                    )
+                    return _json_response({"error": "account already exists"}, 409)
             _set_role_claim(uid, role)
             refresh = raw.get("refreshToken")
             if not refresh:
@@ -431,10 +452,13 @@ def _handle_signup(request, role: str):
                 id_tok, uid, raw.get("email"), role
             )
             if up_st != 200:
-                try:
-                    auth.delete_user(uid)
-                except fb_exc.FirebaseError:
-                    pass
+                if is_new_firebase_account:
+                    # Only delete if WE just created this Firebase account; don't wipe an
+                    # existing account that was merely being provisioned into ACS.
+                    try:
+                        auth.delete_user(uid)
+                    except fb_exc.FirebaseError:
+                        pass
                 return _json_response(
                     {
                         "error": "profile upsert failed",
@@ -534,7 +558,16 @@ def _handle_login(request, role: str):
                 return _json_response({"error": "missing idToken"}, 502)
             _, verr = _verify_role_from_id_token(id_tok, role)
             if verr == "forbidden":
-                return _json_response({"error": "forbidden"}, 403)
+                return _json_response(
+                    {
+                        "error": "account_not_registered",
+                        "detail": (
+                            f"This Google account exists in Firebase but has no ACS '{role}' role. "
+                            "Use the sign-up path to provision it, or contact an administrator."
+                        ),
+                    },
+                    403,
+                )
             if verr:
                 return _json_response({"error": verr}, 401)
             uid = raw.get("localId")
@@ -573,7 +606,16 @@ def _handle_login(request, role: str):
             return _json_response({"error": "missing idToken"}, 502)
         _, verr = _verify_role_from_id_token(id_tok, role)
         if verr == "forbidden":
-            return _json_response({"error": "forbidden"}, 403)
+            return _json_response(
+                {
+                    "error": "account_not_registered",
+                    "detail": (
+                        f"This account exists in Firebase but has no ACS '{role}' role. "
+                        "Use the sign-up path to provision it, or contact an administrator."
+                    ),
+                },
+                403,
+            )
         if verr:
             return _json_response({"error": verr}, 401)
         uid = raw.get("localId")
