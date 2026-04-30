@@ -15,6 +15,7 @@ from langgraph.graph import END, StateGraph
 from clients import db_internal, llm_internal
 from state import acs_state
 from workflows import workflow_audit
+from workflows.migrations.schemas.lead_internal_v1 import canonical_lead_id as _make_canonical_lead_id
 
 _logger = logging.getLogger(__name__)
 
@@ -89,19 +90,41 @@ def _node_load_lead(state: LeadScoringState) -> dict[str, Any]:
         or payload.get("personId")
         or payload.get("id")
     )
-    canonical_lead_id = f"fub_{person_id}" if person_id else f"lead_{uuid.uuid4()}"
+
+    # Use the same canonical ID format as import_leads_v1 / lead_internal_v1 so that
+    # leads synced from FUB can be loaded by this workflow (was: "fub_{id}", now "followupboss_{id}").
+    source_provider = str(
+        (acs.get("source") or {}).get("provider") or "followupboss"
+    ).strip().lower() or "followupboss"
+    cid = _make_canonical_lead_id(source_provider, str(person_id)) if person_id else f"lead_{uuid.uuid4()}"
 
     lead: dict[str, Any] = dict(person)
 
     if uid and person_id:
-        lead_body, lst = db_internal.read_document(f"Realtors/{uid}/Leads/{canonical_lead_id}", acting_uid=uid)
+        lead_body, lst = db_internal.read_document(f"Realtors/{uid}/Leads/{cid}", acting_uid=uid)
         workflow_audit.audit_bump_db_read(acs)
         if lst == 200 and isinstance(lead_body.get("data"), dict):
             stored = lead_body["data"]
-            lead.update(stored.get("lead") if isinstance(stored.get("lead"), dict) else stored)
+            stored_lead = stored.get("lead") if isinstance(stored.get("lead"), dict) else stored
+            lead.update(stored_lead)
 
-    workflow_audit.audit_log_node(acs, "load_lead", duration_ms=(time.perf_counter() - t0) * 1000, extra={"canonical_id": canonical_lead_id})
-    return {"acs": acs, "lead": lead, "canonical_lead_id": canonical_lead_id}
+    # Alias internal-schema field names to the names the rest of this workflow expects,
+    # so that leads imported via migration.import_leads_v1 score correctly.
+    if "displayName" in lead and "name" not in lead:
+        lead["name"] = lead["displayName"]
+    if "stageLabel" in lead and "stage" not in lead:
+        lead["stage"] = lead["stageLabel"]
+    if "sourceLabel" in lead and "source" not in lead:
+        lead["source"] = lead["sourceLabel"]
+    if "primaryEmail" in lead and "emails" not in lead:
+        pe = lead["primaryEmail"]
+        lead["emails"] = [pe] if isinstance(pe, str) and pe else []
+    if "primaryPhone" in lead and "phones" not in lead:
+        pp = lead["primaryPhone"]
+        lead["phones"] = [pp] if isinstance(pp, str) and pp else []
+
+    workflow_audit.audit_log_node(acs, "load_lead", duration_ms=(time.perf_counter() - t0) * 1000, extra={"canonical_id": cid})
+    return {"acs": acs, "lead": lead, "canonical_lead_id": cid}
 
 
 def _days_since(date_str: str | None) -> int | None:
@@ -205,22 +228,27 @@ def _node_llm_qualitative_score(state: LeadScoringState) -> dict[str, Any]:
         return {"acs": acs, "llm_score": 20}
 
     lead = state.get("lead") or {}
+    # Include both raw FUB-style keys AND internal-schema aliases so either path gives the LLM data.
+    _LLM_KEYS = (
+        "name", "displayName", "firstName", "lastName",
+        "emails", "phones", "primaryEmail", "primaryPhone",
+        "tags", "stage", "stageLabel", "notes",
+        "source", "sourceLabel", "lastContacted", "lastActivityAt",
+        "properties", "background", "status", "price", "timeframe",
+        "givenName", "familyName",
+    )
     messages = [
         {
             "role": "user",
             "content": json.dumps(
                 {
-                    "lead": {
-                        k: lead[k]
-                        for k in ("name", "firstName", "lastName", "emails", "phones", "tags", "stage",
-                                  "notes", "source", "lastContacted", "lastActivityAt", "properties",
-                                  "background", "status")
-                        if k in lead
-                    },
+                    "lead": {k: lead[k] for k in _LLM_KEYS if k in lead},
                     "instruction": (
                         "Score this real estate lead on a scale of 0-40 based on conversion likelihood. "
-                        "Consider engagement signals, notes content, background, property interests. "
-                        "Return JSON only: {\"score\": <int 0-40>, \"rationale\": <string under 200 chars>}"
+                        "Consider: engagement signals (recency, response time), notes content, "
+                        "stated budget and requirements, property interests, background, stage, source. "
+                        "Return JSON only: "
+                        "{\"score\": <int 0-40>, \"rationale\": <string under 500 chars, be specific and actionable>}"
                     ),
                 },
                 default=str,
@@ -247,7 +275,7 @@ def _node_llm_qualitative_score(state: LeadScoringState) -> dict[str, Any]:
                 if isinstance(meta["leadScoring"], dict):
                     meta["leadScoring"]["llm"] = {
                         "score": llm_score,
-                        "rationale": str(parsed.get("rationale") or "")[:200],
+                        "rationale": str(parsed.get("rationale") or "")[:500],
                     }
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
@@ -321,17 +349,34 @@ def _node_check_hot_threshold(state: LeadScoringState) -> dict[str, Any]:
 
     lead = state.get("lead") or {}
     final = state.get("final_score") or 0
-    lead_name = lead.get("name") or lead.get("firstName") or "Lead"
+    lead_name = (
+        lead.get("name") or lead.get("displayName")
+        or lead.get("firstName") or "Lead"
+    )
+
+    # Pull LLM rationale to give the realtor context in the notification.
+    meta_check = acs_state.ensure_metadata(acs)
+    llm_rationale = ""
+    scoring_meta = meta_check.get("leadScoring") if isinstance(meta_check.get("leadScoring"), dict) else {}
+    llm_meta = scoring_meta.get("llm") if isinstance(scoring_meta.get("llm"), dict) else {}
+    llm_rationale = str(llm_meta.get("rationale") or "").strip()
+
+    body_text = f"{lead_name} scored {final}/100."
+    if llm_rationale:
+        body_text += f" {llm_rationale[:300]}"
+    body_text += " Review and prioritize."
+
     notif_id = str(uuid.uuid4())
     notif: dict[str, Any] = {
         "ownerUid": uid,
         "title": f"Hot lead: {lead_name}",
-        "body": f"{lead_name} scored {final}/100 — review and prioritize.",
+        "body": body_text,
         "severity": "info",
         "createdAt": _iso_now(),
         "source": _WORKFLOW_ID,
         "canonicalLeadId": state.get("canonical_lead_id") or "",
         "glydeScore": final,
+        "llmRationale": llm_rationale[:500],
     }
     _, st = db_internal.upsert_merge(f"Realtors/{uid}/Notifications/{notif_id}", notif, acting_uid=uid)
 

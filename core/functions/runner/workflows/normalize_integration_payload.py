@@ -127,7 +127,8 @@ def normalize_contact(acs: dict) -> dict[str, Any]:
         uri = payload.get("uri") if isinstance(payload.get("uri"), str) else None
         pid = _resolve_fub_person_id(payload if isinstance(payload, dict) else {})
         event_type = payload.get("event") if isinstance(payload.get("event"), str) else ""
-        fp = payload.get("fubPerson")
+        # Accept both the webhook-enriched key (fubPerson) and direct API call key (person).
+        fp = payload.get("fubPerson") or payload.get("person")
         display_name = ""
         emails: list[str] = []
         phones: list[str] = []
@@ -138,6 +139,9 @@ def normalize_contact(acs: dict) -> dict[str, Any]:
             fp_id = fp.get("id")
             if isinstance(fp_id, int) and fp_id > 0:
                 pid = fp_id
+            # Resolve person_id from resourceIds / uri if not already found.
+            if pid is None:
+                pid = _resolve_fub_person_id(fp)
         return {
             "provider": "followupboss",
             "external_person_id": str(pid) if pid is not None else "",

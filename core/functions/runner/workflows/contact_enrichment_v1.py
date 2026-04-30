@@ -140,11 +140,23 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
         return {"acs": acs}
 
     norm = state.get("normalized_contact") or {}
-    q_parts = [
-        f"Contact from {norm.get('provider')}",
-        f"id={norm.get('external_person_id')}",
-        norm.get("display_name") or "",
-    ]
+    display_name = (norm.get("display_name") or "").strip()
+    emails = norm.get("emails") if isinstance(norm.get("emails"), list) else []
+    first_email = emails[0].strip() if emails and isinstance(emails[0], str) else ""
+
+    if display_name:
+        # Build a focused query using the person's name as the primary signal.
+        # Email helps disambiguate common names; provider adds business context.
+        q_parts = [display_name]
+        if first_email:
+            q_parts.append(first_email)
+        q_parts.append("real estate")
+    else:
+        # Fallback for contacts with no name yet (use provider+id for debugging).
+        q_parts = [
+            f"Contact from {norm.get('provider')}",
+            f"id={norm.get('external_person_id')}",
+        ]
     query = " ".join(str(p) for p in q_parts if p).strip()
 
     wr_limit: int | None = None
