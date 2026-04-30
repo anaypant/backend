@@ -283,6 +283,10 @@ def _verify_role_from_id_token(id_token: str, expected_role: str) -> tuple[dict 
         return None, "invalid token"
     except auth.CertificateFetchError:
         return None, "auth verification unavailable"
+    # Admins are a superset of all roles: they can log in via any role endpoint.
+    # This mirrors the DB layer's _is_admin() which also grants full access when admin==True.
+    if decoded.get("admin") is True:
+        return decoded, None
     if decoded.get("role") != expected_role:
         return None, "forbidden"
     return decoded, None
