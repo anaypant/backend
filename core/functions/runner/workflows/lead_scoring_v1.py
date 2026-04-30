@@ -228,6 +228,24 @@ def _node_llm_qualitative_score(state: LeadScoringState) -> dict[str, Any]:
         return {"acs": acs, "llm_score": 20}
 
     lead = state.get("lead") or {}
+
+    # Skip the LLM call when the lead is too sparse to reason about — avoids hallucinated rationale.
+    # "Meaningful" keys are non-empty, non-None values that carry signal.
+    _SIGNAL_KEYS = ("emails", "phones", "primaryEmail", "primaryPhone", "stage", "stageLabel",
+                    "tags", "notes", "source", "sourceLabel", "lastContacted", "lastActivityAt",
+                    "price", "background", "properties", "status")
+    signal_count = sum(1 for k in _SIGNAL_KEYS if lead.get(k))
+    if signal_count < 2:
+        meta = acs_state.ensure_metadata(acs)
+        meta.setdefault("leadScoring", {})
+        if isinstance(meta["leadScoring"], dict):
+            meta["leadScoring"]["llm"] = {
+                "score": 10,
+                "rationale": "Insufficient lead data for qualitative scoring. Provide contact info, stage, or notes to improve accuracy.",
+            }
+        workflow_audit.audit_log_node(acs, "llm_qualitative_score", duration_ms=(time.perf_counter() - t0) * 1000, extra={"llm_score": 10, "skipped": "sparse_lead"})
+        return {"acs": acs, "llm_score": 10}
+
     # Include both raw FUB-style keys AND internal-schema aliases so either path gives the LLM data.
     _LLM_KEYS = (
         "name", "displayName", "firstName", "lastName",

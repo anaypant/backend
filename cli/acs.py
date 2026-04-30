@@ -533,6 +533,302 @@ def integration_resync(ctx: click.Context) -> None:
 
 
 # ---------------------------------------------------------------------------
+# fub  (Follow Up Boss direct operations)
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def fub() -> None:
+    """Follow Up Boss direct operations — people, notes, tasks, tags, import."""
+
+
+# ── fub people ───────────────────────────────────────────────────────────────
+
+@fub.group("people")
+def fub_people() -> None:
+    """People CRUD operations in Follow Up Boss."""
+
+
+@fub_people.command("list")
+@click.option("--limit", default=50, show_default=True, help="Max people per page (1-100).")
+@click.option("--offset", default=0, show_default=True, help="Pagination offset.")
+@click.option("--next", "next_token", default=None, help="Cursor token from a previous response.")
+@click.pass_context
+def fub_people_list(ctx: click.Context, limit: int, offset: int, next_token: Optional[str]) -> None:
+    """List people from FUB (paginated)."""
+    body: dict = {"limit": limit}
+    if next_token:
+        body["next"] = next_token
+    else:
+        body["offset"] = offset
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/list", json=body,
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub_people.command("get")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.pass_context
+def fub_people_get(ctx: click.Context, person_id: int) -> None:
+    """Fetch a single FUB person by ID."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/get",
+                               json={"personId": person_id},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub_people.command("create")
+@click.option("--first", default=None, help="First name.")
+@click.option("--last", default=None, help="Last name.")
+@click.option("--email", "emails", multiple=True, help="Email address (repeatable).")
+@click.option("--phone", "phones", multiple=True, help="Phone number (repeatable).")
+@click.option("--stage", default=None, help='Pipeline stage, e.g. "New Lead", "Active Buyer".')
+@click.option("--source", default=None, help='Lead source, e.g. "Referral", "Zillow".')
+@click.option("--price", default=None, type=int, help="Budget/price point in dollars.")
+@click.option("--tag", "tags", multiple=True, help="Tag name (repeatable).")
+@click.pass_context
+def fub_people_create(
+    ctx: click.Context,
+    first: Optional[str],
+    last: Optional[str],
+    emails: tuple,
+    phones: tuple,
+    stage: Optional[str],
+    source: Optional[str],
+    price: Optional[int],
+    tags: tuple,
+) -> None:
+    """Create (or merge) a person in FUB."""
+    if not first and not emails:
+        _err("Provide --first or at least one --email.")
+    body: dict = {}
+    if first:
+        body["firstName"] = first
+    if last:
+        body["lastName"] = last
+    if emails:
+        body["emails"] = [{"value": e} for e in emails]
+    if phones:
+        body["phones"] = [{"value": p} for p in phones]
+    if stage:
+        body["stage"] = stage
+    if source:
+        body["source"] = source
+    if price is not None:
+        body["price"] = price
+    if tags:
+        body["tags"] = list(tags)
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/create", json=body,
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub_people.command("update")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--first", default=None, help="First name.")
+@click.option("--last", default=None, help="Last name.")
+@click.option("--email", "emails", multiple=True, help="Email address (replaces all; repeatable).")
+@click.option("--phone", "phones", multiple=True, help="Phone number (replaces all; repeatable).")
+@click.option("--stage", default=None, help="Pipeline stage.")
+@click.option("--source", default=None, help="Lead source.")
+@click.option("--price", default=None, type=int, help="Budget/price point.")
+@click.pass_context
+def fub_people_update(
+    ctx: click.Context,
+    person_id: int,
+    first: Optional[str],
+    last: Optional[str],
+    emails: tuple,
+    phones: tuple,
+    stage: Optional[str],
+    source: Optional[str],
+    price: Optional[int],
+) -> None:
+    """Update fields on an existing FUB person."""
+    body: dict = {"personId": person_id}
+    if first:
+        body["firstName"] = first
+    if last:
+        body["lastName"] = last
+    if emails:
+        body["emails"] = [{"value": e} for e in emails]
+    if phones:
+        body["phones"] = [{"value": p} for p in phones]
+    if stage:
+        body["stage"] = stage
+    if source:
+        body["source"] = source
+    if price is not None:
+        body["price"] = price
+    if len(body) == 1:
+        _err("Provide at least one field to update.")
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/update", json=body,
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub_people.command("stage")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--stage", required=True, help='New stage name, e.g. "Active Buyer", "Under Contract".')
+@click.pass_context
+def fub_people_stage(ctx: click.Context, person_id: int, stage: str) -> None:
+    """Set the pipeline stage for a FUB person."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/stage",
+                               json={"personId": person_id, "stage": stage},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+# ── fub tags ─────────────────────────────────────────────────────────────────
+
+@fub.group("tags")
+def fub_tags() -> None:
+    """Add or remove tags on a FUB person (non-destructive merge/filter)."""
+
+
+@fub_tags.command("add")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--tag", "tags", required=True, multiple=True, help="Tag name to add (repeatable).")
+@click.pass_context
+def fub_tags_add(ctx: click.Context, person_id: int, tags: tuple) -> None:
+    """Add one or more tags to a FUB person (existing tags are preserved)."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/tags/add",
+                               json={"personId": person_id, "tags": list(tags)},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub_tags.command("remove")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--tag", "tags", required=True, multiple=True, help="Tag name to remove (repeatable).")
+@click.pass_context
+def fub_tags_remove(ctx: click.Context, person_id: int, tags: tuple) -> None:
+    """Remove one or more tags from a FUB person (other tags are preserved)."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/people/tags/remove",
+                               json={"personId": person_id, "tags": list(tags)},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+# ── fub notes ────────────────────────────────────────────────────────────────
+
+@fub.group("notes")
+def fub_notes() -> None:
+    """Create notes on a FUB person."""
+
+
+@fub_notes.command("create")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--body", "note_body", required=True, help="Note text.")
+@click.pass_context
+def fub_notes_create(ctx: click.Context, person_id: int, note_body: str) -> None:
+    """Add a note to a FUB person."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/notes/create",
+                               json={"personId": person_id, "body": note_body},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+# ── fub tasks ────────────────────────────────────────────────────────────────
+
+@fub.group("tasks")
+def fub_tasks() -> None:
+    """Create tasks on a FUB person."""
+
+
+@fub_tasks.command("create")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--body", "task_body", required=True, help="Task description.")
+@click.pass_context
+def fub_tasks_create(ctx: click.Context, person_id: int, task_body: str) -> None:
+    """Create a follow-up task for a FUB person."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/tasks/create",
+                               json={"personId": person_id, "body": task_body},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+# ── fub webhooks ─────────────────────────────────────────────────────────────
+
+@fub.group("webhooks")
+def fub_webhooks() -> None:
+    """Inspect and manage FUB webhook registrations."""
+
+
+@fub_webhooks.command("list")
+@click.pass_context
+def fub_webhooks_list(ctx: click.Context) -> None:
+    """List webhooks registered in FUB for this account."""
+    try:
+        status, resp = request("GET", "/integrations/followupboss/webhooks",
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub_webhooks.command("resync")
+@click.pass_context
+def fub_webhooks_resync(ctx: click.Context) -> None:
+    """Re-register ACS webhooks in FUB (idempotent — safe to run anytime)."""
+    try:
+        status, resp = request("POST", "/integrations/followupboss/resync_webhooks", json={},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+# ── fub import ───────────────────────────────────────────────────────────────
+
+@fub.command("import")
+@click.option("--person-id", default=None, type=int,
+              help="Refresh a single FUB person into Firestore by ID.")
+@click.option("--max-pages", default=None, type=int,
+              help="Limit paginated full-sync to N pages (default: all).")
+@click.pass_context
+def fub_import(ctx: click.Context, person_id: Optional[int], max_pages: Optional[int]) -> None:
+    """Sync FUB people into Firestore (single person or full account sync)."""
+    body: dict = {}
+    if person_id is not None:
+        body["personId"] = person_id
+    if max_pages is not None:
+        body["maxPages"] = max_pages
+    try:
+        status, resp = request("POST", "/integrations/followupboss/import", json=body,
+                               base_url_override=ctx.obj.get("base_url"), timeout=300)
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+# ---------------------------------------------------------------------------
 # admin
 # ---------------------------------------------------------------------------
 

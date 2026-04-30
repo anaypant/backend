@@ -110,6 +110,15 @@ def get_json(url: str, *, headers: dict | None = None, timeout: int = 60) -> tup
     return _exec(req, timeout=timeout)
 
 
+def put_json(url: str, payload: dict, *, headers: dict | None = None, timeout: int = 60) -> tuple[dict, int]:
+    body = json.dumps(payload).encode("utf-8")
+    req_headers = {"Content-Type": "application/json"}
+    if headers:
+        req_headers.update(headers)
+    req = urllib.request.Request(url, data=body, method="PUT", headers=req_headers)
+    return _exec(req, timeout=timeout)
+
+
 def delete_json(url: str, *, headers: dict | None = None, timeout: int = 60) -> tuple[dict, int]:
     req_headers = headers or {}
     req = urllib.request.Request(url, method="DELETE", headers=req_headers)

@@ -1,4 +1,15 @@
 from providers.followupboss.egress import apply_outbound_actions
+from providers.followupboss.fub_direct_ops import (
+    notes_create,
+    people_create,
+    people_get,
+    people_set_stage,
+    people_update,
+    tags_add,
+    tags_remove,
+    tasks_create,
+    trigger_import,
+)
 from providers.followupboss.oauth import (
     connection_status,
     disconnect,
@@ -52,6 +63,33 @@ class FollowUpBossProvider:
 
     def list_people_page(self, request):
         return list_people_page(request)
+
+    def people_get(self, request):
+        return people_get(request)
+
+    def people_create(self, request):
+        return people_create(request)
+
+    def people_update(self, request):
+        return people_update(request)
+
+    def people_set_stage(self, request):
+        return people_set_stage(request)
+
+    def tags_add(self, request):
+        return tags_add(request)
+
+    def tags_remove(self, request):
+        return tags_remove(request)
+
+    def notes_create(self, request):
+        return notes_create(request)
+
+    def tasks_create(self, request):
+        return tasks_create(request)
+
+    def trigger_import(self, request):
+        return trigger_import(request)
 
     def apply_outbound_actions(self, connection_id: str, actions: list[dict]) -> dict:
         return apply_outbound_actions(connection_id, actions)

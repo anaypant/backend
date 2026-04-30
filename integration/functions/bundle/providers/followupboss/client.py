@@ -2,7 +2,7 @@ import base64
 import os
 import urllib.parse
 
-from store.common import delete_json, get_json, post_form, post_json
+from store.common import delete_json, get_json, post_form, post_json, put_json
 from store.secret_repo import get_secret
 
 
@@ -137,4 +137,17 @@ class FubClient:
         return post_json(f"{self.base}/tasks", {"personId": person_id, "body": body}, headers=self._headers())
 
     def upsert_person(self, payload: dict) -> tuple[dict, int]:
+        """POST /v1/people — create or merge by matching email."""
         return post_json(f"{self.base}/people", payload, headers=self._headers())
+
+    def update_person(self, person_id: int, payload: dict) -> tuple[dict, int]:
+        """PUT /v1/people/{id} — partial update of an existing person."""
+        return put_json(f"{self.base}/people/{int(person_id)}", payload, headers=self._headers())
+
+    def create_appointment(self, person_id: int, title: str, start_time: str) -> tuple[dict, int]:
+        """POST /v1/appointments — create an appointment for a person."""
+        return post_json(
+            f"{self.base}/appointments",
+            {"personId": person_id, "title": title, "startTime": start_time},
+            headers=self._headers(),
+        )
