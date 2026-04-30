@@ -568,6 +568,177 @@ locals {
         }
       }
     }
+    # ── FUB direct people / notes / tasks / tags / import (CLI + admin-center) ──
+    "/integrations/followupboss/people/list" = {
+      post = {
+        summary     = "FUB people list (paginated)"
+        operationId = "integrations_followupboss_people_list"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/list/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/people/get" = {
+      post = {
+        summary     = "FUB get person by ID"
+        operationId = "integrations_followupboss_people_get"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/get/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/people/create" = {
+      post = {
+        summary     = "FUB create/upsert person"
+        operationId = "integrations_followupboss_people_create"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/create/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "201" = { description = "Created" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/people/update" = {
+      post = {
+        summary     = "FUB update person fields"
+        operationId = "integrations_followupboss_people_update"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/update/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/people/stage" = {
+      post = {
+        summary     = "FUB set person pipeline stage"
+        operationId = "integrations_followupboss_people_stage"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/stage/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/people/tags/add" = {
+      post = {
+        summary     = "FUB add tags to person"
+        operationId = "integrations_followupboss_people_tags_add"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/tags/add/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/people/tags/remove" = {
+      post = {
+        summary     = "FUB remove tags from person"
+        operationId = "integrations_followupboss_people_tags_remove"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/people/tags/remove/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/notes/create" = {
+      post = {
+        summary     = "FUB create note for person"
+        operationId = "integrations_followupboss_notes_create"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/notes/create/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "201" = { description = "Created" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/tasks/create" = {
+      post = {
+        summary     = "FUB create task for person"
+        operationId = "integrations_followupboss_tasks_create"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/tasks/create/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "201" = { description = "Created" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/import" = {
+      post = {
+        summary     = "FUB import people into Firestore (single or full sync)"
+        operationId = "integrations_followupboss_import"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/import/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = 300.0
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
+      }
+    }
     "/integrations/followupboss/disconnect" = {
       post = {
         summary     = "Integration followupboss/disconnect (proxied to internal integration gateway)"
