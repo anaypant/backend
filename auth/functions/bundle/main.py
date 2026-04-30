@@ -727,12 +727,25 @@ def promote_admin(request):
     except fb_exc.FirebaseError as e:
         return _json_response({"error": str(e)}, 500)
 
+    admin_level = body.get("adminLevel", 1)
+    if admin_level not in (1, 2):
+        return _json_response({"error": "adminLevel must be 1 or 2"}, 400)
+
+    # Preserve existing claims (e.g. role already set) and layer admin on top.
     try:
-        auth.set_custom_user_claims(uid_to_promote, {"role": "internal", "admin": True})
+        existing_user = auth.get_user(uid_to_promote)
+        existing_claims = dict(existing_user.custom_claims or {})
+    except fb_exc.FirebaseError:
+        existing_claims = {}
+
+    new_claims = {**existing_claims, "role": "realtor", "admin": True, "adminLevel": admin_level}
+
+    try:
+        auth.set_custom_user_claims(uid_to_promote, new_claims)
     except fb_exc.FirebaseError as e:
         return _json_response({"error": str(e)}, 500)
 
-    return _json_response({"ok": True, "uid": uid_to_promote, "claims": {"role": "internal", "admin": True}}, 200)
+    return _json_response({"ok": True, "uid": uid_to_promote, "claims": new_claims}, 200)
 
 
 @functions_framework.http

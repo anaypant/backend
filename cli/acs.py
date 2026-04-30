@@ -1,0 +1,576 @@
+#!/usr/bin/env python3
+"""
+acs — ACS Backend CLI
+
+An AI-agent-friendly command-line interface to authenticate against and
+exercise every deployed feature of the ACS backend.
+
+Quick start:
+  pip install -r requirements.txt
+  python acs.py auth login --base-url https://acs-public-9l1ydz27.uc.gateway.dev \\
+      --email you@example.com --password secret --firebase-api-key AIza...
+  python acs.py health
+  python acs.py core catalog
+"""
+from __future__ import annotations
+
+import json
+import sys
+import time
+import uuid
+from typing import Any, Optional
+
+import click
+import requests as _requests
+
+from . import config
+from .client import CliError, request
+
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+
+def _out(status: int, body: Any, *, raw: bool) -> None:
+    """Print result and exit non-zero on HTTP error."""
+    if raw:
+        if isinstance(body, (dict, list)):
+            click.echo(json.dumps(body))
+        else:
+            click.echo(str(body))
+    else:
+        prefix = click.style(f"HTTP {status}", fg="green" if status < 400 else "red", bold=True)
+        if isinstance(body, (dict, list)):
+            click.echo(f"{prefix}\n{json.dumps(body, indent=2)}")
+        else:
+            click.echo(f"{prefix}\n{body}")
+    if status >= 400:
+        sys.exit(1)
+
+
+def _err(msg: str) -> None:
+    click.echo(click.style(f"error: {msg}", fg="red"), err=True)
+    sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Root group
+# ---------------------------------------------------------------------------
+
+@click.group()
+@click.option("--base-url", envvar="ACS_API_URL", default=None, help="Override ACS gateway base URL.")
+@click.option("--raw", is_flag=True, default=False, help="Print raw JSON without prefix or formatting.")
+@click.pass_context
+def cli(ctx: click.Context, base_url: Optional[str], raw: bool) -> None:
+    """ACS Backend CLI — authenticate and exercise every ACS service endpoint."""
+    ctx.ensure_object(dict)
+    ctx.obj["base_url"] = base_url
+    ctx.obj["raw"] = raw
+
+
+# ---------------------------------------------------------------------------
+# auth
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def auth() -> None:
+    """Login, logout, and inspect the current session."""
+
+
+@auth.command("login")
+@click.option("--base-url", default=None, help="ACS gateway URL (e.g. https://acs-public-....uc.gateway.dev).")
+@click.option("--email", default=None, help="Email for password-based login.")
+@click.option("--password", default=None, help="Password for password-based login.")
+@click.option("--google-token", default=None, help="Google ID token for Google Sign-In login.")
+@click.option("--role", default="realtor", type=click.Choice(["realtor", "internal"]),
+              show_default=True, help="Auth role to use (realtor or internal).")
+@click.option("--firebase-api-key", envvar="FIREBASE_WEB_API_KEY", default=None,
+              help="Firebase Web API key (for token refresh). Falls back to FIREBASE_WEB_API_KEY env var.")
+@click.pass_context
+def auth_login(
+    ctx: click.Context,
+    base_url: Optional[str],
+    email: Optional[str],
+    password: Optional[str],
+    google_token: Optional[str],
+    role: str,
+    firebase_api_key: Optional[str],
+) -> None:
+    """Authenticate against ACS and save a session to ~/.acs-cli/session.json."""
+    resolved_base = base_url or ctx.obj.get("base_url") or config.get_base_url()
+
+    if not google_token and (not email or not password):
+        _err("Provide either --email + --password, or --google-token.")
+
+    api_key = config.get_firebase_api_key(firebase_api_key)
+    if not api_key:
+        _err(
+            "Firebase API key is required for token refresh.\n"
+            "Pass --firebase-api-key or set FIREBASE_WEB_API_KEY."
+        )
+
+    body: dict
+    if google_token:
+        body = {"googleIdToken": google_token}
+    else:
+        body = {"email": email, "password": password}
+
+    try:
+        status, data = request(
+            "POST",
+            f"/auth/{role}/login",
+            json=body,
+            auth=False,
+            base_url_override=resolved_base,
+        )
+    except CliError as e:
+        _err(str(e))
+
+    if status != 200 or not isinstance(data, dict):
+        _out(status, data, raw=ctx.obj["raw"])
+        return
+
+    id_token = data.get("idToken", "")
+    refresh_token = data.get("refreshToken", "")
+    expires_in = int(data.get("expiresIn", 3600))
+
+    if not id_token:
+        _err(f"Login succeeded (HTTP {status}) but response contained no idToken: {data}")
+
+    config.save_session(
+        base_url=resolved_base,
+        id_token=id_token,
+        refresh_token=refresh_token,
+        expires_in=expires_in,
+        firebase_api_key=api_key,
+    )
+
+    # Decode UID from JWT payload (no verification — display only)
+    uid = config.get_session().get("base_url")  # placeholder — decode below
+    try:
+        import base64
+        parts = id_token.split(".")
+        padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+        payload = json.loads(base64.b64decode(padded.replace("-", "+").replace("_", "/")))
+        uid = payload.get("user_id") or payload.get("sub") or "unknown"
+        role_claim = payload.get("role", "(none)")
+        admin_claim = payload.get("admin", False)
+    except Exception:
+        uid = "unknown"
+        role_claim = "unknown"
+        admin_claim = False
+
+    click.echo(
+        click.style("Logged in.", fg="green", bold=True)
+        + f"\n  UID:    {uid}"
+        + f"\n  Role:   {role_claim}"
+        + f"\n  Admin:  {admin_claim}"
+        + f"\n  Expiry: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + expires_in))}"
+        + f"\n  URL:    {resolved_base}"
+    )
+
+
+@auth.command("status")
+def auth_status() -> None:
+    """Show the current session (UID, expiry, base URL)."""
+    session = config.get_session()
+    if not session.get("id_token"):
+        click.echo("Not logged in.")
+        sys.exit(1)
+
+    expires_at = session.get("expires_at", 0)
+    remaining = int(expires_at - time.time())
+    expired = remaining <= 0
+
+    try:
+        import base64
+        parts = session["id_token"].split(".")
+        padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+        payload = json.loads(base64.b64decode(padded.replace("-", "+").replace("_", "/")))
+        uid = payload.get("user_id") or payload.get("sub") or "unknown"
+        role_claim = payload.get("role", "(none)")
+        admin_claim = payload.get("admin", False)
+    except Exception:
+        uid = role_claim = "unknown"
+        admin_claim = False
+
+    status_label = click.style("EXPIRED", fg="red") if expired else click.style("valid", fg="green")
+    click.echo(
+        f"Session:  {status_label}"
+        + f"\n  UID:    {uid}"
+        + f"\n  Role:   {role_claim}"
+        + f"\n  Admin:  {admin_claim}"
+        + f"\n  Expiry: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expires_at))}"
+        + (f" (expires in {remaining}s)" if not expired else " (expired)")
+        + f"\n  URL:    {session.get('base_url', '(none)')}"
+    )
+
+
+@auth.command("logout")
+def auth_logout() -> None:
+    """Clear the saved session."""
+    config.clear()
+    click.echo("Logged out.")
+
+
+# ---------------------------------------------------------------------------
+# health
+# ---------------------------------------------------------------------------
+
+@cli.command("health")
+@click.pass_context
+def health(ctx: click.Context) -> None:
+    """GET /health — unauthenticated gateway liveness check."""
+    try:
+        status, body = request("GET", "/health", auth=False,
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+# ---------------------------------------------------------------------------
+# db
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def db() -> None:
+    """Firestore DB operations (read, query, upsert)."""
+
+
+@db.command("read")
+@click.option("--path", required=True, help='Firestore document path, e.g. "Realtors/abc123".')
+@click.pass_context
+def db_read(ctx: click.Context, path: str) -> None:
+    """POST /db/read — read a Firestore document."""
+    try:
+        status, body = request("POST", "/db/read", json={"path": path},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+@db.command("query")
+@click.option("--path", required=True, help='Firestore collection path, e.g. "Realtors".')
+@click.option("--filter", "filters", multiple=True, nargs=3,
+              metavar="FIELD OP VALUE",
+              help='Filter triple, repeatable: --filter ownerUid == abc123')
+@click.option("--order", "order_by", multiple=True, nargs=2,
+              metavar="FIELD DIRECTION",
+              help='Order by: --order createdAt DESC')
+@click.option("--limit", default=50, show_default=True, help="Max results.")
+@click.option("--page-token", default=None, help="Pagination token from a previous query.")
+@click.pass_context
+def db_query(
+    ctx: click.Context,
+    path: str,
+    filters: tuple,
+    order_by: tuple,
+    limit: int,
+    page_token: Optional[str],
+) -> None:
+    """POST /db/query — query a Firestore collection."""
+    filter_list = [{"field": f, "op": o, "value": v} for f, o, v in filters]
+    order_list = [{"field": f, "direction": d} for f, d in order_by]
+    payload: dict = {"path": path, "filters": filter_list, "limit": limit}
+    if order_list:
+        payload["orderBy"] = order_list
+    if page_token:
+        payload["pageToken"] = page_token
+    try:
+        status, body = request("POST", "/db/query", json=payload,
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+@db.command("upsert")
+@click.option("--path", required=True, help='Firestore document path.')
+@click.option("--data", required=True, help='JSON string of fields to write.')
+@click.option("--no-merge", is_flag=True, default=False, help="Full overwrite instead of merge.")
+@click.pass_context
+def db_upsert(ctx: click.Context, path: str, data: str, no_merge: bool) -> None:
+    """POST /db/upsert — write fields to a Firestore document."""
+    try:
+        data_dict = json.loads(data)
+    except json.JSONDecodeError as e:
+        _err(f"--data is not valid JSON: {e}")
+    try:
+        status, body = request(
+            "POST", "/db/upsert",
+            json={"path": path, "data": data_dict, "merge": not no_merge},
+            base_url_override=ctx.obj.get("base_url"),
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+# ---------------------------------------------------------------------------
+# core
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def core() -> None:
+    """Core workflow runner (run workflows, dev-lab tools, catalog)."""
+
+
+@core.command("run")
+@click.option("--workflow", "workflow_id", required=True,
+              help='Workflow ID, e.g. "lead.scoring_v1".')
+@click.option("--uid", required=True, help="Realtor UID (user_id in state).")
+@click.option("--payload", default="{}", show_default=True,
+              help="JSON payload merged into the state envelope.")
+@click.option("--volatile", is_flag=True, default=False,
+              help="Allow volatile external actions (hands-on mode).")
+@click.option("--correlation-id", default=None,
+              help="Correlation ID (auto-generated if omitted).")
+@click.pass_context
+def core_run(
+    ctx: click.Context,
+    workflow_id: str,
+    uid: str,
+    payload: str,
+    volatile: bool,
+    correlation_id: Optional[str],
+) -> None:
+    """POST /core/v1/run — execute a registered Glyde workflow."""
+    try:
+        payload_dict = json.loads(payload)
+    except json.JSONDecodeError as e:
+        _err(f"--payload is not valid JSON: {e}")
+
+    cid = correlation_id or f"cli_{uuid.uuid4().hex[:12]}"
+    body = {
+        "workflow_id": workflow_id,
+        "state": {
+            "state_version": 1,
+            "correlation_id": cid,
+            "source": {"provider": "acs_cli", "event_type": "manual_trigger"},
+            "user_id": uid,
+            "payload": payload_dict,
+            "metadata": {
+                "execution_policy": {
+                    "volatile_external_allowed": volatile,
+                    "integration_maintenance_allowed": True,
+                }
+            },
+        },
+    }
+    try:
+        status, resp = request("POST", "/core/v1/run", json=body,
+                               base_url_override=ctx.obj.get("base_url"), timeout=120)
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@core.command("catalog")
+@click.pass_context
+def core_catalog(ctx: click.Context) -> None:
+    """List registered workflows and tools via dev-lab (requires ACS_ENABLE_DEV_LAB=1)."""
+    try:
+        status, body = request(
+            "POST", "/core/v1/run",
+            json={"__ACS_DEV_LAB__": "catalog", "acting_uid": "cli"},
+            base_url_override=ctx.obj.get("base_url"),
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+@core.command("tool")
+@click.option("--id", "tool_id", required=True, help='Tool ID, e.g. "db.merge_realtor_profile".')
+@click.option("--args", default="{}", show_default=True, help="JSON args dict for the tool.")
+@click.option("--uid", required=True, help="Acting UID.")
+@click.option("--volatile", is_flag=True, default=False, help="Allow volatile tool execution.")
+@click.pass_context
+def core_tool(ctx: click.Context, tool_id: str, args: str, uid: str, volatile: bool) -> None:
+    """Run a single registered tool via dev-lab (requires ACS_ENABLE_DEV_LAB=1)."""
+    try:
+        args_dict = json.loads(args)
+    except json.JSONDecodeError as e:
+        _err(f"--args is not valid JSON: {e}")
+    acs_policy = {"execution_policy": {"volatile_external_allowed": volatile}} if volatile else None
+    body: dict = {
+        "__ACS_DEV_LAB__": "run_tool",
+        "tool_id": tool_id,
+        "args": args_dict,
+        "acting_uid": uid,
+    }
+    if acs_policy:
+        body["acs"] = acs_policy
+    try:
+        status, resp = request("POST", "/core/v1/run", json=body,
+                               base_url_override=ctx.obj.get("base_url"), timeout=60)
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@core.command("checks")
+@click.option("--uid", required=True, help="Acting UID (required by dev-lab, not used for auth).")
+@click.pass_context
+def core_checks(ctx: click.Context, uid: str) -> None:
+    """Run core unit checks via dev-lab (requires ACS_ENABLE_DEV_LAB=1)."""
+    try:
+        status, body = request(
+            "POST", "/core/v1/run",
+            json={"__ACS_DEV_LAB__": "run_unit_checks", "acting_uid": uid},
+            base_url_override=ctx.obj.get("base_url"),
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+# ---------------------------------------------------------------------------
+# integration
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def integration() -> None:
+    """FollowUpBoss integration commands."""
+
+
+@integration.command("status")
+@click.pass_context
+def integration_status(ctx: click.Context) -> None:
+    """GET /integrations/followupboss/status — FUB connection status."""
+    try:
+        status, body = request("GET", "/integrations/followupboss/status",
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+@integration.command("unit-checks")
+@click.pass_context
+def integration_unit_checks(ctx: click.Context) -> None:
+    """POST /integrations/followupboss/qa/unit_checks — deterministic mapping checks (no live FUB API)."""
+    try:
+        status, body = request("POST", "/integrations/followupboss/qa/unit_checks", json={},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+@integration.command("webhook")
+@click.option("--event", required=True,
+              help='FUB event type, e.g. "personCreated", "personUpdated", "noteCreated".')
+@click.option("--payload", default=None,
+              help="JSON event payload. Defaults to a minimal stub for the event type.")
+@click.option("--workflow-id", default=None,
+              help="Pin execution to a specific workflow ID (optional).")
+@click.pass_context
+def integration_webhook(
+    ctx: click.Context,
+    event: str,
+    payload: Optional[str],
+    workflow_id: Optional[str],
+) -> None:
+    """POST /integrations/followupboss/webhook_test — simulate a FUB webhook event."""
+    _DEFAULT_PAYLOADS: dict[str, dict] = {
+        "personCreated": {
+            "person": {
+                "id": 1,
+                "firstName": "Test",
+                "lastName": "Lead",
+                "emails": [{"value": "test@example.com"}],
+                "stage": "New Lead",
+            }
+        },
+        "personUpdated": {
+            "person": {"id": 1, "firstName": "Test", "lastName": "Lead Updated", "stage": "Active Buyer"}
+        },
+        "noteCreated": {"note": {"id": 101, "body": "Called — interested in listings.", "personId": 1}},
+        "taskCreated": {"task": {"id": 201, "name": "Follow up call", "dueDate": "2026-05-01", "personId": 1}},
+        "appointmentCreated": {
+            "appointment": {"id": 301, "title": "Property showing", "startTime": "2026-05-02T14:00:00Z", "personId": 1}
+        },
+    }
+
+    if payload:
+        try:
+            payload_dict = json.loads(payload)
+        except json.JSONDecodeError as e:
+            _err(f"--payload is not valid JSON: {e}")
+    else:
+        payload_dict = _DEFAULT_PAYLOADS.get(event, {"event_type": event})
+
+    url = "/integrations/followupboss/webhook_test"
+    if workflow_id:
+        url += f"?workflowId={workflow_id}"
+
+    try:
+        status, body = request(
+            "POST", url,
+            json=payload_dict,
+            headers={"X-FUB-Event": event},
+            base_url_override=ctx.obj.get("base_url"),
+            timeout=60,
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+@integration.command("resync-webhooks")
+@click.pass_context
+def integration_resync(ctx: click.Context) -> None:
+    """POST /integrations/followupboss/resync_webhooks — re-register FUB webhooks for the authed user."""
+    try:
+        status, body = request("POST", "/integrations/followupboss/resync_webhooks", json={},
+                               base_url_override=ctx.obj.get("base_url"))
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+# ---------------------------------------------------------------------------
+# admin
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def admin() -> None:
+    """Admin operations (requires admin:true custom claim)."""
+
+
+@admin.command("promote")
+@click.option("--uid", required=True, help="Firebase UID of the user to promote to internal admin.")
+@click.pass_context
+def admin_promote(ctx: click.Context, uid: str) -> None:
+    """POST /auth/internal/promote-admin — grant admin + internal role to a user."""
+    try:
+        status, body = request(
+            "POST", "/auth/internal/promote-admin",
+            json={"uid": uid},
+            base_url_override=ctx.obj.get("base_url"),
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, body, raw=ctx.obj["raw"])
+
+
+# ---------------------------------------------------------------------------
+# Convenience: `acs whoami` — quick session summary
+# ---------------------------------------------------------------------------
+
+@cli.command("whoami")
+@click.pass_context
+def whoami(ctx: click.Context) -> None:
+    """Print the current session identity (alias for `auth status`)."""
+    ctx.invoke(auth_status)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    cli()
