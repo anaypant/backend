@@ -100,6 +100,9 @@ _PEOPLE_SEARCH = frozenset({
 
 # ── LOW-SIGNAL DOMAINS ────────────────────────────────────────────────────────
 _LOW_SIGNAL = frozenset({
+    # Google News relay URLs (CBMi... redirect links from RSS feed).
+    # These relay through Google and can't be reliably scraped for text content.
+    "news.google.com",
     # Pure video — no extractable text
     "youtube.com", "youtu.be", "vimeo.com", "dailymotion.com",
     "twitch.tv", "loom.com",

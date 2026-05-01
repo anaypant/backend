@@ -170,19 +170,18 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
         break
 
     if display_name:
-        # Build a focused query using the person's name as the primary signal.
-        # Real email helps disambiguate common names; adding "real estate" surfaces CRM context.
-        q_parts = [display_name]
-        if real_email:
-            q_parts.append(real_email)
-        q_parts.append("real estate")
+        # Use name + "real estate" as the primary search query.
+        # Emails are intentionally excluded: they rarely appear on public web pages and
+        # actively reduce result count for uncommon/private domains.  The email is
+        # preserved in the synthesis context (normalized_contact) for identity verification.
+        query = f"{display_name} real estate"
     else:
-        # Fallback for contacts with no name yet (use provider+id for debugging).
+        # Fallback for contacts with no name yet.
         q_parts = [
             f"Contact from {norm.get('provider')}",
             f"id={norm.get('external_person_id')}",
         ]
-    query = " ".join(str(p) for p in q_parts if p).strip()
+        query = " ".join(str(p) for p in q_parts if p).strip()
 
     wr_limit: int | None = None
     raw_lim = (os.environ.get("ACS_WEB_RESEARCH_RESULT_LIMIT") or "").strip()

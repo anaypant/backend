@@ -495,8 +495,10 @@ def search_top_results(query: str, *, fetch_count: int) -> tuple[list[dict[str, 
     Return ``(results, backend_id)``.
 
     ``ACS_WEB_SEARCH_BACKEND``:
-      ``duckduckgo`` (default) — free, in-house DDG HTML scraping
-      ``multi``                — DDG + Wikipedia + Google News (most sources, ~1s slower)
+      ``duckduckgo`` (default) — free, in-house DDG HTML scraping.
+                                 Auto-falls back to Wikipedia + Google News when DDG
+                                 returns 0 results (rate-limit / no-match recovery).
+      ``multi``                — DDG + Wikipedia + Google News concurrently (most sources)
       ``brave``                — paid Brave Search API
       ``tavily``               — paid Tavily API
       ``none``                 — disabled; pipeline falls back to LLM-only
@@ -504,7 +506,16 @@ def search_top_results(query: str, *, fetch_count: int) -> tuple[list[dict[str, 
     backend = (os.environ.get("ACS_WEB_SEARCH_BACKEND") or "duckduckgo").strip().lower()
 
     if backend == "duckduckgo":
-        return search_duckduckgo(query, count=fetch_count), "duckduckgo"
+        results = search_duckduckgo(query, count=fetch_count)
+        if results:
+            return results, "duckduckgo"
+        # DDG returned 0 — rate-limit or no matches.  Fall back to Wikipedia + Google News
+        # which have separate rate limits and handle generic queries well.
+        fallback = search_wikipedia(query, count=3) + search_google_news_rss(query, count=4)
+        seen: set[str] = set()
+        deduped = [r for r in fallback if r.get("url") and not seen.add(r["url"])]  # type: ignore[func-returns-value]
+        return deduped[:fetch_count], "duckduckgo_fallback"
+
     if backend == "multi":
         return search_multi_free(query, count=fetch_count), "multi"
     if backend == "brave":

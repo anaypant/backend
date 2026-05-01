@@ -1,0 +1,1366 @@
+{
+  "timestamp": "20260501T080437Z",
+  "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "results": [
+    {
+      "label": "Ryan Serhant (broker/TV)",
+      "http": 200,
+      "elapsed": 13.7,
+      "wf_status": "completed",
+      "query": "Ryan Serhant ryan.46b5a6e4@serhant.com real estate",
+      "search_backend": "duckduckgo",
+      "scrape_ok": 0,
+      "rel_kept": 0,
+      "rel_rejected": 0,
+      "rej_reasons": {},
+      "sources_count": 0,
+      "wr_mode": "llm_fallback",
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {
+        "state_version": 1,
+        "correlation_id": "quality_probe_46b5a6e4",
+        "source": {
+          "provider": "followupboss",
+          "event_type": "personCreated"
+        },
+        "user_id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+        "payload": {
+          "fubPerson": {
+            "firstName": "Ryan",
+            "lastName": "Serhant",
+            "id": 411046,
+            "emails": [
+              {
+                "value": "ryan.46b5a6e4@serhant.com"
+              }
+            ]
+          }
+        },
+        "metadata": {
+          "execution_policy": {
+            "volatile_external_allowed": false
+          },
+          "workflowAudit": {
+            "run_id": "f7d4fc0d-e17f-4a05-8caa-4f54c09efd9e",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777622655264,
+                "duration_ms": 3106.98,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777622655266,
+                "duration_ms": 0.002,
+                "extra": {
+                  "keys": [
+                    "fubPerson"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777622655886,
+                "duration_ms": 618.89,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_411046",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777622655888,
+                "duration_ms": 0.004
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777622660028,
+                "duration_ms": 4133.248,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777622662104,
+                "duration_ms": 2074.58,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 156,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777622662106,
+                "duration_ms": 0.031,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777622662107,
+                "duration_ms": 0.014,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 411046,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777622662108,
+                "duration_ms": 0.014,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777622662110
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777622652157,
+            "finished_at_epoch_ms": 1777622662110,
+            "duration_ms": 9953,
+            "status": "completed"
+          },
+          "contactEnrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_411046",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "411046",
+              "display_name": "Ryan Serhant",
+              "emails": [
+                "ryan.46b5a6e4@serhant.com"
+              ],
+              "phones": [],
+              "person_id": 411046,
+              "event_type": "",
+              "raw": {
+                "uri": null,
+                "event": "",
+                "eventId": null,
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "llm_fallback",
+              "query": "Ryan Serhant ryan.46b5a6e4@serhant.com real estate",
+              "sources_count": 0,
+              "pipeline": {
+                "search_backend": "duckduckgo",
+                "urls_after_blacklist": 0,
+                "scrape_ok": 0,
+                "scrape_total": 0,
+                "relevance_kept": 0,
+                "relevance_rejected": 0,
+                "rejection_reasons": {},
+                "render_needed": 0,
+                "render_used": 0
+              }
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "outboundActions": [
+            {
+              "name": "createNote",
+              "payload": {
+                "personId": 411046,
+                "body": "ACS enrichment \u2014 Ryan Serhant. On file: ryan.46b5a6e4@serhant.com. No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+              },
+              "effect": "volatile_external"
+            }
+          ],
+          "core": {
+            "workflow_id": "contact.enrichment_v1",
+            "status": "completed",
+            "phase": "done"
+          }
+        }
+      }
+    },
+    {
+      "label": "John Smith (generic buyer)",
+      "http": 200,
+      "elapsed": 15.1,
+      "wf_status": "completed",
+      "query": "John Smith jsmith.1f50013f@company.com real estate",
+      "search_backend": "duckduckgo",
+      "scrape_ok": 6,
+      "rel_kept": 5,
+      "rel_rejected": 3,
+      "rej_reasons": {
+        "http_failed": 2,
+        "too_short_163": 1
+      },
+      "sources_count": 0,
+      "wr_mode": "scrape_then_llm",
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {
+        "state_version": 1,
+        "correlation_id": "quality_probe_1f50013f",
+        "source": {
+          "provider": "followupboss",
+          "event_type": "personCreated"
+        },
+        "user_id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+        "payload": {
+          "fubPerson": {
+            "firstName": "John",
+            "lastName": "Smith",
+            "id": 437420,
+            "emails": [
+              {
+                "value": "jsmith.1f50013f@company.com"
+              }
+            ]
+          }
+        },
+        "metadata": {
+          "execution_policy": {
+            "volatile_external_allowed": false
+          },
+          "workflowAudit": {
+            "run_id": "48a67a7a-27be-4b47-aa3b-f28123f30a48",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777622652429,
+                "duration_ms": 1266.1,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777622652431,
+                "duration_ms": 0.002,
+                "extra": {
+                  "keys": [
+                    "fubPerson"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777622653526,
+                "duration_ms": 1093.494,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_437420",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777622653527,
+                "duration_ms": 0.004
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777622661662,
+                "duration_ms": 8133.554,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777622663497,
+                "duration_ms": 1832.944,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 156,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777622663498,
+                "duration_ms": 0.03,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777622663500,
+                "duration_ms": 0.01,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 437420,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777622663502,
+                "duration_ms": 0.015,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777622663503
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777622651163,
+            "finished_at_epoch_ms": 1777622663504,
+            "duration_ms": 12341,
+            "status": "completed"
+          },
+          "contactEnrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_437420",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "437420",
+              "display_name": "John Smith",
+              "emails": [
+                "jsmith.1f50013f@company.com"
+              ],
+              "phones": [],
+              "person_id": 437420,
+              "event_type": "",
+              "raw": {
+                "uri": null,
+                "event": "",
+                "eventId": null,
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "scrape_then_llm",
+              "query": "John Smith jsmith.1f50013f@company.com real estate",
+              "sources_count": 0,
+              "pipeline": {
+                "search_backend": "duckduckgo",
+                "urls_after_blacklist": 8,
+                "scrape_ok": 6,
+                "scrape_total": 8,
+                "relevance_kept": 5,
+                "relevance_rejected": 3,
+                "rejection_reasons": {
+                  "http_failed": 2,
+                  "too_short_163": 1
+                },
+                "render_needed": 0,
+                "render_used": 0
+              }
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "outboundActions": [
+            {
+              "name": "createNote",
+              "payload": {
+                "personId": 437420,
+                "body": "ACS enrichment \u2014 John Smith. On file: jsmith.1f50013f@company.com. No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+              },
+              "effect": "volatile_external"
+            }
+          ],
+          "core": {
+            "workflow_id": "contact.enrichment_v1",
+            "status": "completed",
+            "phase": "done"
+          }
+        }
+      }
+    },
+    {
+      "label": "Barbara Corcoran (RE celeb)",
+      "http": 504,
+      "elapsed": 17.1,
+      "wf_status": null,
+      "query": null,
+      "search_backend": null,
+      "scrape_ok": null,
+      "rel_kept": null,
+      "rel_rejected": null,
+      "rej_reasons": null,
+      "sources_count": null,
+      "wr_mode": null,
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {}
+    },
+    {
+      "label": "Warren Buffett (famous investor)",
+      "http": 504,
+      "elapsed": 17.1,
+      "wf_status": null,
+      "query": null,
+      "search_backend": null,
+      "scrape_ok": null,
+      "rel_kept": null,
+      "rel_rejected": null,
+      "rej_reasons": null,
+      "sources_count": null,
+      "wr_mode": null,
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {}
+    },
+    {
+      "label": "Sarah Johnson (local broker)",
+      "http": 200,
+      "elapsed": 4.8,
+      "wf_status": "completed",
+      "query": "Sarah Johnson sarah.johnson.87279ec9@realty.com real estate",
+      "search_backend": "duckduckgo",
+      "scrape_ok": 0,
+      "rel_kept": 0,
+      "rel_rejected": 0,
+      "rej_reasons": {},
+      "sources_count": 0,
+      "wr_mode": "llm_fallback",
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {
+        "state_version": 1,
+        "correlation_id": "quality_probe_87279ec9",
+        "source": {
+          "provider": "followupboss",
+          "event_type": "personCreated"
+        },
+        "user_id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+        "payload": {
+          "fubPerson": {
+            "firstName": "Sarah",
+            "lastName": "Johnson",
+            "id": 622980,
+            "emails": [
+              {
+                "value": "sarah.johnson.87279ec9@realty.com"
+              }
+            ]
+          }
+        },
+        "metadata": {
+          "execution_policy": {
+            "volatile_external_allowed": false
+          },
+          "workflowAudit": {
+            "run_id": "3c85d190-55b6-496b-ab23-01982674b31b",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777622663859,
+                "duration_ms": 578.155,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777622663861,
+                "duration_ms": 0.002,
+                "extra": {
+                  "keys": [
+                    "fubPerson"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777622664424,
+                "duration_ms": 561.546,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_622980",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777622664425,
+                "duration_ms": 0.004
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777622665785,
+                "duration_ms": 1358.307,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777622666840,
+                "duration_ms": 1053.846,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 165,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777622666842,
+                "duration_ms": 0.026,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777622666844,
+                "duration_ms": 0.007,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 622980,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777622666845,
+                "duration_ms": 0.01,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777622666846
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777622663281,
+            "finished_at_epoch_ms": 1777622666846,
+            "duration_ms": 3565,
+            "status": "completed"
+          },
+          "contactEnrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_622980",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "622980",
+              "display_name": "Sarah Johnson",
+              "emails": [
+                "sarah.johnson.87279ec9@realty.com"
+              ],
+              "phones": [],
+              "person_id": 622980,
+              "event_type": "",
+              "raw": {
+                "uri": null,
+                "event": "",
+                "eventId": null,
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "llm_fallback",
+              "query": "Sarah Johnson sarah.johnson.87279ec9@realty.com real estate",
+              "sources_count": 0,
+              "pipeline": {
+                "search_backend": "duckduckgo",
+                "urls_after_blacklist": 0,
+                "scrape_ok": 0,
+                "scrape_total": 0,
+                "relevance_kept": 0,
+                "relevance_rejected": 0,
+                "rejection_reasons": {},
+                "render_needed": 0,
+                "render_used": 0
+              }
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "outboundActions": [
+            {
+              "name": "createNote",
+              "payload": {
+                "personId": 622980,
+                "body": "ACS enrichment \u2014 Sarah Johnson. On file: sarah.johnson.87279ec9@realty.com. No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+              },
+              "effect": "volatile_external"
+            }
+          ],
+          "core": {
+            "workflow_id": "contact.enrichment_v1",
+            "status": "completed",
+            "phase": "done"
+          }
+        }
+      }
+    },
+    {
+      "label": "Mike Chen (tech investor)",
+      "http": 200,
+      "elapsed": 5.9,
+      "wf_status": "completed",
+      "query": "Mike Chen mchen.5d291714@ventures.io real estate",
+      "search_backend": "duckduckgo",
+      "scrape_ok": 0,
+      "rel_kept": 0,
+      "rel_rejected": 0,
+      "rej_reasons": {},
+      "sources_count": 0,
+      "wr_mode": "llm_fallback",
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {
+        "state_version": 1,
+        "correlation_id": "quality_probe_5d291714",
+        "source": {
+          "provider": "followupboss",
+          "event_type": "personCreated"
+        },
+        "user_id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+        "payload": {
+          "fubPerson": {
+            "firstName": "Mike",
+            "lastName": "Chen",
+            "id": 1075534,
+            "emails": [
+              {
+                "value": "mchen.5d291714@ventures.io"
+              }
+            ]
+          }
+        },
+        "metadata": {
+          "execution_policy": {
+            "volatile_external_allowed": false
+          },
+          "workflowAudit": {
+            "run_id": "cb1f492f-3a82-41e4-9470-faec316aeac2",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777622665377,
+                "duration_ms": 536.286,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777622665378,
+                "duration_ms": 0.001,
+                "extra": {
+                  "keys": [
+                    "fubPerson"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777622665865,
+                "duration_ms": 485.689,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_1075534",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777622665866,
+                "duration_ms": 0.004
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777622667176,
+                "duration_ms": 1308.655,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777622669401,
+                "duration_ms": 2222.692,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 154,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777622669402,
+                "duration_ms": 0.032,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777622669404,
+                "duration_ms": 0.006,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 1075534,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777622669405,
+                "duration_ms": 0.009,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777622669406
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777622664840,
+            "finished_at_epoch_ms": 1777622669406,
+            "duration_ms": 4566,
+            "status": "completed"
+          },
+          "contactEnrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_1075534",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "1075534",
+              "display_name": "Mike Chen",
+              "emails": [
+                "mchen.5d291714@ventures.io"
+              ],
+              "phones": [],
+              "person_id": 1075534,
+              "event_type": "",
+              "raw": {
+                "uri": null,
+                "event": "",
+                "eventId": null,
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "llm_fallback",
+              "query": "Mike Chen mchen.5d291714@ventures.io real estate",
+              "sources_count": 0,
+              "pipeline": {
+                "search_backend": "duckduckgo",
+                "urls_after_blacklist": 0,
+                "scrape_ok": 0,
+                "scrape_total": 0,
+                "relevance_kept": 0,
+                "relevance_rejected": 0,
+                "rejection_reasons": {},
+                "render_needed": 0,
+                "render_used": 0
+              }
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "outboundActions": [
+            {
+              "name": "createNote",
+              "payload": {
+                "personId": 1075534,
+                "body": "ACS enrichment \u2014 Mike Chen. On file: mchen.5d291714@ventures.io. No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+              },
+              "effect": "volatile_external"
+            }
+          ],
+          "core": {
+            "workflow_id": "contact.enrichment_v1",
+            "status": "completed",
+            "phase": "done"
+          }
+        }
+      }
+    },
+    {
+      "label": "Name-only (no email)",
+      "http": 200,
+      "elapsed": 8.1,
+      "wf_status": "completed",
+      "query": "David Williams real estate",
+      "search_backend": "duckduckgo",
+      "scrape_ok": 0,
+      "rel_kept": 0,
+      "rel_rejected": 0,
+      "rej_reasons": {},
+      "sources_count": 0,
+      "wr_mode": "llm_fallback",
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {
+        "state_version": 1,
+        "correlation_id": "quality_probe_635063cc",
+        "source": {
+          "provider": "followupboss",
+          "event_type": "personCreated"
+        },
+        "user_id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+        "payload": {
+          "fubPerson": {
+            "firstName": "David",
+            "lastName": "Williams",
+            "id": 314478
+          }
+        },
+        "metadata": {
+          "execution_policy": {
+            "volatile_external_allowed": false
+          },
+          "workflowAudit": {
+            "run_id": "75a7c60e-7cae-4464-bac4-6266d33fca67",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777622667521,
+                "duration_ms": 576.053,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777622667523,
+                "duration_ms": 0.002,
+                "extra": {
+                  "keys": [
+                    "fubPerson"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777622668024,
+                "duration_ms": 500.466,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_314478",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777622668026,
+                "duration_ms": 0.004
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777622672068,
+                "duration_ms": 4041.296,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777622673568,
+                "duration_ms": 1497.937,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 122,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777622673570,
+                "duration_ms": 0.027,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777622673572,
+                "duration_ms": 0.015,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 314478,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777622673574,
+                "duration_ms": 0.226,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777622673577
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777622666945,
+            "finished_at_epoch_ms": 1777622673578,
+            "duration_ms": 6633,
+            "status": "completed"
+          },
+          "contactEnrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_314478",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "314478",
+              "display_name": "David Williams",
+              "emails": [],
+              "phones": [],
+              "person_id": 314478,
+              "event_type": "",
+              "raw": {
+                "uri": null,
+                "event": "",
+                "eventId": null,
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "llm_fallback",
+              "query": "David Williams real estate",
+              "sources_count": 0,
+              "pipeline": {
+                "search_backend": "duckduckgo",
+                "urls_after_blacklist": 0,
+                "scrape_ok": 0,
+                "scrape_total": 0,
+                "relevance_kept": 0,
+                "relevance_rejected": 0,
+                "rejection_reasons": {},
+                "render_needed": 0,
+                "render_used": 0
+              }
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "outboundActions": [
+            {
+              "name": "createNote",
+              "payload": {
+                "personId": 314478,
+                "body": "ACS enrichment \u2014 David Williams. No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+              },
+              "effect": "volatile_external"
+            }
+          ],
+          "core": {
+            "workflow_id": "contact.enrichment_v1",
+            "status": "completed",
+            "phase": "done"
+          }
+        }
+      }
+    },
+    {
+      "label": "Single name only",
+      "http": 200,
+      "elapsed": 13.4,
+      "wf_status": "completed",
+      "query": "Madonna real estate",
+      "search_backend": "duckduckgo",
+      "scrape_ok": 8,
+      "rel_kept": 5,
+      "rel_rejected": 4,
+      "rej_reasons": {
+        "http_failed": 1,
+        "too_short_76": 1,
+        "cap_exceeded": 2
+      },
+      "sources_count": 0,
+      "wr_mode": "scrape_then_llm",
+      "suggested_note": "",
+      "tags": [],
+      "raw_state": {
+        "state_version": 1,
+        "correlation_id": "quality_probe_5cf4d3d0",
+        "source": {
+          "provider": "followupboss",
+          "event_type": "personCreated"
+        },
+        "user_id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+        "payload": {
+          "fubPerson": {
+            "firstName": "Madonna",
+            "lastName": "",
+            "id": 650439
+          }
+        },
+        "metadata": {
+          "execution_policy": {
+            "volatile_external_allowed": false
+          },
+          "workflowAudit": {
+            "run_id": "42ebc7c7-88c4-4e5e-aa09-9433d65a5998",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777622668345,
+                "duration_ms": 1380.132,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777622668347,
+                "duration_ms": 0.012,
+                "extra": {
+                  "keys": [
+                    "fubPerson"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777622668960,
+                "duration_ms": 612.194,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_650439",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777622668962,
+                "duration_ms": 0.014
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777622677546,
+                "duration_ms": 8582.129,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777622678919,
+                "duration_ms": 1370.975,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 115,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777622678922,
+                "duration_ms": 0.03,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777622678923,
+                "duration_ms": 0.023,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 650439,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777622678925,
+                "duration_ms": 0.016,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777622678927
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777622666965,
+            "finished_at_epoch_ms": 1777622678928,
+            "duration_ms": 11963,
+            "status": "completed"
+          },
+          "contactEnrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_650439",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "650439",
+              "display_name": "Madonna",
+              "emails": [],
+              "phones": [],
+              "person_id": 650439,
+              "event_type": "",
+              "raw": {
+                "uri": null,
+                "event": "",
+                "eventId": null,
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "scrape_then_llm",
+              "query": "Madonna real estate",
+              "sources_count": 0,
+              "pipeline": {
+                "search_backend": "duckduckgo",
+                "urls_after_blacklist": 9,
+                "scrape_ok": 8,
+                "scrape_total": 9,
+                "relevance_kept": 5,
+                "relevance_rejected": 4,
+                "rejection_reasons": {
+                  "http_failed": 1,
+                  "too_short_76": 1,
+                  "cap_exceeded": 2
+                },
+                "render_needed": 0,
+                "render_used": 0
+              }
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "outboundActions": [
+            {
+              "name": "createNote",
+              "payload": {
+                "personId": 650439,
+                "body": "ACS enrichment \u2014 Madonna. No web research sources were returned this run; CRM fields above are from Follow Up Boss."
+              },
+              "effect": "volatile_external"
+            }
+          ],
+          "core": {
+            "workflow_id": "contact.enrichment_v1",
+            "status": "completed",
+            "phase": "done"
+          }
+        }
+      }
+    }
+  ]
+}
