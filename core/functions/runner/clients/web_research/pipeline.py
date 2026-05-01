@@ -68,13 +68,78 @@ def run_research_pipeline(
     raw_hits, backend = search_top_results(q, fetch_count=fetch_pool)
     filtered = filter_results(raw_hits, limit=limit)
 
+    prov = provider or _default_provider()
+    mdl = model or _default_model()
+
+    # When the search backend is not configured or returns no usable URLs, fall back to
+    # LLM-only mode so the workflow still produces a best-effort summary from model knowledge.
+    if not filtered:
+        schema_llm = (
+            "Return JSON only: summary (string, concise factual synthesis from your knowledge), "
+            "sources (array of {title, url, snippet}). "
+            "Use verifiable public URLs when known; set url to empty string if unsure."
+        )
+        messages_llm = [{"role": "user", "content": f"{schema_llm}\n\nResearch query: {q}"}]
+        llm_calls = 1
+        try:
+            body, st = llm_internal.complete(
+                model=mdl,
+                messages=messages_llm,
+                provider=prov,
+                response_format="json",
+            )
+        except Exception as e:
+            return {
+                "summary": "",
+                "sources": [],
+                "mode": "llm_fallback_error",
+                "llm_calls": llm_calls,
+                "error": str(e),
+                "pipeline": _pipeline_meta(backend, filtered, []),
+            }, 503
+        if st >= 400:
+            return {
+                "summary": "",
+                "sources": [],
+                "mode": "llm_fallback_upstream",
+                "llm_calls": llm_calls,
+                "pipeline": _pipeline_meta(backend, filtered, []),
+            }, st
+
+        raw_text = body.get("text") if isinstance(body.get("text"), str) else ""
+        summary = ""
+        sources: list[dict[str, str]] = []
+        try:
+            parsed = json.loads(raw_text) if raw_text.strip() else {}
+            if isinstance(parsed, dict):
+                if isinstance(parsed.get("summary"), str):
+                    summary = parsed["summary"].strip()
+                src = parsed.get("sources")
+                if isinstance(src, list):
+                    for item in src:
+                        if not isinstance(item, dict):
+                            continue
+                        sources.append({
+                            "title": str(item.get("title") or "")[:500],
+                            "url": str(item.get("url") or "")[:2000],
+                            "snippet": str(item.get("snippet") or "")[:4000],
+                        })
+        except json.JSONDecodeError:
+            summary = raw_text.strip()[:8000]
+
+        return {
+            "summary": summary,
+            "sources": sources,
+            "mode": "llm_fallback",
+            "llm_calls": llm_calls,
+            "llm": {"provider": prov, "model": mdl, "http_status": st},
+            "pipeline": _pipeline_meta(backend, filtered, []),
+        }, 200
+
     session = BrowserFetchSession()
     scraped = scrape_many_concurrent(session, filtered)
 
     coalesced = _coalesce_scraped(q, scraped)
-
-    prov = provider or _default_provider()
-    mdl = model or _default_model()
 
     schema = (
         "Return JSON only: summary (string, concise factual synthesis), "

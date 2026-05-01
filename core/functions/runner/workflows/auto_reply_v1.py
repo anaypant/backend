@@ -126,6 +126,17 @@ def _node_llm_draft_reply(state: AutoReplyState) -> dict[str, Any]:
     if state.get("failed"):
         return {"acs": acs}
 
+    # Skip the LLM call when the feature is disabled AND no external send is allowed.
+    # When volatile_external IS allowed (e.g. admin test), always draft so the output can be reviewed.
+    if not state.get("settings_enabled") and not volatile_external_allowed(acs):
+        workflow_audit.audit_log_node(
+            acs,
+            "llm_draft_reply",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"skipped": "auto_reply_disabled_and_non_volatile"},
+        )
+        return {"acs": acs, "draft_reply": ""}
+
     realtor = state.get("realtor_profile") or {}
     settings = state.get("glyde_settings") or {}
     thread = state.get("thread_context") or []

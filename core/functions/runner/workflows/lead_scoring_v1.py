@@ -80,7 +80,10 @@ def _node_load_lead(state: LeadScoringState) -> dict[str, Any]:
     uid = _uid(acs)
     payload = acs.get("payload") if isinstance(acs.get("payload"), dict) else {}
 
+    # Support both "person" (standard) and "fubPerson" (webhook alias used by FUB integration events).
     person = payload.get("person") if isinstance(payload.get("person"), dict) else {}
+    if not person:
+        person = payload.get("fubPerson") if isinstance(payload.get("fubPerson"), dict) else {}
     if not person:
         person = payload
 
@@ -344,9 +347,15 @@ def _node_store_score(state: LeadScoringState) -> dict[str, Any]:
 
     final = state.get("final_score") or 0
     is_hot = bool(state.get("is_hot"))
+    # ownerUid is required so that hot_leads_v1's Firestore query (filter: ownerUid == uid) can find this lead.
     _, st = db_internal.upsert_merge(
         f"Realtors/{uid}/Leads/{canonical_id}",
-        {"glydeScore": final, "glydeScoreUpdatedAt": _iso_now(), "glydeIsHot": is_hot},
+        {
+            "ownerUid": uid,
+            "glydeScore": final,
+            "glydeScoreUpdatedAt": _iso_now(),
+            "glydeIsHot": is_hot,
+        },
         acting_uid=uid,
     )
 

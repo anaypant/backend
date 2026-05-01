@@ -252,25 +252,36 @@ def tags_add(request):
     if not new_tags_raw:
         return json_response({"error": "tags (non-empty list of strings) required"}, 400)
 
-    new_tags = [str(t).strip().lower() for t in new_tags_raw if str(t).strip()]
+    new_tags = [str(t).strip() for t in new_tags_raw if str(t).strip()]
 
-    # Fetch current person to get existing tags
+    # Fetch current person to get existing tags.
+    # FUB GET returns tag objects: [{"id": 1, "name": "hot"}]
+    # FUB PUT expects plain string names: ["hot", "cash-buyer"]
     current, cst = client.get_person(person_id)
     if cst >= 400:
         return json_response({"error": "could not fetch person to read tags", "fub_status": cst, "detail": current}, cst)
 
-    existing_tags = current.get("tags") if isinstance(current.get("tags"), list) else []
-    existing_names = {str(t.get("name") or "").strip().lower() for t in existing_tags if isinstance(t, dict)}
+    raw_tags = current.get("tags") if isinstance(current.get("tags"), list) else []
+    # Normalise: handle both string tags and object tags from FUB response.
+    existing_names_ordered: list[str] = []
+    for t in raw_tags:
+        if isinstance(t, dict):
+            n = str(t.get("name") or "").strip()
+        else:
+            n = str(t).strip()
+        if n:
+            existing_names_ordered.append(n)
 
-    merged = list(existing_tags)  # keep original objects for existing
+    existing_set = {n.lower() for n in existing_names_ordered}
+    merged: list[str] = list(existing_names_ordered)
     for nt in new_tags:
-        if nt and nt not in existing_names:
-            merged.append({"name": nt})
-            existing_names.add(nt)
+        if nt.lower() not in existing_set:
+            merged.append(nt)
+            existing_set.add(nt.lower())
 
     resp, st = client.update_person(person_id, {"tags": merged})
     return json_response(
-        {**(resp if isinstance(resp, dict) else {}), "_tagsAfter": [t.get("name") for t in merged if isinstance(t, dict)]},
+        {**(resp if isinstance(resp, dict) else {}), "_tagsAfter": merged},
         st,
     )
 
@@ -304,12 +315,17 @@ def tags_remove(request):
     if cst >= 400:
         return json_response({"error": "could not fetch person to read tags", "fub_status": cst, "detail": current}, cst)
 
-    existing_tags = current.get("tags") if isinstance(current.get("tags"), list) else []
-    filtered = [t for t in existing_tags if isinstance(t, dict) and str(t.get("name") or "").strip().lower() not in remove_set]
+    raw_tags = current.get("tags") if isinstance(current.get("tags"), list) else []
+    # Normalise and filter — same string vs object handling as tags_add.
+    kept: list[str] = []
+    for t in raw_tags:
+        n = str(t.get("name") or "").strip() if isinstance(t, dict) else str(t).strip()
+        if n and n.lower() not in remove_set:
+            kept.append(n)
 
-    resp, st = client.update_person(person_id, {"tags": filtered})
+    resp, st = client.update_person(person_id, {"tags": kept})
     return json_response(
-        {**(resp if isinstance(resp, dict) else {}), "_tagsAfter": [t.get("name") for t in filtered if isinstance(t, dict)]},
+        {**(resp if isinstance(resp, dict) else {}), "_tagsAfter": kept},
         st,
     )
 
