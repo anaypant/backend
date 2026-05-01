@@ -144,17 +144,30 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     emails = norm.get("emails") if isinstance(norm.get("emails"), list) else []
 
     # Only include email in the search query when it looks like a real personal/business
-    # address — skip test/placeholder domains that would confuse the search engine.
+    # address.  Skip:
+    #   - test/placeholder domains
+    #   - generic providers (gmail, yahoo, etc.) that add no disambiguation value
+    #   - addresses whose local part starts with 8+ hex chars (probe/hash test emails)
     _SKIP_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "test.com",
-                           "localhost", "acs-test.dev", "mailinator.com", "yopmail.com"}
+                           "localhost", "acs-test.dev", "mailinator.com", "yopmail.com",
+                           "example-acs-test.com",
+                           # Generic email providers (too common to help disambiguation)
+                           "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
+                           "icloud.com", "me.com", "protonmail.com", "aol.com"}
+    _HASH_PREFIX_RE = re.compile(r"^[0-9a-f]{8,}\.", re.IGNORECASE)
     real_email = ""
     for _e in emails:
         if not isinstance(_e, str) or not _e.strip():
             continue
-        _domain = _e.rsplit("@", 1)[-1].lower().strip() if "@" in _e else ""
-        if _domain and _domain not in _SKIP_EMAIL_DOMAINS:
-            real_email = _e.strip()
-            break
+        _local, _, _domain = _e.strip().partition("@")
+        _domain = _domain.lower().strip()
+        if not _domain or _domain in _SKIP_EMAIL_DOMAINS:
+            continue
+        # Skip emails whose local part starts with a hash prefix (probe/test pattern)
+        if _HASH_PREFIX_RE.match(_local):
+            continue
+        real_email = _e.strip()
+        break
 
     if display_name:
         # Build a focused query using the person's name as the primary signal.

@@ -244,6 +244,17 @@ def test_llm_layer() -> None:
                     wr.get("mode") in ("llm_fallback", "scrape_then_llm", "llm_structured", "llm_non_json"),
                     f"mode={wr.get('mode')!r} — expected llm_fallback (no backend) or scrape_then_llm (with backend)",
                 )
+                pipeline_meta = wr.get("pipeline") or {}
+                sc = wr.get("sources_count") or 0
+                backend = pipeline_meta.get("search_backend") or "none"
+                scrape_ok = pipeline_meta.get("scrape_ok") or 0
+                print(f"  {INFO}  backend={backend}  scrape_ok={scrape_ok}  sources_count={sc}")
+                if backend not in ("none", None):
+                    check(
+                        "web_research returned sources",
+                        sc > 0,
+                        f"sources_count={sc} (expected >0 when backend is configured)",
+                    )
     except Exception as exc:
         elapsed = time.perf_counter() - t0
         check("LLM workflow call succeeded", False, f"{type(exc).__name__}: {exc}")

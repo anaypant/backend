@@ -200,10 +200,12 @@ def run_research_pipeline(
     # ── Step 5: LLM synthesis ─────────────────────────────────────────────────
     coalesced = _coalesce_scraped(q, kept)
     schema = (
-        "Return JSON only: summary (string, concise factual synthesis), "
-        "sources (array of {title, url, snippet} string fields). "
-        "Each snippet should reflect the scraped evidence. "
-        "Only include sources whose content was actually useful for the summary."
+        "Return JSON only with two keys: "
+        "summary (string — concise factual synthesis of the query based on the pages below), "
+        "sources (array — include an entry for EVERY page you referenced in the summary; "
+        "each entry must have title (string), url (string), snippet (short string excerpt). "
+        "If you wrote a non-empty summary you MUST return at least one source. "
+        "Do not fabricate URLs — only use URLs from the pages provided below)."
     )
     messages = [{"role": "user", "content": f"{schema}\n\n{coalesced}"[:120_000]}]
 

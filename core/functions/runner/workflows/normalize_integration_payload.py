@@ -176,15 +176,52 @@ def normalize_contact(acs: dict) -> dict[str, Any]:
             },
         }
 
-    # Generic passthrough for future providers
+    # Generic passthrough for non-FUB providers.
+    # Best-effort extraction of name / emails / phones from common field shapes.
     ext = payload.get("id") or payload.get("externalId") or payload.get("contactId") or ""
+
+    # Try nested person sub-object first, then flat payload.
+    _person_like_fields = ("firstName", "lastName", "name", "emails", "phones")
+    person_src: dict[str, Any] = {}
+    person_obj = payload.get("person")
+    if isinstance(person_obj, dict) and any(person_obj.get(f) for f in _person_like_fields):
+        person_src = person_obj
+    elif any(payload.get(f) for f in _person_like_fields):
+        person_src = payload
+
+    # Build display name from whatever we found
+    display_name = ""
+    if person_src:
+        display_name = _fub_display_name(person_src)
+    if not display_name:
+        display_name = str(payload.get("name") or "")[:500]
+
+    # Extract emails and phones using the same helpers as FUB
+    emails = _fub_emails(person_src) if person_src else []
+    phones = _fub_phones(person_src) if person_src else []
+
+    # Resolve person id
+    pid: int | None = None
+    for key in ("id", "personId", "person_id"):
+        v = payload.get(key)
+        if isinstance(v, int) and v > 0:
+            pid = v
+            break
+        if isinstance(v, str) and v.strip().isdigit():
+            n = int(v.strip())
+            if n > 0:
+                pid = n
+                break
+    if pid is None and isinstance(person_src.get("id"), int) and person_src["id"] > 0:
+        pid = person_src["id"]
+
     return {
         "provider": provider,
-        "external_person_id": str(ext) if ext is not None else "",
-        "display_name": str(payload.get("name") or "")[:500],
-        "emails": [],
-        "phones": [],
-        "person_id": None,
+        "external_person_id": str(pid or ext)[:80] if (pid or ext) else "",
+        "display_name": display_name,
+        "emails": emails,
+        "phones": phones,
+        "person_id": pid,
         "event_type": str(src.get("event_type") or "")[:200],
         "raw": {"keys": list(payload.keys())[:40]},
     }
