@@ -1,0 +1,17 @@
+{
+  "run_id": "20260501T181442Z_a5e6f9fd",
+  "started_at": "2026-05-01T18:14:42.346735+00:00",
+  "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "guardrailLevel_before": 1,
+  "person_id": 174,
+  "probe_email": "acs.leadintel.25b090d092@example.com",
+  "internal_clients_path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_174",
+  "leads_path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/Leads/followupboss_174",
+  "finished_at": "2026-05-01T18:17:46.367525+00:00",
+  "lead_lane_api_e2e": {
+    "canonical_lead_id": "followupboss_174",
+    "empty_body_http": 400,
+    "bad_lane_http": 400,
+    "set_nurture_http": 200
+  }
+}

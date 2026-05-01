@@ -59,6 +59,9 @@ def _workflow_debug_payload(*, core_status: int, core_body: dict) -> dict:
             "skipped_outbound_count": len(skipped_ob) if isinstance(skipped_ob, list) else 0,
             "errors": errs[:20],
         }
+        wf_audit = meta.get("workflowAudit") if isinstance(meta.get("workflowAudit"), dict) else {}
+        nodes = wf_audit.get("nodes")
+        out["workflow_audit_nodes_count"] = len(nodes) if isinstance(nodes, list) else None
     return out
 
 

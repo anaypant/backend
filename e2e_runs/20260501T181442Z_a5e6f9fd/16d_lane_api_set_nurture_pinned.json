@@ -1,0 +1,10 @@
+{
+  "http": 200,
+  "body": {
+    "ok": true,
+    "canonicalLeadId": "followupboss_174",
+    "glydeLeadLane": "nurture",
+    "glydeLaneUserPinned": true,
+    "updatedAt": "2026-05-01T18:17:55.458932+00:00"
+  }
+}

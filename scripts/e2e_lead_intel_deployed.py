@@ -14,6 +14,12 @@ Run from ``backend/``::
     python scripts/e2e_lead_intel_deployed.py
     python scripts/e2e_lead_intel_deployed.py --stress --poll-intel-seconds 180
     python scripts/e2e_lead_intel_deployed.py --preserve-guardrail --quality-warnings-only
+    python scripts/e2e_lead_intel_deployed.py --test-lead-lane-api
+
+``--test-lead-lane-api`` (after deploy): probes ``POST /integrations/glyde/leads/lane`` (validation + bad
+value + set nurture pinned on the E2E probe lead), then **restores** active + unpinned (``16e``), saves
+``16b``–``16e`` JSON artifacts, and adds lane consistency hints to ``QUALITY_GATES.json`` /
+``ENRICHMENT_QUALITY.md`` for PM sign-off.
 
 Exit codes: 0 success, 2 auth/config, 3 FUB/person failure, 4 quality hard-fail, 5 HTTP gate.
 """
@@ -131,6 +137,13 @@ def fetch_enriched_snapshot(
     st_i, ic_raw = _req(session, "POST", "/db/read", json_body={"path": ic_path}, timeout=30)
     st_l, lead_raw = _req(session, "POST", "/db/read", json_body={"path": lead_path}, timeout=30)
     st_b, bill_raw = _req(session, "POST", "/db/read", json_body={"path": _billing_path(uid)}, timeout=30)
+    st_gs, gs_raw = _req(
+        session,
+        "POST",
+        "/db/read",
+        json_body={"path": f"Realtors/{uid}/GlydeSettings/config"},
+        timeout=30,
+    )
 
     ic_data = ic_raw.get("data") if isinstance(ic_raw, dict) else {}
     acs_intel = ic_data.get("acsIntel") if isinstance(ic_data, dict) and isinstance(ic_data.get("acsIntel"), dict) else {}
@@ -140,6 +153,7 @@ def fetch_enriched_snapshot(
 
     lead_data = lead_raw.get("data") if isinstance(lead_raw, dict) else {}
     bill_data = bill_raw.get("data") if isinstance(bill_raw, dict) else {}
+    gs_data = gs_raw.get("data") if isinstance(gs_raw, dict) else {}
 
     snap_sub: dict[str, Any] = {}
     if isinstance(acs_intel.get("snapshot"), dict):
@@ -194,6 +208,7 @@ def fetch_enriched_snapshot(
             "internal_clients_read": st_i,
             "leads_read": st_l,
             "billing_usage_read": st_b,
+            "glyde_settings_read": st_gs,
         },
         "followupboss_person": person if isinstance(person, dict) else {},
         "followupboss_notes": notes_list_out,
@@ -211,6 +226,13 @@ def fetch_enriched_snapshot(
             "glydeScore": lead_data.get("glydeScore") if isinstance(lead_data, dict) else None,
             "glydeIsHot": lead_data.get("glydeIsHot") if isinstance(lead_data, dict) else None,
             "glydeScoreUpdatedAt": lead_data.get("glydeScoreUpdatedAt") if isinstance(lead_data, dict) else None,
+            "glydeLeadLane": lead_data.get("glydeLeadLane") if isinstance(lead_data, dict) else None,
+            "glydeLaneUserPinned": lead_data.get("glydeLaneUserPinned") if isinstance(lead_data, dict) else None,
+            "glydeLaneUpdatedAt": lead_data.get("glydeLaneUpdatedAt") if isinstance(lead_data, dict) else None,
+            "glydeLaneSource": lead_data.get("glydeLaneSource") if isinstance(lead_data, dict) else None,
+            "glydeLaneReasonCodes": lead_data.get("glydeLaneReasonCodes") if isinstance(lead_data, dict) else None,
+            "glydeQuarantined": lead_data.get("glydeQuarantined") if isinstance(lead_data, dict) else None,
+            "glyde_settings_leadLaneAutoMode": gs_data.get("leadLaneAutoMode") if isinstance(gs_data, dict) else None,
             "snapshot_extract": snap_sub,
             "billing_usage_extract": billing_qe,
             "probe_primary_email_status": probe_email_status,
@@ -275,6 +297,7 @@ def evaluate_quality(
     *,
     hands_on_effective: bool,
     stress: bool,
+    lane_api: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     fails: list[str] = []
     warns: list[str] = []
@@ -283,6 +306,8 @@ def evaluate_quality(
         if isinstance(v, int) and v >= 400:
             if k == "billing_usage_read":
                 warns.append(f"billing doc HTTP {v} (optional)")
+            elif k == "glyde_settings_read" and v == 404:
+                warns.append("glyde settings doc HTTP 404 (optional — no GlydeSettings yet)")
             else:
                 fails.append(f"HTTP {v} on {k}")
 
@@ -302,13 +327,56 @@ def evaluate_quality(
     elif g is not None:
         warns.append(f"glydeScore not int: {g!r}")
 
+    lane_raw = qe.get("glydeLeadLane")
+    lane = str(lane_raw or "").strip().lower()
+    if lane_raw is not None and lane and lane not in ("active", "nurture"):
+        warns.append(f"glydeLeadLane not active|nurture: {lane_raw!r}")
+
+    tier_s = str(qe.get("lastEnrichmentTier") or "").strip().lower()
+    if lane == "nurture" and tier_s == "full":
+        warns.append("nurture lane but lastEnrichmentTier is full — expect lazy tier for nurture leads")
+
+    auto_mode = str(qe.get("glyde_settings_leadLaneAutoMode") or "").strip().lower()
+    if auto_mode == "on" and lane == "" and isinstance(g, int):
+        warns.append("leadLaneAutoMode is on but lead has no glydeLeadLane yet (timing or pin/policy)")
+
+    if lane_api:
+        eb = int(lane_api.get("empty_body_http") or 0)
+        bl = int(lane_api.get("bad_lane_http") or 0)
+        sn = int(lane_api.get("set_nurture_http") or 0)
+        if eb != 400:
+            warns.append(f"lane API empty-body probe: expected HTTP 400, got {eb}")
+        if bl != 400:
+            warns.append(f"lane API invalid glydeLeadLane probe: expected HTTP 400, got {bl}")
+        if sn >= 400:
+            fails.append(f"lane API set nurture pinned failed HTTP {sn} (check gateway + integration deploy)")
+        rs_raw = lane_api.get("restore_active_http")
+        rs = int(rs_raw) if rs_raw is not None else None
+        if rs is not None and rs >= 400:
+            warns.append(
+                f"lane API restore active/unpinned failed HTTP {rs} (probe lead may stay nurture/pinned in Firestore)"
+            )
+        quality_lane = {
+            "lead_lane_api_e2e": {
+                **lane_api,
+                "empty_body_ok": eb == 400,
+                "bad_lane_ok": bl == 400,
+                "set_ok": sn < 400,
+                "restore_ok": rs is None or rs < 400,
+            }
+        }
+    else:
+        quality_lane = {}
+
     slen = int(qe.get("lastWebSummary_len") or 0)
     if slen == 0:
         warns.append("lastWebSummary empty — common for lazy + low-signal email; not a hard fail")
     if stress and slen < 40:
         warns.append("stress: lastWebSummary < 40 chars — research may be starved or blocked")
 
-    return {"passed": len(fails) == 0, "failures": fails, "warnings": warns}
+    out = {"passed": len(fails) == 0, "failures": fails, "warnings": warns}
+    out.update(quality_lane)
+    return out
 
 
 def _tier_label(tier: object) -> str:
@@ -332,6 +400,32 @@ def _summary_depth_label(n: int) -> str:
     if n < 200:
         return "moderate"
     return "rich"
+
+
+def _fmt_firestore_bool(v: object) -> str:
+    if v is True:
+        return "true"
+    if v is False:
+        return "false"
+    return "not set"
+
+
+def _lead_lane_auto_mode_report_row(qe: dict[str, Any], http: dict[str, Any]) -> str:
+    raw = qe.get("glyde_settings_leadLaneAutoMode")
+    gs_st = http.get("glyde_settings_read")
+    if gs_st == 404:
+        return (
+            "| `glyde_settings.leadLaneAutoMode` | **(no settings doc)** | "
+            "`Realtors/{uid}/GlydeSettings/config` missing (HTTP 404); lane automation defaults to env / off until configured. |"
+        )
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        return (
+            "| `glyde_settings.leadLaneAutoMode` | **(unset)** | Settings doc exists but field empty — same as default until set in app. |"
+        )
+    return (
+        f"| `glyde_settings.leadLaneAutoMode` | **`{raw}`** | "
+        "When `on`, scoring may update lane for unpinned leads; `shadow`/`advisory` log only. |"
+    )
 
 
 def _note_value_label(bodies: list[str]) -> str:
@@ -429,6 +523,8 @@ def _write_enrichment_quality_report(
         and snap_name
         and fub_name.replace(" ", "").lower() == snap_name.replace(" ", "").lower()
     )
+    http = final_snap.get("http") if isinstance(final_snap.get("http"), dict) else {}
+    auto_mode_row = _lead_lane_auto_mode_report_row(qe, http)
 
     lines: list[str] = [
         "# Enrichment quality — E2E snapshot",
@@ -446,14 +542,40 @@ def _write_enrichment_quality_report(
         f"| `lastWebSummary` length | **{slen}** | {_summary_depth_label(slen)} — empty is common for **invalid/example email** + lazy tier |",
         f"| FUB notes (ACS) | **{qe.get('fub_note_count', 0)}** note(s), max **{qe.get('acs_note_char_max', 0)}** chars | {_note_value_label(bodies)} |",
         f"| `glydeScore` | **{g}** | Lead scoring output present (0–100 scale); rationale lives in workflow metadata, not always in Firestore |",
+        f"| `glydeLeadLane` / pin | **`{qe.get('glydeLeadLane')}`** / pinned={qe.get('glydeLaneUserPinned')} | Active vs nurture (intel/enrichment cost); pin blocks auto lane from scoring |",
+        auto_mode_row,
+        f"| `glydeQuarantined` | **`{_fmt_firestore_bool(qe.get('glydeQuarantined'))}`** | Drip-only flag; independent of lane (PM v1) |",
         f"| Snapshot vs FUB name | **{'aligned' if aligned else 'check'}** | Firestore `acsIntel.snapshot.display_name` vs FUB `name` |",
         f"| Primary email status (FUB) | `{qe.get('probe_primary_email_status')}` | Invalid → web research rarely finds real identity |",
         "",
-        "## 2. Rubric (how good was this enrichment for a realtor?)",
+        "> **Tier vs lane:** `lastEnrichmentTier` reflects the **last completed** enrichment or intel-delta run. It does not immediately change when `glydeLeadLane` is updated until the next workflow touches this contact.",
         "",
-        "| Expectation | Grade | Notes |",
-        "|-------------|-------|-------|",
     ]
+
+    lines.append("## 1b. Lead lane API (E2E flag `--test-lead-lane-api`)")
+    lines.append("")
+    lapi = quality.get("lead_lane_api_e2e") if isinstance(quality.get("lead_lane_api_e2e"), dict) else None
+    if lapi:
+        lines.append(
+            "Artifacts: `16b_lane_api_empty_body.json`, `16c_lane_api_invalid_lane.json`, `16d_lane_api_set_nurture_pinned.json`, `16e_lane_api_restore_active_unpinned.json`."
+        )
+        lines.append("")
+        lines.append("```json")
+        lines.append(json.dumps(lapi, indent=2, default=str))
+        lines.append("```")
+        lines.append("")
+    else:
+        lines.append("_Not run (omit `--test-lead-lane-api`)._")
+        lines.append("")
+
+    lines.extend(
+        [
+            "## 2. Rubric (how good was this enrichment for a realtor?)",
+            "",
+            "| Expectation | Grade | Notes |",
+            "|-------------|-------|-------|",
+        ]
+    )
 
     # Heuristic grades A–F style as words
     tier_s = str(tier or "").lower()
@@ -471,7 +593,8 @@ def _write_enrichment_quality_report(
             "",
             "## 3. What to read in artifacts",
             "",
-            "- **`18_final_enriched_snapshot.json`** — full FUB person, notes, `InternalClients` + `Leads` + optional `BillingUsage`.",
+            "- **`18_final_enriched_snapshot.json`** — full FUB person, notes, `InternalClients` + `Leads` + optional `BillingUsage` + **lane fields** in `quality_extracts` / `http.glyde_settings_read`.",
+            "- **`16b_lane_api_empty_body.json`** … **`16e_lane_api_restore_active_unpinned.json`** — only when run with `--test-lead-lane-api` ( **`16e`** resets the probe lead after API checks ).",
             "- **`local_mirror/enriched_contact_full.json`** — same payload.",
             "- **`_analysis_hints.json`** — tier + summary length after each phase (07/10/13/15).",
             "",
@@ -587,6 +710,7 @@ def _analyze_artifacts(out_dir: Path) -> dict[str, object]:
         raw16 = json.loads(p16.read_text(encoding="utf-8"))
         b16 = raw16.get("body") if isinstance(raw16.get("body"), dict) else {}
         wd16 = b16.get("workflow_debug") if isinstance(b16.get("workflow_debug"), dict) else {}
+        hints["intel_delta_only_workflow_audit_nodes_count"] = wd16.get("workflow_audit_nodes_count")
         st16 = wd16.get("state") if isinstance(wd16.get("state"), dict) else {}
         core16 = st16.get("metadata_core") if isinstance(st16.get("metadata_core"), dict) else {}
         det = str(core16.get("detail") or "")
@@ -603,16 +727,21 @@ def _analyze_artifacts(out_dir: Path) -> dict[str, object]:
         wd = body.get("workflow_debug") if isinstance(body.get("workflow_debug"), dict) else {}
         hints["webhook_test_workflow_debug_present"] = bool(wd)
         hints["webhook_dispatch"] = body.get("webhook_dispatch")
+        cnt = wd.get("workflow_audit_nodes_count")
+        if cnt is None:
+            st = wd.get("state") if isinstance(wd.get("state"), dict) else {}
+            meta_dbg = st.get("metadata") if isinstance(st.get("metadata"), dict) else {}
+            audit = meta_dbg.get("workflowAudit")
+            cnt = (
+                len(audit.get("nodes", []))
+                if isinstance(audit, dict) and isinstance(audit.get("nodes"), list)
+                else None
+            )
+        hints["workflow_audit_nodes_count"] = cnt
         st = wd.get("state") if isinstance(wd.get("state"), dict) else {}
-        pol = st.get("metadata_execution_policy") if isinstance(st.get("metadata_execution_policy"), dict) else {}
+        pol_raw = st.get("metadata_execution_policy")
+        pol = pol_raw if isinstance(pol_raw, dict) else {}
         hints["volatile_external_allowed_in_debug"] = pol.get("volatile_external_allowed")
-        audit = None
-        if isinstance(st, dict):
-            meta = st.get("metadata") if isinstance(st.get("metadata"), dict) else {}
-            audit = meta.get("workflowAudit")
-        hints["workflow_audit_nodes_count"] = (
-            len(audit.get("nodes", [])) if isinstance(audit, dict) and isinstance(audit.get("nodes"), list) else None
-        )
 
     def _intel_summary(path: Path) -> dict[str, object] | None:
         if not path.exists():
@@ -632,6 +761,16 @@ def _analyze_artifacts(out_dir: Path) -> dict[str, object]:
     hints["intel_after_tags"] = _intel_summary(out_dir / "10_internal_clients.json")
     hints["intel_after_lastname"] = _intel_summary(out_dir / "13_internal_clients.json")
     hints["intel_after_webhook_test"] = _intel_summary(out_dir / "15_internal_clients.json")
+    p18 = out_dir / "18_final_enriched_snapshot.json"
+    if p18.exists():
+        try:
+            jf = json.loads(p18.read_text(encoding="utf-8"))
+            qex = jf.get("quality_extracts") if isinstance(jf.get("quality_extracts"), dict) else {}
+            hints["final_glydeLeadLane"] = qex.get("glydeLeadLane")
+            hints["final_glydeLaneUserPinned"] = qex.get("glydeLaneUserPinned")
+            hints["final_leadLaneAutoMode_setting"] = qex.get("glyde_settings_leadLaneAutoMode")
+        except Exception:
+            hints["final_lane_fields"] = "unreadable"
     return hints
 
 
@@ -647,6 +786,8 @@ def _write_summary(out_dir: Path, lines: list[str], meta: dict[str, Any], qualit
         f.write(f"- probe_email: `{meta.get('probe_email')}`\n")
         f.write(f"- internal_clients: `{meta.get('internal_clients_path')}`\n")
         f.write(f"- leads: `{meta.get('leads_path')}`\n")
+        if meta.get("lead_lane_api_e2e"):
+            f.write("- **lead lane API E2E:** see `16b`–`16e` JSON, `QUALITY_GATES.json` → `lead_lane_api_e2e`, and ENRICHMENT_QUALITY §1b\n")
         f.write(f"- guardrailLevel_before: `{meta.get('guardrailLevel_before')}`\n")
         f.write(f"- local_mirror: `{out_dir / 'local_mirror'}`\n")
         f.write(f"- workspace_copy: `{_BACKEND_ROOT / 'local_test_mirror'}`\n\n")
@@ -679,6 +820,11 @@ def run(argv: list[str] | None = None) -> int:
         metavar="PATH",
         default="",
         help="Only write ENRICHMENT_QUALITY.md from a saved 18_final_enriched_snapshot.json (no network)",
+    )
+    ap.add_argument(
+        "--test-lead-lane-api",
+        action="store_true",
+        help="After intel_delta webhook: probe POST /integrations/glyde/leads/lane (validation + bad lane + set nurture on this E2E lead). For post-deploy PM verification.",
     )
     args = ap.parse_args(argv)
 
@@ -715,6 +861,7 @@ def run(argv: list[str] | None = None) -> int:
                 snap,
                 hands_on_effective=bool(prev_guard == 1),
                 stress=False,
+                lane_api=None,
             )
         _write_enrichment_quality_report(_BACKEND_ROOT, out_dir, snap, quality, meta)
         print(f"Wrote {out_dir / 'ENRICHMENT_QUALITY.md'}")
@@ -927,6 +1074,47 @@ def run(argv: list[str] | None = None) -> int:
     if st_d >= 400:
         return 5
 
+    lane_api_e2e: dict[str, Any] | None = None
+    if args.test_lead_lane_api:
+        cid = canonical_lead_doc_id(pid)
+        st_e, b_e = _req(session, "POST", "/integrations/glyde/leads/lane", json_body={}, timeout=60)
+        _save(out_dir, "16b_lane_api_empty_body", {"http": st_e, "body": b_e})
+        st_bl, b_bl = _req(
+            session,
+            "POST",
+            "/integrations/glyde/leads/lane",
+            json_body={"canonicalLeadId": cid, "glydeLeadLane": "banana"},
+            timeout=60,
+        )
+        _save(out_dir, "16c_lane_api_invalid_lane", {"http": st_bl, "body": b_bl})
+        st_sn, b_sn = _req(
+            session,
+            "POST",
+            "/integrations/glyde/leads/lane",
+            json_body={"canonicalLeadId": cid, "glydeLeadLane": "nurture", "glydeLaneUserPinned": True},
+            timeout=60,
+        )
+        _save(out_dir, "16d_lane_api_set_nurture_pinned", {"http": st_sn, "body": b_sn})
+        st_rs, b_rs = _req(
+            session,
+            "POST",
+            "/integrations/glyde/leads/lane",
+            json_body={"canonicalLeadId": cid, "glydeLeadLane": "active", "glydeLaneUserPinned": False},
+            timeout=60,
+        )
+        _save(out_dir, "16e_lane_api_restore_active_unpinned", {"http": st_rs, "body": b_rs})
+        lane_api_e2e = {
+            "canonical_lead_id": cid,
+            "empty_body_http": st_e,
+            "bad_lane_http": st_bl,
+            "set_nurture_http": st_sn,
+            "restore_active_http": st_rs,
+        }
+        meta["lead_lane_api_e2e"] = lane_api_e2e
+        _save(out_dir, "_meta", meta)
+        log(f"16b–16e glyde/leads/lane probes canonical={cid} http={st_e}/{st_bl}/{st_sn}/{st_rs}")
+        time.sleep(3.0)
+
     final_snap = fetch_enriched_snapshot(session, uid, pid, ic_path, lead_path)
     _write_local_mirror(_BACKEND_ROOT, out_dir, final_snap, meta)
     _save(out_dir, "18_final_enriched_snapshot", final_snap)
@@ -937,7 +1125,12 @@ def run(argv: list[str] | None = None) -> int:
     for k, v in hints.items():
         log(f"  {k}: {v}")
 
-    quality = evaluate_quality(final_snap, hands_on_effective=hands_on_effective, stress=args.stress)
+    quality = evaluate_quality(
+        final_snap,
+        hands_on_effective=hands_on_effective,
+        stress=args.stress,
+        lane_api=lane_api_e2e,
+    )
     quality["hints"] = hints
     log("--- quality gates ---")
     log(json.dumps(quality, indent=2, default=str))

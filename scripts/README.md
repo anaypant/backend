@@ -54,3 +54,18 @@ Exit code **1** — one or more routes are missing from the internal gateway.
    instead — `check_routes.py` accounts for that.
 4. Run `python backend/scripts/check_routes.py` — confirm exit 0.
 5. Deploy via HCP Terraform (public + internal integration gateways).
+
+---
+
+## e2e_lead_intel_deployed.py — Lead intel + lane PM checklist (deployed gateway)
+
+Runs against `~/.acs-cli/session.json` and writes an artifact folder under `backend/e2e_runs/`.
+
+```bash
+cd backend
+python scripts/e2e_lead_intel_deployed.py
+python scripts/e2e_lead_intel_deployed.py --test-lead-lane-api
+```
+
+- **Default run:** snapshots include `glydeLeadLane`, pin fields, `glydeQuarantined`, and `GlydeSettings.leadLaneAutoMode` in `quality_extracts` (plus `http.glyde_settings_read`). `QUALITY_GATES.json` adds lane-vs-tier warnings; `ENRICHMENT_QUALITY.md` adds lane rows and §1b when `--test-lead-lane-api` was used.
+- **`--test-lead-lane-api`:** after `contact.intel_delta_v1`, probes `POST /integrations/glyde/leads/lane` (empty body → 400, invalid lane → 400, set nurture pinned → 200), then **restores** active + unpinned (`16e`), saves `16b`–`16e` JSON, and fails the run if the nurture write does not succeed. Pair with **Api Health Suite → Glyde routes** in the lite frontend after deploy.

@@ -1,0 +1,187 @@
+{
+  "captured_at": "2026-05-01T18:16:17.755056+00:00",
+  "realtor_uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "followupboss_person_id": 174,
+  "http": {
+    "people_get": 200,
+    "notes_list": 200,
+    "internal_clients_read": 200,
+    "leads_read": 200,
+    "billing_usage_read": 200,
+    "glyde_settings_read": 404
+  },
+  "followupboss_person": {
+    "id": 174,
+    "created": "2026-05-01T18:15:04Z",
+    "updated": "2026-05-01T18:15:47Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T18:15:47Z",
+    "name": "Acs LeadIntel-25b090d092",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-25b090d092",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": false,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-e2e-25b090",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.25b090d092@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": []
+  },
+  "followupboss_notes": [],
+  "firestore_internal_clients": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_174",
+    "id": "followupboss_174",
+    "data": {
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "acsIntel": {
+        "lastWebSummary": "",
+        "lastEnrichedAt": "2026-05-01T18:15:30.925193+00:00",
+        "snapshot": {
+          "display_name": "Acs LeadIntel-25b090d092",
+          "emails": [
+            "acs.leadintel.25b090d092@example.com"
+          ],
+          "phones": [],
+          "person_id": 174
+        },
+        "lastEnrichmentTier": "lazy"
+      }
+    }
+  },
+  "firestore_leads": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/Leads/followupboss_174",
+    "id": "followupboss_174",
+    "data": {
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "glydeIsHot": false,
+      "glydeScore": 18,
+      "glydeScoreUpdatedAt": "2026-05-01T18:16:00.749912+00:00"
+    }
+  },
+  "firestore_billing_usage": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/BillingUsage/2026-05",
+    "id": "2026-05",
+    "data": {
+      "searchCostUsd": 0.0,
+      "searchApiCalls": 7,
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "lazySnapshotRuns": 4,
+      "fullSnapshotRuns": 0,
+      "enrichmentsTotal": 7,
+      "lastUpdatedSearch": "duckduckgo",
+      "budgetUsd": 1.0,
+      "llmTokensOutEstimated": 1069,
+      "enrichmentsPremium": 7,
+      "lastUpdated": "2026-05-01T18:15:32.256166+00:00",
+      "lastWorkflowId": "contact.enrichment_v1",
+      "spentUsd": 0.000649,
+      "lastUsageTier": "lazy_snapshot",
+      "llmTokensInEstimated": 14807,
+      "month": "2026-05",
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "enrichmentsStandard": 0,
+      "llmCostUsd": 0.000649,
+      "workflowRunCounts": {
+        "contact.intel_delta_v1": 3,
+        "contact.enrichment_v1": 4
+      },
+      "intelDeltaRuns": 3
+    }
+  },
+  "quality_extracts": {
+    "acs_note_bodies": [],
+    "fub_note_count": 0,
+    "acs_note_char_max": 0,
+    "lastWebSummary_preview": "",
+    "lastWebSummary_len": 0,
+    "lastEnrichmentTier": "lazy",
+    "lastEnrichedAt": "2026-05-01T18:15:30.925193+00:00",
+    "glydeScore": 18,
+    "glydeIsHot": false,
+    "glydeScoreUpdatedAt": "2026-05-01T18:16:00.749912+00:00",
+    "glydeLeadLane": null,
+    "glydeLaneUserPinned": null,
+    "glydeLaneUpdatedAt": null,
+    "glydeLaneSource": null,
+    "glydeLaneReasonCodes": null,
+    "glydeQuarantined": null,
+    "glyde_settings_leadLaneAutoMode": null,
+    "snapshot_extract": {
+      "display_name": "Acs LeadIntel-25b090d092",
+      "person_id": 174,
+      "emails": [
+        "acs.leadintel.25b090d092@example.com"
+      ],
+      "phones": []
+    },
+    "billing_usage_extract": {
+      "workflowRunCounts": {
+        "contact.intel_delta_v1": 3,
+        "contact.enrichment_v1": 4
+      },
+      "lazySnapshotRuns": 4,
+      "intelDeltaRuns": 3,
+      "fullSnapshotRuns": 0,
+      "lastUsageTier": "lazy_snapshot",
+      "lastWorkflowId": "contact.enrichment_v1",
+      "spentUsd": 0.000649,
+      "searchApiCalls": 7,
+      "lastUpdatedSearch": "duckduckgo",
+      "llmTokensInEstimated": 14807,
+      "llmTokensOutEstimated": 1069,
+      "enrichmentsTotal": 7,
+      "enrichmentsPremium": 7,
+      "enrichmentsStandard": 0
+    },
+    "probe_primary_email_status": "Invalid"
+  }
+}
