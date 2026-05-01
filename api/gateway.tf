@@ -1,5 +1,13 @@
 # Public API Gateway — /health, /db/*, /auth/*, /integrations/*, POST /core/v1/run — proxied to internal gateways.
 #
+# !! ROUTE PARITY RULE !!
+# Every integration path added here (x-google-backend → integration_internal_base) MUST also be
+# added to backend/integration/api/main.tf (the internal integration gateway).  The two-layer
+# gateway design means the public gateway forwards to the internal gateway, which must know the
+# path or it returns 404.  Run before every deploy:
+#
+#   python backend/scripts/check_routes.py
+#
 # Secured routes: Authorization: Bearer <Firebase ID token>. ESP validates JWT and forwards claims as
 # X-Endpoint-API-UserInfo; backends verify Firebase or trust UserInfo when set by ESP (acs_internal).
 #

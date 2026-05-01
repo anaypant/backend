@@ -1,4 +1,14 @@
 # Internal Integration API — routes match public proxy paths (backend SA + ESP same as db/auth/core).
+#
+# !! ROUTE PARITY RULE !!
+# Every integration path in backend/api/gateway.tf that routes to integration_internal_base MUST
+# have a matching entry in the integration_paths local below.  Omitting a path here causes the
+# internal gateway to return 404 even though the public gateway correctly accepts the request.
+# Run before every deploy:
+#
+#   python backend/scripts/check_routes.py
+#
+# See also: backend/scripts/README.md
 
 terraform {
   required_providers {
@@ -309,6 +319,169 @@ locals {
           "405" = { description = "Method not allowed" }
           "502" = { description = "Bad gateway" }
           "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    # ── FUB direct people / notes / tasks / tags / import (CLI + admin-center) ──
+    "/integrations/followupboss/people/get" = {
+      post = {
+        summary            = "FUB get person by ID"
+        operationId        = "integrations_followupboss_people_get"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/people/create" = {
+      post = {
+        summary            = "FUB create/upsert person"
+        operationId        = "integrations_followupboss_people_create"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "201" = { description = "Created" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/people/update" = {
+      post = {
+        summary            = "FUB update person fields"
+        operationId        = "integrations_followupboss_people_update"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/people/stage" = {
+      post = {
+        summary            = "FUB set person pipeline stage"
+        operationId        = "integrations_followupboss_people_stage"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/people/tags/add" = {
+      post = {
+        summary            = "FUB add tags to person"
+        operationId        = "integrations_followupboss_people_tags_add"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/people/tags/remove" = {
+      post = {
+        summary            = "FUB remove tags from person"
+        operationId        = "integrations_followupboss_people_tags_remove"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/notes/create" = {
+      post = {
+        summary            = "FUB create note for person"
+        operationId        = "integrations_followupboss_notes_create"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "201" = { description = "Created" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/tasks/create" = {
+      post = {
+        summary            = "FUB create task for person"
+        operationId        = "integrations_followupboss_tasks_create"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "201" = { description = "Created" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/import" = {
+      post = {
+        summary            = "FUB import people into Firestore (single or full sync)"
+        operationId        = "integrations_followupboss_import"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = merge(local.integration_backend, { deadline = 300.0 })
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "502" = { description = "Bad gateway" }
         }
       }
     }
