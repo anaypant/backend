@@ -142,14 +142,26 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     norm = state.get("normalized_contact") or {}
     display_name = (norm.get("display_name") or "").strip()
     emails = norm.get("emails") if isinstance(norm.get("emails"), list) else []
-    first_email = emails[0].strip() if emails and isinstance(emails[0], str) else ""
+
+    # Only include email in the search query when it looks like a real personal/business
+    # address — skip test/placeholder domains that would confuse the search engine.
+    _SKIP_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "test.com",
+                           "localhost", "acs-test.dev", "mailinator.com", "yopmail.com"}
+    real_email = ""
+    for _e in emails:
+        if not isinstance(_e, str) or not _e.strip():
+            continue
+        _domain = _e.rsplit("@", 1)[-1].lower().strip() if "@" in _e else ""
+        if _domain and _domain not in _SKIP_EMAIL_DOMAINS:
+            real_email = _e.strip()
+            break
 
     if display_name:
         # Build a focused query using the person's name as the primary signal.
-        # Email helps disambiguate common names; provider adds business context.
+        # Real email helps disambiguate common names; adding "real estate" surfaces CRM context.
         q_parts = [display_name]
-        if first_email:
-            q_parts.append(first_email)
+        if real_email:
+            q_parts.append(real_email)
         q_parts.append("real estate")
     else:
         # Fallback for contacts with no name yet (use provider+id for debugging).
@@ -173,7 +185,13 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     meta = acs_state.ensure_metadata(acs)
     ce = meta.setdefault("contactEnrichment", {})
     if isinstance(ce, dict):
-        ce["webResearch"] = {"http_status": st, "mode": res.get("mode")}
+        ce["webResearch"] = {
+            "http_status": st,
+            "mode": res.get("mode"),
+            "query": query,
+            "sources_count": len(res.get("sources") or []),
+            "pipeline": res.get("pipeline"),
+        }
 
     if st >= 400:
         acs_state.append_error(acs, f"web_research failed: {st}")

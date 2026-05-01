@@ -57,7 +57,19 @@ def _resolve_fub_person_id(payload: dict[str, Any]) -> int | None:
     pid = _fub_person_id_from_uri(uri)
     if pid is not None:
         return pid
-    return _fub_person_id_from_resource_ids(payload)
+    pid = _fub_person_id_from_resource_ids(payload)
+    if pid is not None:
+        return pid
+    # Direct "id" / "personId" at the payload level (CLI calls, non-webhook paths).
+    for key in ("id", "personId", "person_id"):
+        v = payload.get(key)
+        if isinstance(v, int) and v > 0:
+            return v
+        if isinstance(v, str) and v.strip().isdigit():
+            n = int(v.strip())
+            if n > 0:
+                return n
+    return None
 
 
 def _fub_display_name(person: dict[str, Any]) -> str:
@@ -127,8 +139,14 @@ def normalize_contact(acs: dict) -> dict[str, Any]:
         uri = payload.get("uri") if isinstance(payload.get("uri"), str) else None
         pid = _resolve_fub_person_id(payload if isinstance(payload, dict) else {})
         event_type = payload.get("event") if isinstance(payload.get("event"), str) else ""
-        # Accept both the webhook-enriched key (fubPerson) and direct API call key (person).
+        # Accept webhook-enriched key (fubPerson), nested person object, OR flat payload
+        # (when the payload itself carries firstName/lastName/emails directly).
         fp = payload.get("fubPerson") or payload.get("person")
+        if not isinstance(fp, dict):
+            # Flat payload: treat as person if it carries any person-like field.
+            _person_fields = ("firstName", "lastName", "name", "emails", "phones")
+            if any(payload.get(f) for f in _person_fields):
+                fp = payload
         display_name = ""
         emails: list[str] = []
         phones: list[str] = []
