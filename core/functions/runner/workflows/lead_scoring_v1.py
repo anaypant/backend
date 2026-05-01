@@ -12,7 +12,7 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from clients import db_internal, llm_internal
+from clients import db_internal, lead_lane_policy, llm_internal
 from state import acs_state
 from workflows import normalize_integration_payload, workflow_audit
 from workflows.migrations.schemas.lead_internal_v1 import canonical_lead_id as _make_canonical_lead_id
@@ -433,6 +433,106 @@ def _node_store_score(state: LeadScoringState) -> dict[str, Any]:
     return {"acs": acs}
 
 
+def _node_apply_lead_lane(state: LeadScoringState) -> dict[str, Any]:
+    """Auto lane from policy when ``leadLaneAutoMode`` is ``on``; shadow/advisory log only."""
+    acs: dict = state["acs"]
+    t0 = time.perf_counter()
+    if state.get("failed"):
+        return {"acs": acs}
+
+    uid = _uid(acs)
+    canonical_id = state.get("canonical_lead_id") or ""
+    if not uid or not canonical_id:
+        return {"acs": acs}
+
+    settings = state.get("glyde_settings") or {}
+    mode = lead_lane_policy.resolve_lead_lane_auto_mode(settings)
+    if mode == "off":
+        workflow_audit.audit_log_node(
+            acs,
+            "apply_lead_lane",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"skipped": "mode_off", "leadLaneAutoMode": mode},
+        )
+        return {"acs": acs}
+
+    body, st = db_internal.read_document(f"Realtors/{uid}/Leads/{canonical_id}", acting_uid=uid)
+    workflow_audit.audit_bump_db_read(acs)
+    if st != 200 or not isinstance(body.get("data"), dict):
+        workflow_audit.audit_log_node(acs, "apply_lead_lane", duration_ms=(time.perf_counter() - t0) * 1000, extra={"http": st})
+        return {"acs": acs}
+
+    doc = body["data"]
+    decision = lead_lane_policy.compute_lane(doc, settings, state.get("realtor_profile") or {})
+    meta = acs_state.ensure_metadata(acs)
+    ls = meta.setdefault("leadScoring", {})
+    if isinstance(ls, dict):
+        ls["leadLanePolicy"] = {
+            "computed_lane": decision.lane,
+            "reason_codes": list(decision.reason_codes),
+            "reason_human": decision.reason_human,
+            "skip_auto_write": decision.skip_auto_write,
+            "auto_mode": mode,
+        }
+
+    if decision.skip_auto_write:
+        workflow_audit.audit_log_node(
+            acs,
+            "apply_lead_lane",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"pinned": True, "glydeLeadLane": doc.get("glydeLeadLane"), "leadLaneAutoMode": mode},
+        )
+        return {"acs": acs}
+
+    cur = str(doc.get("glydeLeadLane") or "active").lower()
+    if cur not in ("active", "nurture"):
+        cur = "active"
+
+    if mode in ("shadow", "advisory"):
+        workflow_audit.audit_log_node(
+            acs,
+            "apply_lead_lane",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={
+                "shadow": True,
+                "stored_lane": cur,
+                "computed_lane": decision.lane,
+                "reason_codes": decision.reason_codes,
+                "leadLaneAutoMode": mode,
+            },
+        )
+        return {"acs": acs}
+
+    if decision.lane == cur:
+        workflow_audit.audit_log_node(
+            acs,
+            "apply_lead_lane",
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            extra={"unchanged": True, "lane": cur, "leadLaneAutoMode": mode},
+        )
+        return {"acs": acs}
+
+    merge_lane: dict[str, Any] = {
+        "glydeLeadLane": decision.lane,
+        "glydeLaneUpdatedAt": _iso_now(),
+        "glydeLaneReason": decision.reason_human[:500],
+        "glydeLaneReasonCodes": list(decision.reason_codes),
+        "glydeLaneSource": "scoring",
+    }
+    _, ust = db_internal.upsert_merge(
+        f"Realtors/{uid}/Leads/{canonical_id}",
+        merge_lane,
+        acting_uid=uid,
+    )
+    workflow_audit.audit_log_node(
+        acs,
+        "apply_lead_lane",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={"http": ust, "lane": decision.lane, "from": cur, "leadLaneAutoMode": mode},
+    )
+    return {"acs": acs}
+
+
 def _node_check_hot_threshold(state: LeadScoringState) -> dict[str, Any]:
     acs: dict = state["acs"]
     t0 = time.perf_counter()
@@ -502,6 +602,7 @@ def build_lead_scoring_graph():
     g.add_node("llm_qualitative_score", _node_llm_qualitative_score)
     g.add_node("merge_scores", _node_merge_scores)
     g.add_node("store_score", _node_store_score)
+    g.add_node("apply_lead_lane", _node_apply_lead_lane)
     g.add_node("check_hot_threshold", _node_check_hot_threshold)
     g.add_node("finalize", _node_finalize)
 
@@ -512,7 +613,8 @@ def build_lead_scoring_graph():
     g.add_edge("compute_deterministic_score", "llm_qualitative_score")
     g.add_edge("llm_qualitative_score", "merge_scores")
     g.add_edge("merge_scores", "store_score")
-    g.add_edge("store_score", "check_hot_threshold")
+    g.add_edge("store_score", "apply_lead_lane")
+    g.add_edge("apply_lead_lane", "check_hot_threshold")
     g.add_edge("check_hot_threshold", "finalize")
     g.add_edge("finalize", END)
     return g.compile()

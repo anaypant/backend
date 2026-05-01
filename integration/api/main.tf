@@ -503,6 +503,188 @@ locals {
         }
       }
     }
+    "/integrations/glyde/settings" = {
+      options = {
+        summary            = "CORS preflight for glyde/settings"
+        operationId        = "integrations_glyde_settings_options"
+        consumes           = ["text/plain"]
+        produces           = ["text/plain"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
+      get = {
+        summary            = "Glyde settings read"
+        operationId        = "integrations_glyde_settings_get"
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/settings/update" = {
+      post = {
+        summary            = "Glyde settings update"
+        operationId        = "integrations_glyde_settings_update"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/ads" = {
+      post = {
+        summary            = "Glyde ads manage"
+        operationId        = "integrations_glyde_ads"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/ads/list" = {
+      options = {
+        summary            = "CORS preflight for glyde/ads/list"
+        operationId        = "integrations_glyde_ads_list_options"
+        consumes           = ["text/plain"]
+        produces           = ["text/plain"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
+      get = {
+        summary            = "Glyde ad campaigns list"
+        operationId        = "integrations_glyde_ads_list"
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/hot-leads/refresh" = {
+      post = {
+        summary            = "Glyde hot leads manual refresh"
+        operationId        = "integrations_glyde_hot_leads_refresh"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/drip/quarantine" = {
+      post = {
+        summary            = "Glyde drip quarantine toggle"
+        operationId        = "integrations_glyde_drip_quarantine"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/leads/lane" = {
+      post = {
+        summary            = "Glyde lead lane (active|nurture) manual set"
+        operationId        = "integrations_glyde_leads_lane"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/internal/glyde/scheduler" = {
+      post = {
+        summary            = "Glyde Cloud Scheduler inbound (OIDC)"
+        operationId        = "integrations_internal_glyde_scheduler"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
     "/integrations/internal/state/from_providers" = {
       post = {
         summary            = "State bridge internal: from_providers (platform OIDC)"

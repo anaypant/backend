@@ -1,0 +1,183 @@
+{
+  "captured_at": "2026-05-01T17:15:16.433638+00:00",
+  "realtor_uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "followupboss_person_id": 173,
+  "http": {
+    "people_get": 200,
+    "notes_list": 200,
+    "internal_clients_read": 200,
+    "leads_read": 200,
+    "billing_usage_read": 200
+  },
+  "followupboss_person": {
+    "id": 173,
+    "created": "2026-05-01T17:12:15Z",
+    "updated": "2026-05-01T17:13:55Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T17:14:17Z",
+    "name": "Acs LeadIntel-51db888ce4-deltac43b",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-51db888ce4-deltac43b",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": false,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-e2e-51db88",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.51db888ce4@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+1555b888ce4",
+        "type": "mobile",
+        "status": "Invalid",
+        "isPrimary": 1,
+        "normalized": "+15558884",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": []
+  },
+  "followupboss_notes": [
+    {
+      "id": 62,
+      "created": "2026-05-01T17:14:17Z",
+      "updated": "2026-05-01T17:14:17Z",
+      "createdById": 1,
+      "updatedById": 1,
+      "createdBy": "Anay Pant",
+      "updatedBy": "Anay Pant",
+      "personId": 173,
+      "showContent": true,
+      "subject": "",
+      "body": "ACS update \u2014 display_name changed in Follow Up Boss. Intel was refreshed; little additional public context was found.",
+      "type": "",
+      "isHtml": false,
+      "actionPlanId": null,
+      "isExternal": true,
+      "systemId": 4,
+      "automationId": null,
+      "systemName": "automated consultancy services"
+    }
+  ],
+  "firestore_internal_clients": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_173",
+    "id": "followupboss_173",
+    "data": {
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "acsIntel": {
+        "lastEnrichedAt": "2026-05-01T17:14:08.304079+00:00",
+        "lastEnrichmentTier": "intel_delta",
+        "snapshot": {
+          "emails": [
+            "acs.leadintel.51db888ce4@example.com"
+          ],
+          "person_id": 173,
+          "display_name": "Acs LeadIntel-51db888ce4-deltac43b",
+          "phones": [
+            "+1555b888ce4"
+          ]
+        },
+        "lastWebSummary": ""
+      },
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1"
+    }
+  },
+  "firestore_leads": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/Leads/followupboss_173",
+    "id": "followupboss_173",
+    "data": {
+      "glydeScoreUpdatedAt": "2026-05-01T17:15:10.368417+00:00",
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "glydeIsHot": false,
+      "glydeScore": 26,
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1"
+    }
+  },
+  "firestore_billing_usage": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/BillingUsage/2026-05",
+    "id": "2026-05",
+    "data": {
+      "enrichmentsTotal": 6,
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "fullSnapshotRuns": 0,
+      "intelDeltaRuns": 3,
+      "enrichmentsStandard": 0,
+      "lastWorkflowId": "contact.intel_delta_v1",
+      "llmTokensInEstimated": 12631,
+      "searchCostUsd": 0.0,
+      "lazySnapshotRuns": 3,
+      "lastUsageTier": "intel_delta",
+      "enrichmentsPremium": 6,
+      "workflowRunCounts": {
+        "contact.enrichment_v1": 3,
+        "contact.intel_delta_v1": 3
+      },
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "budgetUsd": 1.0,
+      "lastUpdatedSearch": "duckduckgo",
+      "searchApiCalls": 6,
+      "month": "2026-05",
+      "llmTokensOutEstimated": 958,
+      "spentUsd": 0.000551,
+      "llmCostUsd": 0.000551,
+      "lastUpdated": "2026-05-01T17:14:09.429818+00:00"
+    }
+  },
+  "quality_extracts": {
+    "acs_note_bodies": [
+      "ACS update \u2014 display_name changed in Follow Up Boss. Intel was refreshed; little additional public context was found."
+    ],
+    "lastWebSummary_preview": "",
+    "lastWebSummary_len": 0,
+    "lastEnrichmentTier": "intel_delta",
+    "lastEnrichedAt": "2026-05-01T17:14:08.304079+00:00",
+    "glydeScore": 26,
+    "glydeIsHot": false
+  }
+}

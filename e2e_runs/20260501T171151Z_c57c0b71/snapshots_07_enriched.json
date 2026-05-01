@@ -1,0 +1,151 @@
+{
+  "captured_at": "2026-05-01T17:12:54.867833+00:00",
+  "realtor_uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "followupboss_person_id": 173,
+  "http": {
+    "people_get": 200,
+    "notes_list": 200,
+    "internal_clients_read": 200,
+    "leads_read": 404,
+    "billing_usage_read": 200
+  },
+  "followupboss_person": {
+    "id": 173,
+    "created": "2026-05-01T17:12:15Z",
+    "updated": "2026-05-01T17:12:15Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T17:12:15Z",
+    "name": "Acs LeadIntel-51db888ce4",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-51db888ce4",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": false,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.51db888ce4@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+1555b888ce4",
+        "type": "mobile",
+        "status": "Invalid",
+        "isPrimary": 1,
+        "normalized": "+15558884",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": []
+  },
+  "followupboss_notes": [],
+  "firestore_internal_clients": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_173",
+    "id": "followupboss_173",
+    "data": {
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "acsIntel": {
+        "lastEnrichedAt": "2026-05-01T17:12:46.155286+00:00",
+        "lastEnrichmentTier": "lazy",
+        "snapshot": {
+          "emails": [
+            "acs.leadintel.51db888ce4@example.com"
+          ],
+          "display_name": "Acs LeadIntel-51db888ce4",
+          "person_id": 173,
+          "phones": [
+            "+1555b888ce4"
+          ]
+        },
+        "lastWebSummary": ""
+      },
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1"
+    }
+  },
+  "firestore_leads": {
+    "error": "not found"
+  },
+  "firestore_billing_usage": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/BillingUsage/2026-05",
+    "id": "2026-05",
+    "data": {
+      "enrichmentsTotal": 5,
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "fullSnapshotRuns": 0,
+      "intelDeltaRuns": 2,
+      "enrichmentsStandard": 0,
+      "lastWorkflowId": "contact.enrichment_v1",
+      "llmTokensInEstimated": 10730,
+      "searchCostUsd": 0.0,
+      "lazySnapshotRuns": 3,
+      "lastUsageTier": "lazy_snapshot",
+      "enrichmentsPremium": 5,
+      "workflowRunCounts": {
+        "contact.enrichment_v1": 3,
+        "contact.intel_delta_v1": 2
+      },
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "budgetUsd": 1.0,
+      "lastUpdatedSearch": "duckduckgo",
+      "searchApiCalls": 5,
+      "month": "2026-05",
+      "llmTokensOutEstimated": 842,
+      "spentUsd": 0.00048,
+      "llmCostUsd": 0.00048,
+      "lastUpdated": "2026-05-01T17:12:47.319250+00:00"
+    }
+  },
+  "quality_extracts": {
+    "acs_note_bodies": [],
+    "lastWebSummary_preview": "",
+    "lastWebSummary_len": 0,
+    "lastEnrichmentTier": "lazy",
+    "lastEnrichedAt": "2026-05-01T17:12:46.155286+00:00",
+    "glydeScore": null,
+    "glydeIsHot": null
+  }
+}

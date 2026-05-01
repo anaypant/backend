@@ -17,6 +17,7 @@ from state import acs_state
 from state.execution_policy import volatile_external_allowed
 from tools import registry as tool_registry
 from workflows import contact_enrichment_v1, normalize_integration_payload, workflow_audit
+from workflows.migrations.schemas.lead_internal_v1 import canonical_lead_id as _canonical_lead_id
 
 _logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class IntelDeltaState(TypedDict, total=False):
     failed: bool
     realtor_profile: dict[str, Any]
     normalized_contact: dict[str, Any]
+    glyde_lead_lane: str
     prior_snapshot: dict[str, Any]
     changed_fields: list[str]
     intel_delta_skipped: bool
@@ -110,6 +112,40 @@ def _node_normalize(state: IntelDeltaState) -> dict[str, Any]:
         mid["normalized"] = norm
     workflow_audit.audit_log_node(acs, "normalize", duration_ms=(time.perf_counter() - t0) * 1000)
     return {"acs": acs, "normalized_contact": norm}
+
+
+def _node_load_glyde_lead_lane(state: IntelDeltaState) -> dict[str, Any]:
+    acs: dict = state["acs"]
+    t0 = time.perf_counter()
+    if state.get("failed"):
+        return {"acs": acs, "glyde_lead_lane": "active"}
+
+    uid = _uid(acs)
+    norm = state.get("normalized_contact") or {}
+    pid = norm.get("person_id")
+    prov = str(norm.get("provider") or "followupboss").strip().lower() or "followupboss"
+    lane = "active"
+    if uid and isinstance(pid, int) and pid > 0:
+        cid = _canonical_lead_id(prov, str(pid))
+        body, st = db_internal.read_document(f"Realtors/{uid}/Leads/{cid}", acting_uid=uid)
+        workflow_audit.audit_bump_db_read(acs)
+        if st == 200 and isinstance(body.get("data"), dict):
+            raw = str(body["data"].get("glydeLeadLane") or "active").lower()
+            if raw in ("active", "nurture"):
+                lane = raw
+
+    meta = acs_state.ensure_metadata(acs)
+    mid = meta.setdefault("contactIntelDelta", {})
+    if isinstance(mid, dict):
+        mid["glydeLeadLane"] = lane
+
+    workflow_audit.audit_log_node(
+        acs,
+        "load_glyde_lead_lane",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={"lane": lane},
+    )
+    return {"acs": acs, "glyde_lead_lane": lane}
 
 
 def _node_load_baseline_and_gate(state: IntelDeltaState) -> dict[str, Any]:
@@ -231,9 +267,12 @@ def _node_web_research(state: IntelDeltaState) -> dict[str, Any]:
     # Delta runs: avoid paid search backends; lazy pipeline may still scrape seed URLs.
     force_backend = "duckduckgo"
 
+    lane = str(state.get("glyde_lead_lane") or "active").lower()
+    result_limit = 1 if lane == "nurture" else 2
+
     res, st = web_research_internal.research_query_to_summary(
         query,
-        result_limit=2,
+        result_limit=result_limit,
         seed_urls=seed_urls,
         force_backend=force_backend,
         lazy=True,
@@ -260,6 +299,8 @@ def _node_web_research(state: IntelDeltaState) -> dict[str, Any]:
             "budget_mode": mode,
             "spent_usd": round(spent_usd, 4),
             "budget_usd": round(budget_usd, 2),
+            "glyde_lead_lane": str(state.get("glyde_lead_lane") or "active"),
+            "result_limit": result_limit,
         }
 
     if st >= 400:
@@ -380,11 +421,13 @@ def _node_policy_screen(state: IntelDeltaState) -> dict[str, Any]:
     raw_updates = state.get("synthesis_updates") or {}
     allowed_top = {"suggested_note", "tags", "custom_fields"}
     screened: dict[str, Any] = {}
+    lane = str(state.get("glyde_lead_lane") or "active").lower()
+    note_cap = 4000 if lane == "nurture" else 8000
     for k, v in raw_updates.items():
         if k not in allowed_top:
             continue
         if k == "suggested_note" and isinstance(v, str):
-            note = contact_enrichment_v1._redact_string(v)[:8000]
+            note = contact_enrichment_v1._redact_string(v)[:note_cap]
             screened[k] = note
         elif k == "tags" and isinstance(v, list):
             screened[k] = [str(x)[:120] for x in v[:25] if isinstance(x, (str, int, float))]
@@ -573,6 +616,7 @@ def build_contact_intel_delta_graph():
     g = StateGraph(IntelDeltaState)
     g.add_node("load_realtor_profile", _node_load_realtor_profile)
     g.add_node("normalize", _node_normalize)
+    g.add_node("load_glyde_lead_lane", _node_load_glyde_lead_lane)
     g.add_node("load_baseline", _node_load_baseline_and_gate)
     g.add_node("web_research", _node_web_research)
     g.add_node("synthesis", _node_synthesis)
@@ -585,7 +629,8 @@ def build_contact_intel_delta_graph():
 
     g.set_entry_point("load_realtor_profile")
     g.add_edge("load_realtor_profile", "normalize")
-    g.add_edge("normalize", "load_baseline")
+    g.add_edge("normalize", "load_glyde_lead_lane")
+    g.add_edge("load_glyde_lead_lane", "load_baseline")
     g.add_edge("load_baseline", "web_research")
     g.add_edge("web_research", "synthesis")
     g.add_edge("synthesis", "policy_screen")

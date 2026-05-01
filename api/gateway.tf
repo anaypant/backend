@@ -793,6 +793,218 @@ locals {
         }
       }
     }
+    "/integrations/glyde/settings" = {
+      options = {
+        summary     = "CORS preflight for glyde/settings"
+        operationId = "integrations_glyde_settings_options"
+        consumes    = ["text/plain"]
+        produces    = ["text/plain"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/settings/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
+      get = {
+        summary     = "Integration glyde/settings (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_settings_get"
+        produces    = ["application/json"]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/settings/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/settings/update" = {
+      post = {
+        summary     = "Integration glyde/settings/update (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_settings_update"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/settings/update/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/ads" = {
+      post = {
+        summary     = "Integration glyde/ads (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_ads"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/ads/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/ads/list" = {
+      options = {
+        summary     = "CORS preflight for glyde/ads/list"
+        operationId = "integrations_glyde_ads_list_options"
+        consumes    = ["text/plain"]
+        produces    = ["text/plain"]
+        security    = []
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/ads/list/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "204" = { description = "No content" }
+          "403" = { description = "Forbidden" }
+        }
+      }
+      get = {
+        summary     = "Integration glyde/ads/list (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_ads_list"
+        produces    = ["application/json"]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/ads/list/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/hot-leads/refresh" = {
+      post = {
+        summary     = "Integration glyde/hot-leads/refresh (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_hot_leads_refresh"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/hot-leads/refresh/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/drip/quarantine" = {
+      post = {
+        summary     = "Integration glyde/drip/quarantine (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_drip_quarantine"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/drip/quarantine/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
+    "/integrations/glyde/leads/lane" = {
+      post = {
+        summary     = "Integration glyde/leads/lane — set active|nurture lane (proxied to internal integration gateway)"
+        operationId = "integrations_glyde_leads_lane"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/glyde/leads/lane/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
+          "405" = { description = "Method not allowed" }
+          "502" = { description = "Bad gateway" }
+          "503" = { description = "Unavailable" }
+        }
+      }
+    }
   }
 
   core_proxy_paths = {

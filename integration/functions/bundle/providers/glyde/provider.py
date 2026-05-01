@@ -77,6 +77,7 @@ class GlydeProvider:
             "enabledWorkflows", "autoReplyEnabled", "autoReplyTone",
             "dripCooldownDays", "hotLeadThreshold", "hotLeadMaxCount",
             "googleAdsAccountId", "metaAdsAccountId",
+            "leadLaneAutoMode",
         }
         data = {k: v for k, v in payload.items() if k in _ALLOWED}
         data["ownerUid"] = uid
@@ -227,6 +228,58 @@ class GlydeProvider:
         if st >= 400:
             return json_response({"error": f"db write failed: {st}"}, 502)
         return json_response({"ok": True, "canonicalLeadId": canonical_id, "quarantine": quarantine}, 200)
+
+    # ---------- Lead lane (active vs nurture) ----------
+
+    def set_lead_lane(self, request):
+        decoded, err, _token = resolve_realtor_bearer(request)
+        if err:
+            return integration_auth_error_response(err)
+        uid = decoded["uid"]
+
+        try:
+            payload = request.get_json(force=True, silent=True) or {}
+        except Exception:
+            payload = {}
+
+        if not isinstance(payload, dict):
+            return json_response({"error": "JSON object body required"}, 400)
+
+        canonical_id = str(payload.get("canonicalLeadId") or "").strip()
+        if not canonical_id:
+            return json_response({"error": "canonicalLeadId required"}, 400)
+
+        lane = str(payload.get("glydeLeadLane") or payload.get("lane") or "").strip().lower()
+        if lane not in ("active", "nurture"):
+            return json_response({"error": "glydeLeadLane must be active|nurture"}, 400)
+
+        pinned_raw = payload.get("glydeLaneUserPinned")
+        if pinned_raw is None:
+            user_pinned = True
+        else:
+            user_pinned = bool(pinned_raw)
+
+        merge = {
+            "glydeLeadLane": lane,
+            "glydeLaneUserPinned": user_pinned,
+            "glydeLaneUpdatedAt": _iso_now(),
+            "glydeLaneReason": "Set via Glyde integration API.",
+            "glydeLaneReasonCodes": ["user_api"],
+            "glydeLaneSource": "user_api",
+        }
+        _, st = _db_upsert(f"Realtors/{uid}/Leads/{canonical_id}", merge, acting_uid=uid)
+        if st >= 400:
+            return json_response({"error": f"db write failed: {st}"}, 502)
+        return json_response(
+            {
+                "ok": True,
+                "canonicalLeadId": canonical_id,
+                "glydeLeadLane": lane,
+                "glydeLaneUserPinned": user_pinned,
+                "updatedAt": merge["glydeLaneUpdatedAt"],
+            },
+            200,
+        )
 
     # ---------- Cloud Scheduler inbound ----------
 

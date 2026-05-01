@@ -58,6 +58,7 @@ ROUTES = {
     "/integrations/glyde/ads/list": ("glyde", "list_campaigns", {"GET"}),
     "/integrations/glyde/hot-leads/refresh": ("glyde", "refresh_hot_leads", {"POST"}),
     "/integrations/glyde/drip/quarantine": ("glyde", "manage_quarantine", {"POST"}),
+    "/integrations/glyde/leads/lane": ("glyde", "set_lead_lane", {"POST"}),
     "/integrations/internal/glyde/scheduler": ("glyde", "scheduler_trigger", {"POST"}),
 }
 

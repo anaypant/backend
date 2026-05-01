@@ -4,6 +4,9 @@ Triggered by Cloud Scheduler daily. Iterates all leads eligible for a drip touch
 skips quarantined / recently-contacted leads, personalizes a message via LLM,
 and dispatches via FUB outbound actions.
 
+PM v1: ``glydeLeadLane`` (active vs nurture) does not gate drip — only ``glydeQuarantined``
+and cooldown/contact rules apply. Lane is used by enrichment/intel cost routing instead.
+
 volatile_external: True — sends messages; requires execution_policy to allow it.
 """
 

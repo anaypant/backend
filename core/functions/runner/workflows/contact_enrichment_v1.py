@@ -18,6 +18,7 @@ from state import acs_state
 from state.execution_policy import volatile_external_allowed
 from tools import registry as tool_registry
 from workflows import normalize_integration_payload, workflow_audit
+from workflows.migrations.schemas.lead_internal_v1 import canonical_lead_id as _canonical_lead_id
 
 _logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class EnrichmentState(TypedDict, total=False):
     realtor_profile: dict[str, Any]
     raw_contact: dict[str, Any]
     normalized_contact: dict[str, Any]
+    glyde_lead_lane: str
     research: dict[str, Any]
     synthesis_updates: dict[str, Any]
     screened_updates: dict[str, Any]
@@ -137,6 +139,41 @@ def _node_normalize(state: EnrichmentState) -> dict[str, Any]:
     return {"acs": acs, "normalized_contact": norm}
 
 
+def _node_load_glyde_lead_lane(state: EnrichmentState) -> dict[str, Any]:
+    """Read ``glydeLeadLane`` from ``Leads/{canonical}`` for nurture intel gating."""
+    acs: dict = state["acs"]
+    t0 = time.perf_counter()
+    if state.get("failed") or state.get("halt_duplicate"):
+        return {"acs": acs, "glyde_lead_lane": "active"}
+
+    uid = _uid(acs)
+    norm = state.get("normalized_contact") or {}
+    pid = norm.get("person_id")
+    prov = str(norm.get("provider") or "followupboss").strip().lower() or "followupboss"
+    lane = "active"
+    if uid and isinstance(pid, int) and pid > 0:
+        cid = _canonical_lead_id(prov, str(pid))
+        body, st = db_internal.read_document(f"Realtors/{uid}/Leads/{cid}", acting_uid=uid)
+        workflow_audit.audit_bump_db_read(acs)
+        if st == 200 and isinstance(body.get("data"), dict):
+            raw = str(body["data"].get("glydeLeadLane") or "active").lower()
+            if raw in ("active", "nurture"):
+                lane = raw
+
+    meta = acs_state.ensure_metadata(acs)
+    ce = meta.setdefault("contactEnrichment", {})
+    if isinstance(ce, dict):
+        ce["glydeLeadLane"] = lane
+
+    workflow_audit.audit_log_node(
+        acs,
+        "load_glyde_lead_lane",
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        extra={"lane": lane},
+    )
+    return {"acs": acs, "glyde_lead_lane": lane}
+
+
 def _node_classify_enrichment_tier(state: EnrichmentState) -> dict[str, Any]:
     """Choose lazy vs full snapshot enrichment (deterministic; no extra LLM)."""
     acs: dict = state["acs"]
@@ -147,6 +184,9 @@ def _node_classify_enrichment_tier(state: EnrichmentState) -> dict[str, Any]:
     norm = state.get("normalized_contact") or {}
     rp   = state.get("realtor_profile") or {}
     tier = usage_tracker.resolve_snapshot_tier(rp, norm)
+    lane = str(state.get("glyde_lead_lane") or "active").lower()
+    if lane == "nurture":
+        tier = "lazy"
 
     meta = acs_state.ensure_metadata(acs)
     ce = meta.setdefault("contactEnrichment", {})
@@ -764,6 +804,7 @@ def build_contact_enrichment_graph():
     g.add_node("load_contact", _node_load_contact)
     g.add_node("check_internal_client", _node_check_internal_client)
     g.add_node("normalize", _node_normalize)
+    g.add_node("load_glyde_lead_lane", _node_load_glyde_lead_lane)
     g.add_node("classify_enrichment_tier", _node_classify_enrichment_tier)
     g.add_node("web_research", _node_web_research)
     g.add_node("synthesis", _node_synthesis)
@@ -783,7 +824,8 @@ def build_contact_enrichment_graph():
         _route_after_internal_check,
         {"duplicate": "duplicate_finale", "continue": "normalize"},
     )
-    g.add_edge("normalize", "classify_enrichment_tier")
+    g.add_edge("normalize", "load_glyde_lead_lane")
+    g.add_edge("load_glyde_lead_lane", "classify_enrichment_tier")
     g.add_edge("classify_enrichment_tier", "web_research")
     g.add_edge("web_research", "synthesis")
     g.add_edge("synthesis", "policy_screen")
