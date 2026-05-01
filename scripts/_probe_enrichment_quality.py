@@ -114,8 +114,14 @@ def _run_enrichment(uid: str, contact: dict) -> dict:
         "elapsed":        round(elapsed, 1),
         "wf_status":      resp.get("status"),
         "query":          wr.get("query"),
+        "company_domain": wr.get("company_domain"),
+        "seed_injected":  wr.get("seed_injected"),
+        "budget_mode":    wr.get("budget_mode"),
+        "spent_usd":      wr.get("spent_usd"),
+        "budget_usd":     wr.get("budget_usd"),
         "search_backend": pipe.get("search_backend"),
         "scrape_ok":      pipe.get("scrape_ok"),
+        "seed_urls_injected": pipe.get("seed_urls_injected"),
         "rel_kept":       pipe.get("relevance_kept"),
         "rel_rejected":   pipe.get("relevance_rejected"),
         "rej_reasons":    pipe.get("rejection_reasons"),
@@ -123,7 +129,7 @@ def _run_enrichment(uid: str, contact: dict) -> dict:
         "wr_mode":        wr.get("mode"),
         "suggested_note": suggested_note,
         "tags":           tags,
-        "raw_state":      resp_state,   # full state for deep analysis
+        "raw_state":      resp_state,
     }
 
 
@@ -131,34 +137,34 @@ def _run_enrichment(uid: str, contact: dict) -> dict:
 # Mix of: famous public figures, realistic CRM archetypes, edge cases.
 
 CONTACTS = [
-    # Famous public figures — web search should find many rich sources
-    {"label": "Warren Buffett (famous investor)",
-     "first": "Warren", "last": "Buffett",
-     "email": "warren@berkshire.com"},
-    {"label": "Barbara Corcoran (RE celeb)",
-     "first": "Barbara", "last": "Corcoran",
-     "email": "barbara@corcoran.com"},
-    {"label": "Ryan Serhant (broker/TV)",
-     "first": "Ryan", "last": "Serhant",
-     "email": "ryan@serhant.com"},
+    # Business email contacts — company domain scraping should kick in
+    # Query: "First Last CompanyName" (no "real estate")
+    {"label": "Tech buyer (Tesla email)",
+     "first": "Sarah", "last": "Chen",
+     "email": "sarah.chen@tesla.com"},
+    {"label": "Finance buyer (Goldman email)",
+     "first": "James", "last": "Rodriguez",
+     "email": "jrodriguez@goldmansachs.com"},
+    {"label": "Startup buyer (.io domain)",
+     "first": "Mike", "last": "Patel",
+     "email": "mpatel@stripe.com"},
 
-    # Realistic CRM contact archetypes
-    {"label": "John Smith (generic buyer)",
+    # Personal email only — should fall back to name-only search
+    {"label": "Gmail buyer (common name)",
      "first": "John", "last": "Smith",
-     "email": "jsmith@company.com"},
-    {"label": "Sarah Johnson (local broker)",
-     "first": "Sarah", "last": "Johnson",
-     "email": "sarah.johnson@realty.com"},
-    {"label": "Mike Chen (tech investor)",
-     "first": "Mike", "last": "Chen",
-     "email": "mchen@ventures.io"},
+     "email": "johnsmith@gmail.com"},
+    {"label": "Gmail buyer (distinctive name)",
+     "first": "Elon", "last": "Musk",
+     "email": "elon@gmail.com"},
 
-    # Edge cases
-    {"label": "Name-only (no email)",
-     "first": "David", "last": "Williams"},
-    {"label": "Single name only",
-     "first": "Madonna", "last": "",
-     "email": ""},
+    # No email — name-only query
+    {"label": "Name-only contact",
+     "first": "Jennifer", "last": "Lawrence"},
+
+    # Small business owner (custom domain)
+    {"label": "Local business owner",
+     "first": "David", "last": "Park",
+     "email": "david@parkarchitects.com"},
 ]
 
 
@@ -207,11 +213,13 @@ def _print_result(r: dict, n: int, total: int) -> None:
         print(f"    ERROR: {r['error']}")
         return
     print(f"    query         : {(r.get('query') or '')[:80]}")
-    print(f"    backend       : {r.get('search_backend')}  scrape_ok={r.get('scrape_ok')}  "
-          f"rel_kept={r.get('rel_kept')}  sources={r.get('sources_count')}")
+    print(f"    budget_mode   : {r.get('budget_mode')}  spent=${r.get('spent_usd')}")
+    print(f"    backend       : {r.get('search_backend')}  seed={r.get('seed_injected')}  "
+          f"company={r.get('company_domain') or '(none)'}  scrape_ok={r.get('scrape_ok')}  "
+          f"sources={r.get('sources_count')}")
     print(f"    wr_mode       : {r.get('wr_mode')}")
     note = (r.get("suggested_note") or "").strip()
-    note_preview = note[:200].replace("\n", " ")
+    note_preview = note[:250].replace("\n", " ")
     print(f"    note          : {note_preview or '(none)'}")
     tags = r.get("tags") or []
     print(f"    tags          : {tags[:8]}")

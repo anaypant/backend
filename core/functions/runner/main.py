@@ -134,6 +134,51 @@ def _persist_workflow_audit(exec_workflow_id: str, top: str, out_state: dict) ->
 # ---------------------------------------------------------------------------
 
 
+def _handle_usage_request(request, path: str):
+    """GET /core/v1/usage  — current-month usage summary for the authenticated user."""
+    if request.method != "GET":
+        return _json_response({"error": "method not allowed"}, 405)
+
+    # Authenticate: accept either platform actor or end-user Firebase token
+    import platform_auth as _plat
+    import acs_internal as _acs
+    from firebase_admin import auth as _fauth
+    import firebase_admin as _fb
+
+    uid: str | None = None
+    # Try platform actor first (internal service-to-service call)
+    decoded, plat_err = _plat.try_platform_actor(request)
+    if plat_err is None and decoded is not None:
+        uid = str(decoded.get("uid") or decoded.get("user_id") or "")
+
+    # Fall back to end-user Firebase token
+    if not uid:
+        for hdr in (_acs.USER_JWT_HEADER, _acs.USER_AUTHORIZATION_HEADER):
+            token = _acs.parse_bearer_header(request, hdr)
+            if not token:
+                continue
+            try:
+                if not _fb._apps:
+                    _fb.initialize_app()
+                claims = _fauth.verify_id_token(token, check_revoked=True)
+                uid = str(claims.get("user_id") or claims.get("sub") or "")
+                if uid:
+                    break
+            except Exception:
+                pass
+
+    if not uid:
+        return _json_response({"error": "unauthorized"}, 401)
+
+    try:
+        from clients import usage_tracker as _ut
+        summary = _ut.usage_summary(uid)
+        return _json_response(summary, 200)
+    except Exception:
+        _logger.exception("usage endpoint error uid=%s", uid)
+        return _json_response({"error": "failed to load usage"}, 500)
+
+
 def _handle_lab_request(request, path: str):
     """Route and serve all /core/v1/lab/* requests."""
     # Import locally to avoid loading lab modules during cold-start of prod runs.
@@ -245,6 +290,9 @@ def main(request):
     path = (request.path or "/").rstrip("/") or "/"
     if path.startswith("/core/v1/lab"):
         return _handle_lab_request(request, path)
+
+    if path.startswith("/core/v1/usage"):
+        return _handle_usage_request(request, path)
 
     # All remaining paths use the existing POST-only workflow handler.
     if request.method != "POST":

@@ -59,6 +59,29 @@ locals {
       }
     }
 
+    # Usage / billing stats — current-month enrichment cost summary for authenticated user.
+    # Path preserved via APPEND_PATH_TO_ADDRESS so main.py can route on request.path.
+    "/core/v1/usage" = {
+      get = {
+        summary     = "Current-month enrichment usage and budget summary"
+        operationId = "core_v1_usage"
+        produces    = ["application/json"]
+        security    = []
+        "x-google-backend" = {
+          address          = trimsuffix(var.core_run_function.url, "/")
+          path_translation = "APPEND_PATH_TO_ADDRESS"
+          protocol         = "h2"
+          jwt_audience     = trimsuffix(var.core_run_function.url, "/")
+          deadline         = 30.0
+        }
+        responses = {
+          "200" = { description = "OK" }
+          "401" = { description = "Unauthorized" }
+          "500" = { description = "Error" }
+        }
+      }
+    }
+
     # Glyde Lab endpoints — path is preserved via APPEND_PATH_TO_ADDRESS so
     # main.py can route on request.path.  Streaming SSE is served from /lab/run.
     "/core/v1/lab/graphs" = {

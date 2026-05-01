@@ -2,14 +2,19 @@
 In-house web research pipeline.
 
 Flow:
-  1. search_top_results()     — DuckDuckGo HTML / Wikipedia / Google News RSS (or paid backend)
-  2. filter_results()         — host-level blocklist
-  3. scrape_many_concurrent() — browser-like concurrent fetch
-  4. filter_scraped()         — quality check + relevance scoring, drops thin/irrelevant pages
-  5. LLM coalescion           — factual summary + structured sources
+  0. seed_urls (optional)      — company homepage / known-relevant URLs injected directly,
+                                  bypassing the search step (always free, highest relevance)
+  1. search_top_results()      — DuckDuckGo HTML / multi / Brave / Tavily (or paid backend)
+  2. filter_results()          — host-level blocklist
+  3. merge seed + search URLs  — seeds prepended; domain-dedup applied
+  4. scrape_many_concurrent()  — browser-like concurrent fetch
+  5. filter_scraped()          — quality check + relevance scoring, drops thin/irrelevant pages
+  6. LLM coalescion            — factual summary + structured sources
 
-Backend is selected by ACS_WEB_SEARCH_BACKEND (default: duckduckgo).
-If no URLs survive steps 1–3, the pipeline falls back to LLM-only mode.
+Backend is selected by ``force_backend`` param (set by budget system) which overrides
+``ACS_WEB_SEARCH_BACKEND`` env var.  Default env var: ``duckduckgo``.
+
+Falls back to LLM-only when no URLs survive steps 0–2.
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ from clients.web_research.relevance import filter_scraped
 from clients.web_research.sanitize import sanitize_page_text
 from clients.web_research.scrape import scrape_many_concurrent
 from clients.web_research.search import search_top_results
-from clients.web_research.url_blacklist import filter_results
+from clients.web_research.url_blacklist import filter_results, is_blocked_url
 
 
 def _default_provider() -> str:
@@ -53,6 +58,13 @@ def _coalesce_scraped(query: str, scraped: list[dict[str, Any]]) -> str:
     return sanitize_page_text(raw, max_chars=100_000)
 
 
+def _estimate_tokens(messages: list[dict], response_text: str) -> tuple[int, int]:
+    """Rough token estimate: chars / 4.  Good enough for cost projection."""
+    tokens_in  = sum(len(str(m.get("content") or "")) for m in messages) // 4
+    tokens_out = len(response_text) // 4
+    return tokens_in, tokens_out
+
+
 def _llm_call(
     messages: list[dict],
     *,
@@ -62,7 +74,7 @@ def _llm_call(
     """
     Call the LLM and parse the JSON response.
     Returns ``(payload_dict, http_status, llm_calls)``.
-    ``payload_dict`` always has ``summary`` and ``sources`` keys.
+    ``payload_dict`` always has ``summary``, ``sources``, ``tokens_in``, ``tokens_out`` keys.
     """
     try:
         body, st = llm_internal.complete(
@@ -72,11 +84,18 @@ def _llm_call(
             response_format="json",
         )
     except Exception as e:
-        return {"summary": "", "sources": [], "error": str(e)}, 503, 1
+        return {"summary": "", "sources": [], "error": str(e), "tokens_in": 0, "tokens_out": 0}, 503, 1
 
     raw_text = body.get("text") if isinstance(body.get("text"), str) else ""
     if st >= 400:
-        return {"summary": "", "sources": [], "detail": body}, st, 1
+        return {"summary": "", "sources": [], "detail": body, "tokens_in": 0, "tokens_out": 0}, st, 1
+
+    # Prefer usage data returned by the LLM gateway; fall back to char-based estimate
+    usage = body.get("usage") if isinstance(body.get("usage"), dict) else {}
+    tokens_in  = int(usage.get("prompt_tokens")     or usage.get("input_tokens")  or 0)
+    tokens_out = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    if not tokens_in or not tokens_out:
+        tokens_in, tokens_out = _estimate_tokens(messages, raw_text)
 
     summary = ""
     sources: list[dict[str, str]] = []
@@ -98,7 +117,13 @@ def _llm_call(
     except json.JSONDecodeError:
         summary = raw_text.strip()[:8000]
 
-    return {"summary": summary, "sources": sources, "llm_status": st}, 200, 1
+    return {
+        "summary": summary,
+        "sources": sources,
+        "llm_status": st,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+    }, 200, 1
 
 
 def run_research_pipeline(
@@ -107,36 +132,87 @@ def run_research_pipeline(
     result_limit: int,
     provider: str | None = None,
     model: str | None = None,
+    seed_urls: list[str] | None = None,
+    force_backend: str | None = None,
 ) -> tuple[dict[str, Any], int]:
     """
     Full in-house web research pipeline.
 
-    1. Search (DuckDuckGo HTML / multi / Brave / Tavily per env).
-    2. Apply host blocklist.
-    3. Concurrent browser-like scrape.
-    4. Relevance filter — drops login walls, error pages, off-topic pages.
-    5. LLM synthesis → structured summary + sources.
+    Parameters
+    ──────────
+    seed_urls
+        URLs to scrape directly, prepended before search results.
+        Typically the contact's company homepage (extracted from email domain).
+        These bypass the search engine entirely — always free and highly relevant.
+    force_backend
+        Override ``ACS_WEB_SEARCH_BACKEND`` env var.  Used by the budget system
+        to downgrade to ``duckduckgo`` (free) when the user's monthly quota is
+        exhausted.
 
-    Falls back to LLM-only when no URLs survive steps 1–2 (backend unconfigured or zero hits).
-    Falls back to best-effort scrape when relevance filter drops every page.
-
-    Returns ``(payload, http_status)`` matching the legacy ``research_query_to_summary`` contract.
+    Returns ``(payload, http_status)`` where payload includes:
+        summary, sources, mode, llm_calls, tokens_in, tokens_out, pipeline
     """
     q = query.strip() if isinstance(query, str) else ""
     if not q:
-        return {"summary": "", "sources": [], "mode": "empty_query", "llm_calls": 0}, 400
+        return {
+            "summary": "", "sources": [], "mode": "empty_query",
+            "llm_calls": 0, "tokens_in": 0, "tokens_out": 0,
+        }, 400
 
-    limit = max(1, min(20, int(result_limit)))
+    limit      = max(1, min(20, int(result_limit)))
     fetch_pool = min(40, max(limit + 4, limit * 3))
 
     prov = provider or _default_provider()
-    mdl = model or _default_model()
+    mdl  = model    or _default_model()
+
+    seeds = [u for u in (seed_urls or []) if isinstance(u, str) and u.strip() and not is_blocked_url(u)]
 
     # ── Step 1–2: search + blacklist ─────────────────────────────────────────
-    raw_hits, backend = search_top_results(q, fetch_count=fetch_pool)
-    filtered = filter_results(raw_hits, limit=limit + 4)  # +4 buffer for relevance drops
+    # force_backend overrides env var for budget-mode downgrade
+    effective_backend_env = os.environ.get("ACS_WEB_SEARCH_BACKEND")
+    if force_backend:
+        os.environ["ACS_WEB_SEARCH_BACKEND"] = force_backend
+    try:
+        raw_hits, backend = search_top_results(q, fetch_count=fetch_pool)
+    finally:
+        # Restore original env var (thread-safe enough for single-threaded CF)
+        if force_backend:
+            if effective_backend_env is not None:
+                os.environ["ACS_WEB_SEARCH_BACKEND"] = effective_backend_env
+            else:
+                os.environ.pop("ACS_WEB_SEARCH_BACKEND", None)
 
-    # ── LLM-only fallback (no search backend / zero results) ─────────────────
+    filtered_search = filter_results(raw_hits, limit=limit + 4)
+
+    # ── Merge seed URLs with search results ───────────────────────────────────
+    # Seeds come first (highest relevance), then search results.  Domain-deduplicate.
+    seen_domains: set[str] = set()
+    merged: list[dict[str, Any]] = []
+
+    def _domain(url: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            return urlparse(url).netloc.lower().lstrip("www.")
+        except Exception:
+            return url
+
+    for su in seeds:
+        d = _domain(su)
+        if d and d not in seen_domains:
+            seen_domains.add(d)
+            merged.append({"url": su, "title": "", "snippet": "", "_seed": True})
+
+    for hit in filtered_search:
+        d = _domain(hit.get("url", ""))
+        if d and d not in seen_domains:
+            seen_domains.add(d)
+            merged.append(hit)
+
+    filtered = merged[: limit + 4]
+
+    search_calls = 1 if backend not in ("none",) else 0
+
+    # ── LLM-only fallback (no URLs survived) ─────────────────────────────────
     if not filtered:
         schema_llm = (
             "Return JSON only: summary (string, concise factual synthesis from your knowledge), "
@@ -150,14 +226,15 @@ def run_research_pipeline(
                 **result,
                 "mode": "llm_fallback_error",
                 "llm_calls": calls,
-                "pipeline": _pipeline_meta(backend, [], [], []),
+                "pipeline": _pipeline_meta(backend, [], [], [], seeds),
             }, 503
         return {
             **result,
             "mode": "llm_fallback",
             "llm_calls": calls,
             "llm": {"provider": prov, "model": mdl},
-            "pipeline": _pipeline_meta(backend, filtered, [], []),
+            "search_calls": search_calls,
+            "pipeline": _pipeline_meta(backend, filtered, [], [], seeds),
         }, st
 
     # ── Step 3: concurrent scrape ─────────────────────────────────────────────
@@ -167,14 +244,12 @@ def run_research_pipeline(
     # ── Step 4: relevance filter ──────────────────────────────────────────────
     kept, rejected = filter_scraped(scraped, q, max_pages=limit)
 
-    # If relevance filter killed everything, fall back to all scraped pages
-    # (quality-check failures are still excluded — they have no real content)
+    # If relevance filter killed everything, fall back to all scraped pages with content
     if not kept:
         kept_fallback = [p for p in scraped if p.get("ok") and (p.get("text") or "")]
         if kept_fallback:
             kept = kept_fallback[:limit]
         else:
-            # Truly no content — LLM-only fallback
             schema_llm = (
                 "Return JSON only: summary (string, concise factual synthesis from your knowledge), "
                 "sources (array of {title, url, snippet}). "
@@ -187,14 +262,16 @@ def run_research_pipeline(
                     **result,
                     "mode": "scrape_empty_llm_fallback_error",
                     "llm_calls": calls,
-                    "pipeline": _pipeline_meta(backend, filtered, scraped, rejected),
+                    "search_calls": search_calls,
+                    "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
                 }, 503
             return {
                 **result,
                 "mode": "scrape_empty_llm_fallback",
                 "llm_calls": calls,
                 "llm": {"provider": prov, "model": mdl},
-                "pipeline": _pipeline_meta(backend, filtered, scraped, rejected),
+                "search_calls": search_calls,
+                "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
             }, st
 
     # ── Step 5: LLM synthesis ─────────────────────────────────────────────────
@@ -215,7 +292,8 @@ def run_research_pipeline(
             **result,
             "mode": "pipeline_llm_error",
             "llm_calls": calls,
-            "pipeline": _pipeline_meta(backend, filtered, scraped, rejected),
+            "search_calls": search_calls,
+            "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
         }, 503
 
     return {
@@ -223,7 +301,8 @@ def run_research_pipeline(
         "mode": "scrape_then_llm",
         "llm_calls": calls,
         "llm": {"provider": prov, "model": mdl},
-        "pipeline": _pipeline_meta(backend, filtered, scraped, rejected),
+        "search_calls": search_calls,
+        "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
     }, st
 
 
@@ -232,10 +311,11 @@ def _pipeline_meta(
     filtered: list[dict[str, Any]],
     scraped: list[dict[str, Any]],
     rejected: list[dict[str, Any]],
+    seeds: list[str] | None = None,
 ) -> dict[str, Any]:
-    scrape_ok = sum(1 for s in scraped if isinstance(s, dict) and s.get("ok"))
-    render_needed = 0
-    render_used = 0
+    scrape_ok      = sum(1 for s in scraped if isinstance(s, dict) and s.get("ok"))
+    render_needed  = 0
+    render_used    = 0
     for s in scraped:
         if not isinstance(s, dict):
             continue
@@ -246,20 +326,20 @@ def _pipeline_meta(
             if r.get("used"):
                 render_used += 1
 
-    # Rejection reason summary
     reasons: dict[str, int] = {}
     for p in rejected:
         reason = p.get("_reject_reason") or "unknown"
         reasons[reason] = reasons.get(reason, 0) + 1
 
     return {
-        "search_backend": backend,
+        "search_backend":       backend,
+        "seed_urls_injected":   len(seeds) if seeds else 0,
         "urls_after_blacklist": len(filtered),
-        "scrape_ok": scrape_ok,
-        "scrape_total": len(scraped),
-        "relevance_kept": len(scraped) - len(rejected),
-        "relevance_rejected": len(rejected),
-        "rejection_reasons": reasons,
-        "render_needed": render_needed,
-        "render_used": render_used,
+        "scrape_ok":            scrape_ok,
+        "scrape_total":         len(scraped),
+        "relevance_kept":       len(scraped) - len(rejected),
+        "relevance_rejected":   len(rejected),
+        "rejection_reasons":    reasons,
+        "render_needed":        render_needed,
+        "render_used":          render_used,
     }

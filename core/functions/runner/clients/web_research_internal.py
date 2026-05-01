@@ -33,6 +33,8 @@ def research_query_to_summary(
     provider: str | None = None,
     model: str | None = None,
     result_limit: int | None = None,
+    seed_urls: list[str] | None = None,
+    force_backend: str | None = None,
 ) -> tuple[dict[str, Any], int]:
     """
     Run a research step for ``query``.
@@ -47,7 +49,12 @@ def research_query_to_summary(
     ``result_limit`` caps how many URLs are scraped after blacklist filtering (default from
     ``ACS_WEB_RESEARCH_RESULT_LIMIT``).
 
-    Returns ``({"summary", "sources", "mode", ...}, status)``.
+    ``seed_urls`` are scraped directly (company homepage etc.) bypassing the search step.
+
+    ``force_backend`` overrides ``ACS_WEB_SEARCH_BACKEND`` — used by the budget system
+    to downgrade to ``duckduckgo`` when the monthly quota is exhausted.
+
+    Returns ``({"summary", "sources", "mode", "tokens_in", "tokens_out", ...}, status)``.
     """
     pipeline = (os.environ.get("ACS_WEB_RESEARCH_PIPELINE") or "full").strip().lower()
     if pipeline != "llm_only":
@@ -58,6 +65,8 @@ def research_query_to_summary(
             result_limit=_result_limit_default(result_limit),
             provider=provider,
             model=model,
+            seed_urls=seed_urls,
+            force_backend=force_backend,
         )
 
     q = query.strip() if isinstance(query, str) else ""

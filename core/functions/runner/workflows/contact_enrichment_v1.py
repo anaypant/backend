@@ -12,7 +12,7 @@ from typing import Any, Literal, TypedDict
 from langgraph.graph import END, StateGraph
 
 from clients import db_internal, llm_internal
-from clients import web_research_internal
+from clients import usage_tracker, web_research_internal
 from state import acs_state
 from state.execution_policy import volatile_external_allowed
 from tools import registry as tool_registry
@@ -33,6 +33,8 @@ class EnrichmentState(TypedDict, total=False):
     research: dict[str, Any]
     synthesis_updates: dict[str, Any]
     screened_updates: dict[str, Any]
+    budget_mode: str            # "premium" | "standard"
+    token_estimate: dict[str, int]  # {"in": N, "out": N, "search_calls": N}
 
 
 def _uid(acs: dict) -> str | None:
@@ -133,91 +135,156 @@ def _node_normalize(state: EnrichmentState) -> dict[str, Any]:
     return {"acs": acs, "normalized_contact": norm}
 
 
+# Domains treated as personal email providers — too generic to help with employer lookup.
+_PERSONAL_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
+    "icloud.com", "me.com", "mac.com", "protonmail.com",
+    "proton.me", "aol.com", "msn.com", "live.com",
+    "ymail.com", "googlemail.com",
+})
+# Test / placeholder domains — never use for company detection or queries
+_TEST_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "example.com", "example.org", "example.net", "test.com",
+    "localhost", "acs-test.dev", "mailinator.com", "yopmail.com",
+    "example-acs-test.com", "berkshire-test.com",
+})
+_HASH_PREFIX_RE = re.compile(r"^[0-9a-f]{8,}\.", re.IGNORECASE)
+
+
+def _extract_business_email(emails: list) -> tuple[str, str, str]:
+    """
+    Return (email, local_part, domain) for the first business email found.
+    Skips personal providers, test domains, and hash-prefixed locals.
+    Returns ("", "", "") when none qualify.
+    """
+    skip = _PERSONAL_EMAIL_DOMAINS | _TEST_EMAIL_DOMAINS
+    for _e in emails:
+        if not isinstance(_e, str) or not _e.strip():
+            continue
+        _local, _, _domain = _e.strip().partition("@")
+        _domain = _domain.lower().strip()
+        if not _domain or _domain in skip:
+            continue
+        if _HASH_PREFIX_RE.match(_local):
+            continue
+        return _e.strip(), _local, _domain
+    return "", "", ""
+
+
+def _company_name_from_domain(domain: str) -> str:
+    """
+    Convert a domain to a readable company name.
+    "techstartup.com" → "Techstartup"
+    "berkshire-hathaway.com" → "Berkshire Hathaway"
+    """
+    base = domain.split(".")[0]
+    return base.replace("-", " ").replace("_", " ").title()
+
+
 def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     acs: dict = state["acs"]
     t0 = time.perf_counter()
     if state.get("failed") or state.get("halt_duplicate"):
         return {"acs": acs}
 
-    norm = state.get("normalized_contact") or {}
+    norm         = state.get("normalized_contact") or {}
     display_name = (norm.get("display_name") or "").strip()
-    emails = norm.get("emails") if isinstance(norm.get("emails"), list) else []
+    emails       = norm.get("emails") if isinstance(norm.get("emails"), list) else []
+    uid          = _uid(acs) or ""
+    realtor_prof = state.get("realtor_profile") or {}
 
-    # Only include email in the search query when it looks like a real personal/business
-    # address.  Skip:
-    #   - test/placeholder domains
-    #   - generic providers (gmail, yahoo, etc.) that add no disambiguation value
-    #   - addresses whose local part starts with 8+ hex chars (probe/hash test emails)
-    _SKIP_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "test.com",
-                           "localhost", "acs-test.dev", "mailinator.com", "yopmail.com",
-                           "example-acs-test.com",
-                           # Generic email providers (too common to help disambiguation)
-                           "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
-                           "icloud.com", "me.com", "protonmail.com", "aol.com"}
-    _HASH_PREFIX_RE = re.compile(r"^[0-9a-f]{8,}\.", re.IGNORECASE)
-    real_email = ""
-    for _e in emails:
-        if not isinstance(_e, str) or not _e.strip():
-            continue
-        _local, _, _domain = _e.strip().partition("@")
-        _domain = _domain.lower().strip()
-        if not _domain or _domain in _SKIP_EMAIL_DOMAINS:
-            continue
-        # Skip emails whose local part starts with a hash prefix (probe/test pattern)
-        if _HASH_PREFIX_RE.match(_local):
-            continue
-        real_email = _e.strip()
-        break
+    # ── Extract business email for company intelligence ───────────────────────
+    biz_email, _biz_local, biz_domain = _extract_business_email(emails)
+    company_name = _company_name_from_domain(biz_domain) if biz_domain else ""
 
-    if display_name:
-        # Use name + "real estate" as the primary search query.
-        # Emails are intentionally excluded: they rarely appear on public web pages and
-        # actively reduce result count for uncommon/private domains.  The email is
-        # preserved in the synthesis context (normalized_contact) for identity verification.
-        query = f"{display_name} real estate"
+    # ── Build buyer-focused search query ─────────────────────────────────────
+    # Contacts are BUYERS / SELLERS / INVESTORS, not realtors.
+    # "real estate" qualifier is intentionally omitted — it finds agents, not clients.
+    # If we have a business email: "Name Company" gives targeted professional results.
+    # If name only: plain "Name" is sufficient.
+    if display_name and company_name:
+        query = f"{display_name} {company_name}"
+    elif display_name:
+        query = display_name
     else:
-        # Fallback for contacts with no name yet.
-        q_parts = [
-            f"Contact from {norm.get('provider')}",
-            f"id={norm.get('external_person_id')}",
-        ]
-        query = " ".join(str(p) for p in q_parts if p).strip()
+        query = f"id={norm.get('external_person_id') or 'unknown'}"
 
+    # ── Company homepage as seed URL ─────────────────────────────────────────
+    # Direct company-domain scrape bypasses the search engine entirely:
+    # one targeted request, zero cost, maximum relevance for employer context.
+    seed_urls: list[str] = []
+    if biz_domain:
+        seed_urls = [f"https://{biz_domain}"]
+
+    # ── Budget-aware backend selection ────────────────────────────────────────
+    mode, budget_usd, spent_usd, premium_backend = usage_tracker.check_mode(
+        uid, realtor_profile=realtor_prof
+    )
+    force_backend = None if mode == "premium" else "duckduckgo"
+
+    # ── Run pipeline ──────────────────────────────────────────────────────────
     wr_limit: int | None = None
     raw_lim = (os.environ.get("ACS_WEB_RESEARCH_RESULT_LIMIT") or "").strip()
     if raw_lim:
         try:
             wr_limit = int(raw_lim)
         except ValueError:
-            wr_limit = None
+            pass
 
-    res, st = web_research_internal.research_query_to_summary(query, result_limit=wr_limit)
+    res, st = web_research_internal.research_query_to_summary(
+        query,
+        result_limit=wr_limit,
+        seed_urls=seed_urls,
+        force_backend=force_backend,
+    )
     for _ in range(max(1, int(res.get("llm_calls") or 1))):
         workflow_audit.audit_bump_llm(acs)
+
+    # ── Accumulate token estimate for usage recording ─────────────────────────
+    tok_in  = int(res.get("tokens_in") or 0)
+    tok_out = int(res.get("tokens_out") or 0)
+    tok_est = state.get("token_estimate") or {"in": 0, "out": 0, "search_calls": 0}
+    tok_est = {
+        "in":           tok_est.get("in", 0) + tok_in,
+        "out":          tok_est.get("out", 0) + tok_out,
+        "search_calls": tok_est.get("search_calls", 0) + int(res.get("search_calls") or 0),
+    }
+
     meta = acs_state.ensure_metadata(acs)
-    ce = meta.setdefault("contactEnrichment", {})
+    ce   = meta.setdefault("contactEnrichment", {})
     if isinstance(ce, dict):
         ce["webResearch"] = {
-            "http_status": st,
-            "mode": res.get("mode"),
-            "query": query,
+            "http_status":   st,
+            "mode":          res.get("mode"),
+            "query":         query,
+            "company_domain": biz_domain or None,
+            "seed_injected": bool(seed_urls),
             "sources_count": len(res.get("sources") or []),
-            "pipeline": res.get("pipeline"),
+            "pipeline":      res.get("pipeline"),
+            "budget_mode":   mode,
+            "spent_usd":     round(spent_usd, 4),
+            "budget_usd":    round(budget_usd, 2),
         }
 
     if st >= 400:
         acs_state.append_error(acs, f"web_research failed: {st}")
         acs_state.set_core_meta(acs, {"workflow_id": _WORKFLOW_ID, "status": "failed", "phase": "web_research"})
         workflow_audit.audit_log_node(acs, "web_research", duration_ms=(time.perf_counter() - t0) * 1000, extra={"http": st})
-        return {"acs": acs, "failed": True, "research": res}
+        return {"acs": acs, "failed": True, "research": res, "budget_mode": mode, "token_estimate": tok_est}
 
     workflow_audit.audit_log_node(
         acs,
         "web_research",
         duration_ms=(time.perf_counter() - t0) * 1000,
-        extra={"http": st, "sources": len(res.get("sources") or [])},
+        extra={
+            "http": st,
+            "sources": len(res.get("sources") or []),
+            "budget_mode": mode,
+            "company_domain": biz_domain or None,
+            "seed_injected": bool(seed_urls),
+        },
     )
-    return {"acs": acs, "research": res}
+    return {"acs": acs, "research": res, "budget_mode": mode, "token_estimate": tok_est}
 
 
 def _coerce_synthesis_updates(parsed: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -282,10 +349,19 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
     )
     note_rule = (
         "When normalized_contact.provider is followupboss and normalized_contact.person_id is a positive integer, "
-        "the object updates MUST include suggested_note as a non-empty string (at least one full sentence). "
-        "Combine display_name, emails, phones from normalized_contact with research_summary. "
-        "If research_summary is empty or research_sources is empty, still write a short CRM-only summary "
-        "from normalized_contact — do not return an empty updates object."
+        "the updates object MUST include a non-empty suggested_note string (at least two sentences). "
+        "This contact is a potential home BUYER, SELLER, or INVESTOR — NOT a real estate agent. "
+        "Write a practical CRM note a realtor would find useful before meeting this client. Cover: "
+        "(1) Professional background — employer (infer from email domain if research is sparse), role/title, "
+        "industry; do NOT call them a realtor or broker unless clearly confirmed in research. "
+        "(2) Financial signals — business owner, senior/executive title, high-income profession, "
+        "any investor activity visible in research. "
+        "(3) Possible motivation for moving — new job, relocation, life event (marriage, growing family, "
+        "empty nest, retirement), or any signals from research. "
+        "(4) Notable public mentions or community ties. "
+        "If research_summary is empty, still write a note using the email domain as employer context. "
+        "Keep the note concise (under 400 words), factual, and free of speculation beyond what is "
+        "supported by the data."
         if must_note
         else ""
     )
@@ -347,6 +423,16 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
         updates["suggested_note"] = _fallback_suggested_note_fub(norm, research)
         used_fallback = True
 
+    # Accumulate token estimate
+    tok_in_synth  = len(json.dumps(messages)) // 4
+    tok_out_synth = len(raw) // 4
+    prior_tok = state.get("token_estimate") or {"in": 0, "out": 0, "search_calls": 0}
+    token_estimate = {
+        "in":           prior_tok.get("in", 0) + tok_in_synth,
+        "out":          prior_tok.get("out", 0) + tok_out_synth,
+        "search_calls": prior_tok.get("search_calls", 0),
+    }
+
     meta = acs_state.ensure_metadata(acs)
     ce = meta.setdefault("contactEnrichment", {})
     if isinstance(ce, dict):
@@ -373,7 +459,7 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
             "fallback_note": used_fallback,
         },
     )
-    return {"acs": acs, "synthesis_updates": updates}
+    return {"acs": acs, "synthesis_updates": updates, "token_estimate": token_estimate}
 
 
 _PII_PATTERNS = (
@@ -529,6 +615,43 @@ def _node_duplicate_finale(state: EnrichmentState) -> dict[str, Any]:
     return {"acs": acs}
 
 
+def _node_record_usage(state: EnrichmentState) -> dict[str, Any]:
+    """
+    Best-effort usage recording.  Runs after finalize so it never blocks enrichment.
+    Skipped for duplicate-halted runs (no LLM was called).
+    """
+    acs: dict = state["acs"]
+    if state.get("halt_duplicate") or state.get("failed"):
+        return {"acs": acs}
+
+    uid = _uid(acs)
+    if not uid:
+        return {"acs": acs}
+
+    tok    = state.get("token_estimate") or {}
+    mode   = state.get("budget_mode") or "premium"
+    meta   = acs_state.ensure_metadata(acs)
+    ce     = meta.get("contactEnrichment") or {}
+    wr     = ce.get("webResearch") or {}
+    pipe   = wr.get("pipeline") or {}
+    be     = pipe.get("search_backend") or "duckduckgo"
+
+    budget_usd, _ = usage_tracker.get_budget_config(uid, state.get("realtor_profile"))
+    cost = usage_tracker.record_enrichment(
+        uid,
+        mode=mode,
+        search_backend=be,
+        tokens_in=int(tok.get("in") or 0),
+        tokens_out=int(tok.get("out") or 0),
+        search_calls=int(tok.get("search_calls") or 0),
+        budget_usd=budget_usd,
+    )
+
+    if isinstance(ce, dict):
+        ce["usageRecorded"] = {"cost_usd": round(cost, 6), "budget_mode": mode}
+    return {"acs": acs}
+
+
 def _node_finalize(state: EnrichmentState) -> dict[str, Any]:
     acs: dict = state["acs"]
     if state.get("halt_duplicate"):
@@ -563,6 +686,7 @@ def build_contact_enrichment_graph():
     g.add_node("policy_screen", _node_policy_screen)
     g.add_node("map_provider", _node_map_provider)
     g.add_node("send_provider", _node_send_provider)
+    g.add_node("record_usage", _node_record_usage)
     g.add_node("finalize", _node_finalize)
     g.add_node("duplicate_finale", _node_duplicate_finale)
 
@@ -579,7 +703,8 @@ def build_contact_enrichment_graph():
     g.add_edge("synthesis", "policy_screen")
     g.add_edge("policy_screen", "map_provider")
     g.add_edge("map_provider", "send_provider")
-    g.add_edge("send_provider", "finalize")
+    g.add_edge("send_provider", "record_usage")
+    g.add_edge("record_usage", "finalize")
     g.add_edge("duplicate_finale", END)
     g.add_edge("finalize", END)
     return g.compile()
