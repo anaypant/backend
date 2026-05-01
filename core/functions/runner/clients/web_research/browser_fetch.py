@@ -2,15 +2,39 @@
 
 from __future__ import annotations
 
+import gzip
 import random
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 from threading import Lock
 
 from clients.web_research.settings import BrowserSimSettings
 from clients.web_research.url_blacklist import is_blocked_url
+
+
+def _decompress(raw: bytes, content_encoding: str) -> bytes:
+    """Decompress gzip or deflate response bodies returned by the server."""
+    enc = content_encoding.lower().strip()
+    if not enc or enc == "identity" or not raw:
+        return raw
+    if "gzip" in enc:
+        try:
+            return gzip.decompress(raw)
+        except Exception:
+            return raw
+    if "deflate" in enc:
+        try:
+            return zlib.decompress(raw)
+        except Exception:
+            try:
+                # Some servers send raw deflate without the zlib wrapper.
+                return zlib.decompress(raw, -zlib.MAX_WBITS)
+            except Exception:
+                return raw
+    return raw
 
 
 class BrowserFetchSession:
@@ -33,7 +57,8 @@ class BrowserFetchSession:
             "User-Agent": s.user_agent,
             "Accept": s.accept,
             "Accept-Language": s.accept_language,
-            "Accept-Encoding": "gzip, deflate, br",
+            # Only advertise encodings we can decompress ourselves (stdlib only; no brotli dep).
+            "Accept-Encoding": "gzip, deflate",
             "Sec-Ch-Ua": s.sec_ch_ua,
             "Sec-Ch-Ua-Mobile": s.sec_ch_ua_mobile,
             "Sec-Ch-Ua-Platform": s.sec_ch_ua_platform,
@@ -85,6 +110,8 @@ class BrowserFetchSession:
                 if is_blocked_url(final_url):
                     return b"", 451, final_url, ""
                 ctype = resp.headers.get("Content-Type") or ""
+                encoding = str(resp.headers.get("Content-Encoding") or "").lower()
+                raw = _decompress(raw, encoding)
                 return raw, int(resp.status), final_url, str(ctype)
         except urllib.error.HTTPError as e:
             try:
