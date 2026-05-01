@@ -22,6 +22,9 @@ locals {
       SECRETS_INTERNAL_GATEWAY_HOSTNAME = var.secrets_internal_gateway_hostname
       SECRETS_INTERNAL_JWT_AUDIENCE     = var.secrets_internal_jwt_audience
       BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
+      # In-house web search: DuckDuckGo HTML scraping (free, no API key required).
+      # Switch to "multi" for DDG + Wikipedia + Google News fan-out.
+      ACS_WEB_SEARCH_BACKEND            = "duckduckgo"
     },
     local._bridge_base != "" ? { INTEGRATION_BRIDGE_BASE_URL = trimsuffix(local._bridge_base, "/") } : {},
     var.enable_core_dev_lab ? { ACS_ENABLE_DEV_LAB = "1" } : {},
