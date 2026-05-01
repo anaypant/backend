@@ -1,6 +1,7 @@
 from providers.followupboss.egress import apply_outbound_actions
 from providers.followupboss.fub_direct_ops import (
     notes_create,
+    notes_list,
     people_create,
     people_get,
     people_set_stage,
@@ -84,6 +85,9 @@ class FollowUpBossProvider:
 
     def notes_create(self, request):
         return notes_create(request)
+
+    def notes_list(self, request):
+        return notes_list(request)
 
     def tasks_create(self, request):
         return tasks_create(request)

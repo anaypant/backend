@@ -1,0 +1,72 @@
+{
+  "http": 200,
+  "body": {
+    "id": 171,
+    "created": "2026-05-01T15:53:58Z",
+    "updated": "2026-05-01T15:54:39Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T15:54:39Z",
+    "name": "Acs LeadIntel-342e8c0941",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-342e8c0941",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": null,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-e2e-342e8c",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.342e8c0941@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": [],
+    "_tagsAfter": [
+      "acs-e2e",
+      "lead-intel-probe",
+      "acs-e2e-342e8c"
+    ]
+  }
+}

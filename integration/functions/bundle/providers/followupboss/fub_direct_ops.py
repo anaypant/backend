@@ -357,6 +357,28 @@ def notes_create(request):
     return json_response(resp if isinstance(resp, dict) else {}, st)
 
 
+def notes_list(request):
+    """
+    POST /integrations/followupboss/notes/list
+    Body: { "personId": 123, "limit": 100, "offset": 0 }
+    """
+    _, client, err = _auth(request)
+    if err:
+        return err
+    body, err = _body(request)
+    if err:
+        return err
+
+    person_id = body.get("personId") or body.get("id")
+    if not isinstance(person_id, int) or person_id <= 0:
+        return json_response({"error": "personId (positive int) required"}, 400)
+    limit = int(body.get("limit", 100))
+    offset = int(body.get("offset", 0))
+
+    resp, st = client.list_notes(person_id, limit=limit, offset=offset)
+    return json_response(resp if isinstance(resp, dict) else {}, st)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Tasks — create
 # ─────────────────────────────────────────────────────────────────────────────

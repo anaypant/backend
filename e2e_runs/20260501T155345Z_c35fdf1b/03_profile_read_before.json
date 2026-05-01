@@ -1,0 +1,440 @@
+{
+  "http": 200,
+  "body": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+    "id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+    "data": {
+      "email": "anaypant212@gmail.com",
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "workflowDemo": {
+        "workflowId": "demo.joke_to_profile_v1",
+        "writtenAtEpoch": 1776708093,
+        "joke": "Why don\u2019t real estate agents trust stairs? Because they\u2019re always up to something!"
+      },
+      "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "test": "Hello from lite-frontend",
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "admin": true,
+      "lastSignInAt": "2026-05-01T04:52:41+00:00",
+      "role": "realtor",
+      "linkedAuthUids": [
+        "d0ihHKrh7xVhpALiVRFOLCzeA0h1"
+      ],
+      "integrations": {
+        "followupboss": {
+          "webhooks": {
+            "removed": 0,
+            "needsOwner": false,
+            "created": 0,
+            "totalEvents": 53,
+            "kept": 0,
+            "failures": [
+              {
+                "event": "peopleCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 137"
+                }
+              },
+              {
+                "event": "peopleUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 138"
+                }
+              },
+              {
+                "event": "peopleDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 139"
+                }
+              },
+              {
+                "event": "peopleTagsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 140"
+                }
+              },
+              {
+                "event": "peopleStageUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 141"
+                }
+              },
+              {
+                "event": "peopleRelationshipCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 142"
+                }
+              },
+              {
+                "event": "peopleRelationshipUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 143"
+                }
+              },
+              {
+                "event": "peopleRelationshipDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 144"
+                }
+              },
+              {
+                "event": "notesCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 145"
+                }
+              },
+              {
+                "event": "notesUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 146"
+                }
+              },
+              {
+                "event": "notesDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 147"
+                }
+              },
+              {
+                "event": "reactionCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 148"
+                }
+              },
+              {
+                "event": "reactionDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 149"
+                }
+              },
+              {
+                "event": "threadedReplyCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 150"
+                }
+              },
+              {
+                "event": "threadedReplyUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 151"
+                }
+              },
+              {
+                "event": "threadedReplyDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 152"
+                }
+              },
+              {
+                "event": "emailsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 153"
+                }
+              },
+              {
+                "event": "emailsUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 154"
+                }
+              },
+              {
+                "event": "emailsDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 155"
+                }
+              },
+              {
+                "event": "tasksCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 156"
+                }
+              },
+              {
+                "event": "tasksUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 157"
+                }
+              },
+              {
+                "event": "tasksDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 158"
+                }
+              },
+              {
+                "event": "appointmentsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 159"
+                }
+              },
+              {
+                "event": "appointmentsUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 160"
+                }
+              },
+              {
+                "event": "appointmentsDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 161"
+                }
+              },
+              {
+                "event": "textMessagesCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 162"
+                }
+              },
+              {
+                "event": "textMessagesUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 163"
+                }
+              },
+              {
+                "event": "textMessagesDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 164"
+                }
+              },
+              {
+                "event": "callsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 165"
+                }
+              },
+              {
+                "event": "callsUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 166"
+                }
+              },
+              {
+                "event": "callsDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 167"
+                }
+              },
+              {
+                "event": "emEventsOpened",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 168"
+                }
+              },
+              {
+                "event": "emEventsClicked",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 169"
+                }
+              },
+              {
+                "event": "emEventsUnsubscribed",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 170"
+                }
+              },
+              {
+                "event": "dealsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 171"
+                }
+              },
+              {
+                "event": "dealsUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 172"
+                }
+              },
+              {
+                "event": "dealsDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 173"
+                }
+              },
+              {
+                "event": "stageCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 174"
+                }
+              },
+              {
+                "event": "stageUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 175"
+                }
+              },
+              {
+                "event": "stageDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 176"
+                }
+              },
+              {
+                "event": "eventsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 177"
+                }
+              },
+              {
+                "event": "pipelineCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 178"
+                }
+              },
+              {
+                "event": "pipelineUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 179"
+                }
+              },
+              {
+                "event": "pipelineDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 180"
+                }
+              },
+              {
+                "event": "pipelineStageCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 181"
+                }
+              },
+              {
+                "event": "pipelineStageUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 182"
+                }
+              },
+              {
+                "event": "pipelineStageDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 183"
+                }
+              },
+              {
+                "event": "customFieldsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 184"
+                }
+              },
+              {
+                "event": "customFieldsUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 185"
+                }
+              },
+              {
+                "event": "customFieldsDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 186"
+                }
+              },
+              {
+                "event": "dealCustomFieldsCreated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 187"
+                }
+              },
+              {
+                "event": "dealCustomFieldsUpdated",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 188"
+                }
+              },
+              {
+                "event": "dealCustomFieldsDeleted",
+                "status": 400,
+                "detail": {
+                  "errorMessage": "Webhook already exists for this event and callback url. ID: 189"
+                }
+              }
+            ],
+            "webhookSyncStatus": "partial_error",
+            "callbackUrl": "https://acs-public-9l1ydz27.uc.gateway.dev/integrations/webhooks/followupboss?connectionId=d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+            "ok": false
+          },
+          "audit": {
+            "lastRefreshAtEpoch": 1777650277,
+            "lastOauthStartAtEpoch": 1776636614,
+            "lastOauthCallbackAtEpoch": 1776224380,
+            "lastDisconnectAtEpoch": 1776224437,
+            "lastWebhookResyncAtEpoch": 1776636663
+          },
+          "connection": {
+            "updatedAtEpoch": 1776636614,
+            "status": "connected_with_webhook_sync_issues",
+            "provider": "followupboss",
+            "mode": "oauth"
+          },
+          "auth": {
+            "oauthPending": {
+              "state": "d0ihHKrh7xVhpALiVRFOLCzeA0h1.fb0ded2de63c48edb0145dc3552b576c.98aa593ce92dfe5949c49bf03d76ee8291d2bf22e95ed4e488e4974448f561b4",
+              "expiresAtEpoch": 1776637514,
+              "nonce": "fb0ded2de63c48edb0145dc3552b576c",
+              "createdAtEpoch": 1776636614
+            },
+            "refreshTokenRef": "acs-sec://v1/acs-sec-v1-realtor-b755e9c37dad7b1c124a6e1a-ZDBpaEhLcmg3eFZocEFMaVZSRk9MQ3plQTBoMQ",
+            "xSystemKeyRef": "env://FUB_X_SYSTEM_KEY",
+            "scope": null,
+            "expiresAtEpoch": 1777653877,
+            "accessTokenRef": "acs-sec://v1/acs-sec-v1-realtor-d8eeed8016d344f6fdc942ef-ZDBpaEhLcmg3eFZocEFMaVZSRk9MQ3plQTBoMQ",
+            "tokenType": "Bearer"
+          }
+        }
+      },
+      "guardrailLevel": 1
+    }
+  }
+}

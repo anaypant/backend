@@ -133,6 +133,13 @@ class FubClient:
     def create_note(self, person_id: int, body: str) -> tuple[dict, int]:
         return post_json(f"{self.base}/notes", {"personId": person_id, "body": body}, headers=self._headers())
 
+    def list_notes(self, person_id: int, *, limit: int = 100, offset: int = 0) -> tuple[dict, int]:
+        """GET /v1/notes — filter by ``personId`` (FUB search API)."""
+        lim = max(1, min(100, int(limit)))
+        off = max(0, int(offset))
+        q = urllib.parse.urlencode({"personId": int(person_id), "limit": str(lim), "offset": str(off)})
+        return get_json(f"{self.base}/notes?{q}", headers=self._headers(), timeout=60)
+
     def create_task(
         self,
         person_id: int,

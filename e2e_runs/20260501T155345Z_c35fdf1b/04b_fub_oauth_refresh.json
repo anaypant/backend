@@ -1,0 +1,12 @@
+{
+  "http": 200,
+  "body": {
+    "ok": true,
+    "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+    "db": {
+      "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "id": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "created": false
+    }
+  }
+}

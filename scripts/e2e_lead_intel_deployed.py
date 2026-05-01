@@ -1,33 +1,37 @@
 #!/usr/bin/env python3
 """
-End-to-end lead intelligence test against a deployed ACS gateway.
+End-to-end lead intelligence + quality harness against a deployed ACS gateway.
 
-Uses ~/.acs-cli/session.json (same as ``python -m cli.acs``): refreshes Firebase token if needed,
-mutates Follow Up Boss (create person, tags, name change), waits for webhooks, reads Firestore
-intel + score docs, calls webhook_test for a synchronous workflow_debug capture, restores
-guardrailLevel when possible.
+Fetches **full** outputs: FUB person + notes, Firestore ``InternalClients`` (``acsIntel``),
+``Leads`` (score), optional ``BillingUsage``. Writes per-step JSON, ``local_mirror/`` copies,
+and updates ``backend/local_test_mirror/lead_intel_last_enriched_contact.json``.
 
-Run from repo ``backend/`` directory::
+Uses ~/.acs-cli/session.json (refreshes Firebase token if needed).
+
+Run from ``backend/``::
 
     python scripts/e2e_lead_intel_deployed.py
+    python scripts/e2e_lead_intel_deployed.py --stress --poll-intel-seconds 180
+    python scripts/e2e_lead_intel_deployed.py --preserve-guardrail --quality-warnings-only
 
-Artifacts: ``backend/e2e_runs/<run_id>/`` (JSON per step + SUMMARY.md).
+Exit codes: 0 success, 2 auth/config, 3 FUB/person failure, 4 quality hard-fail, 5 HTTP gate.
 """
 
 from __future__ import annotations
 
+import argparse
 import base64
 import json
-import re
+import os
 import sys
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import requests
 
-# ``backend/`` is the parent of ``scripts/``
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
@@ -93,9 +97,193 @@ def _req(
 
 def _save(out_dir: Path, name: str, obj: object) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    p = out_dir / f"{name}.json"
-    with p.open("w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2, default=str)
+    (out_dir / f"{name}.json").write_text(json.dumps(obj, indent=2, default=str), encoding="utf-8")
+
+
+def _billing_path(uid: str) -> str:
+    ym = datetime.now(timezone.utc).strftime("%Y-%m")
+    return f"Realtors/{uid}/BillingUsage/{ym}"
+
+
+def fetch_enriched_snapshot(
+    session: dict,
+    uid: str,
+    pid: int,
+    ic_path: str,
+    lead_path: str,
+) -> dict[str, Any]:
+    captured = datetime.now(timezone.utc).isoformat()
+    st_p, person = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/people/get",
+        json_body={"personId": pid},
+        timeout=60,
+    )
+    st_n, notes_raw = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/notes/list",
+        json_body={"personId": pid, "limit": 100, "offset": 0},
+        timeout=60,
+    )
+    st_i, ic_raw = _req(session, "POST", "/db/read", json_body={"path": ic_path}, timeout=30)
+    st_l, lead_raw = _req(session, "POST", "/db/read", json_body={"path": lead_path}, timeout=30)
+    st_b, bill_raw = _req(session, "POST", "/db/read", json_body={"path": _billing_path(uid)}, timeout=30)
+
+    ic_data = ic_raw.get("data") if isinstance(ic_raw, dict) else {}
+    acs_intel = ic_data.get("acsIntel") if isinstance(ic_data, dict) and isinstance(ic_data.get("acsIntel"), dict) else {}
+    notes_list_out: list[Any] = []
+    if isinstance(notes_raw, dict):
+        notes_list_out = notes_raw.get("notes") if isinstance(notes_raw.get("notes"), list) else []
+
+    lead_data = lead_raw.get("data") if isinstance(lead_raw, dict) else {}
+
+    return {
+        "captured_at": captured,
+        "realtor_uid": uid,
+        "followupboss_person_id": pid,
+        "http": {
+            "people_get": st_p,
+            "notes_list": st_n,
+            "internal_clients_read": st_i,
+            "leads_read": st_l,
+            "billing_usage_read": st_b,
+        },
+        "followupboss_person": person if isinstance(person, dict) else {},
+        "followupboss_notes": notes_list_out,
+        "firestore_internal_clients": ic_raw if isinstance(ic_raw, dict) else {},
+        "firestore_leads": lead_raw if isinstance(lead_raw, dict) else {},
+        "firestore_billing_usage": bill_raw if isinstance(bill_raw, dict) else {},
+        "quality_extracts": {
+            "acs_note_bodies": [
+                str(n.get("body") or "")
+                for n in notes_list_out
+                if isinstance(n, dict) and isinstance(n.get("body"), str)
+            ],
+            "lastWebSummary_preview": str(acs_intel.get("lastWebSummary") or "")[:4000],
+            "lastWebSummary_len": len(str(acs_intel.get("lastWebSummary") or "")),
+            "lastEnrichmentTier": acs_intel.get("lastEnrichmentTier"),
+            "lastEnrichedAt": acs_intel.get("lastEnrichedAt"),
+            "glydeScore": lead_data.get("glydeScore") if isinstance(lead_data, dict) else None,
+            "glydeIsHot": lead_data.get("glydeIsHot") if isinstance(lead_data, dict) else None,
+        },
+    }
+
+
+def poll_until_intel_doc(
+    session: dict,
+    ic_path: str,
+    *,
+    deadline_s: float,
+    poll_s: float,
+    log,
+) -> tuple[int, object]:
+    deadline = time.time() + deadline_s
+    last_st, last_body = 404, {}
+    while time.time() < deadline:
+        st, body = _req(session, "POST", "/db/read", json_body={"path": ic_path}, timeout=30)
+        last_st, last_body = st, body
+        if st == 200 and isinstance(body, dict):
+            data = body.get("data")
+            if isinstance(data, dict) and isinstance(data.get("acsIntel"), dict):
+                ai = data["acsIntel"]
+                if ai.get("lastEnrichedAt") or ai.get("snapshot"):
+                    return st, body
+        remain = int(deadline - time.time())
+        log(f"    … polling InternalClients ({remain}s left) http={st}")
+        time.sleep(poll_s)
+    return last_st, last_body
+
+
+def stress_webhook_burst(
+    session: dict,
+    pid: int,
+    out_dir: Path,
+    log,
+    *,
+    iterations: int,
+) -> None:
+    for i in range(iterations):
+        body = fub_webhook_minimal_body(
+            event="peopleUpdated",
+            person_id=int(pid),
+            event_id=f"e2e-stress-{i}-{uuid.uuid4().hex[:12]}",
+        )
+        st, resp = _req(session, "POST", "/integrations/followupboss/webhook_test", json_body=body, timeout=180)
+        _save(out_dir, f"stress_{i + 1:02d}_webhook_people_updated", {"http": st, "request": body, "body": resp})
+        log(f"stress#{i + 1} webhook_test peopleUpdated HTTP {st}")
+        if st >= 400:
+            raise RuntimeError(f"stress webhook HTTP {st}")
+        dispatch = resp.get("webhook_dispatch") if isinstance(resp, dict) else []
+        if not isinstance(dispatch, list):
+            raise RuntimeError("stress: missing webhook_dispatch")
+        for row in dispatch:
+            if isinstance(row, dict) and int(row.get("core_http_status") or 500) >= 400:
+                raise RuntimeError(f"stress: core failure {row}")
+
+
+def evaluate_quality(
+    snap: dict[str, Any],
+    *,
+    hands_on_effective: bool,
+    stress: bool,
+) -> dict[str, Any]:
+    fails: list[str] = []
+    warns: list[str] = []
+    http = snap.get("http") or {}
+    for k, v in http.items():
+        if isinstance(v, int) and v >= 400:
+            if k == "billing_usage_read":
+                warns.append(f"billing doc HTTP {v} (optional)")
+            else:
+                fails.append(f"HTTP {v} on {k}")
+
+    qe = snap.get("quality_extracts") or {}
+    bodies: list[str] = [b for b in (qe.get("acs_note_bodies") or []) if isinstance(b, str)]
+
+    if hands_on_effective:
+        if not any("ACS" in b for b in bodies):
+            fails.append("hands-on: no FUB note body contains 'ACS' (expected createNote from workflows)")
+        if not any(len(b) > 80 for b in bodies if "ACS" in b):
+            warns.append("hands-on: no long ACS note (>80 chars) — notes may be very short")
+
+    g = qe.get("glydeScore")
+    if isinstance(g, int):
+        if g < 0 or g > 100:
+            fails.append(f"glydeScore out of 0..100: {g}")
+    elif g is not None:
+        warns.append(f"glydeScore not int: {g!r}")
+
+    slen = int(qe.get("lastWebSummary_len") or 0)
+    if slen == 0:
+        warns.append("lastWebSummary empty — common for lazy + low-signal email; not a hard fail")
+    if stress and slen < 40:
+        warns.append("stress: lastWebSummary < 40 chars — research may be starved or blocked")
+
+    return {"passed": len(fails) == 0, "failures": fails, "warnings": warns}
+
+
+def _write_local_mirror(backend_root: Path, out_dir: Path, final_snap: dict[str, Any], meta: dict[str, Any]) -> None:
+    lm = out_dir / "local_mirror"
+    lm.mkdir(parents=True, exist_ok=True)
+    (lm / "enriched_contact_full.json").write_text(json.dumps(final_snap, indent=2, default=str), encoding="utf-8")
+    (lm / "run_meta.json").write_text(json.dumps(meta, indent=2, default=str), encoding="utf-8")
+
+    mirror_dir = backend_root / "local_test_mirror"
+    mirror_dir.mkdir(parents=True, exist_ok=True)
+    ptr = {
+        "run_id": meta.get("run_id"),
+        "artifact_dir": str(out_dir.resolve()),
+        "person_id": meta.get("person_id"),
+        "probe_email": meta.get("probe_email"),
+        "captured_at": final_snap.get("captured_at"),
+    }
+    (mirror_dir / "lead_intel_last_run.json").write_text(json.dumps(ptr, indent=2), encoding="utf-8")
+    (mirror_dir / "lead_intel_last_enriched_contact.json").write_text(
+        json.dumps(final_snap, indent=2, default=str),
+        encoding="utf-8",
+    )
 
 
 def _person_id_from_create(resp: object) -> int | None:
@@ -113,231 +301,13 @@ def _person_id_from_create(resp: object) -> int | None:
     return None
 
 
-def main() -> int:
-    session = get_session()
-    if not session.get("id_token"):
-        print("No ~/.acs-cli/session.json — run: python -m cli.acs auth login", file=sys.stderr)
-        return 2
-
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + uuid.uuid4().hex[:8]
-    out_dir = _BACKEND_ROOT / "e2e_runs" / run_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    lines: list[str] = []
-    meta: dict[str, object] = {"run_id": run_id, "started_at": datetime.now(timezone.utc).isoformat()}
-
-    def log(msg: str) -> None:
-        print(msg, flush=True)
-        lines.append(msg)
-
-    try:
-        session = _ensure_fresh_token(dict(session))
-    except NotLoggedIn as e:
-        print(str(e), file=sys.stderr)
-        return 3
-
-    uid = _uid_from_token(session["id_token"])
-    meta["uid"] = uid
-    _save(out_dir, "_meta", meta)
-
-    log(f"=== E2E lead intel run {run_id} uid={uid[:8]}… ===")
-
-    # --- Health ---
-    st, body = _req(session, "GET", "/health", json_body=None, timeout=30)
-    _save(out_dir, "01_health", {"http": st, "body": body})
-    log(f"01 health HTTP {st}")
-
-    # --- FUB status ---
-    st, body = _req(session, "GET", "/integrations/followupboss/status", timeout=30)
-    _save(out_dir, "02_fub_status", {"http": st, "body": body})
-    log(f"02 fub/status HTTP {st}")
-    if st >= 400:
-        log("ERROR: FUB not reachable — abort.")
-        _write_summary(out_dir, lines, meta)
-        return 4
-
-    # --- Read profile (guardrail restore) ---
-    st, body = _req(session, "POST", "/db/read", json_body={"path": f"Realtors/{uid}"}, timeout=30)
-    _save(out_dir, "03_profile_read_before", {"http": st, "body": body})
-    prev_guard = None
-    if st == 200 and isinstance(body, dict):
-        data = body.get("data")
-        if isinstance(data, dict) and "guardrailLevel" in data:
-            prev_guard = data.get("guardrailLevel")
-    meta["guardrailLevel_before"] = prev_guard
-    log(f"03 profile read HTTP {st} guardrailLevel_before={prev_guard!r}")
-
-    # --- Hands-on for CRM notes (restore after) ---
-    if st == 200 and isinstance(body, dict) and isinstance(body.get("data"), dict):
-        merged = {**body["data"], "guardrailLevel": 1}
-        st_g, body_g = _req(
-            session,
-            "POST",
-            "/db/upsert",
-            json_body={"path": f"Realtors/{uid}", "data": merged, "merge": True},
-            timeout=30,
-        )
-        _save(out_dir, "04_profile_hands_on", {"http": st_g, "body": body_g})
-        log(f"04 profile hands-on HTTP {st_g}")
-
-    # --- Refresh FUB OAuth (fixes expired-access-token on people/*) ---
-    st_fr, body_fr = _req(session, "POST", "/integrations/followupboss/refresh", json_body={}, timeout=60)
-    _save(out_dir, "04b_fub_oauth_refresh", {"http": st_fr, "body": body_fr})
-    log(f"04b fub/oauth refresh HTTP {st_fr}")
-
-    # --- Create person in FUB (webhook: peopleCreated → enrichment + scoring) ---
-    ts = uuid.uuid4().hex[:10]
-    email = f"acs.leadintel.{ts}@example.com"
-    create_body = {
-        "firstName": "ACS",
-        "lastName": f"LeadIntel-{ts}",
-        "emails": [{"value": email}],
-        "tags": ["acs-e2e", "lead-intel-probe"],
-        "stage": "New Lead",
-        "source": "Other",
-    }
-    st, body = _req(
-        session,
-        "POST",
-        "/integrations/followupboss/people/create",
-        json_body=create_body,
-        timeout=60,
-    )
-    _save(out_dir, "05_people_create", {"http": st, "request": create_body, "body": body})
-    log(f"05 people/create HTTP {st}")
-    pid = _person_id_from_create(body if isinstance(body, dict) else {})
-    if not pid:
-        log("ERROR: could not parse person id from create response")
-        meta["person_id"] = None
-        _write_summary(out_dir, lines, meta)
-        return 5
-    meta["person_id"] = pid
-    meta["probe_email"] = email
-    log(f"    person_id={pid} email={email}")
-
-    ic_path = f"Realtors/{uid}/InternalClients/{internal_client_doc_id(provider='followupboss', external_person_id=str(pid))}"
-    lead_path = f"Realtors/{uid}/Leads/{canonical_lead_doc_id(pid)}"
-    meta["internal_clients_path"] = ic_path
-    meta["leads_path"] = lead_path
-
-    def snapshot_intel(step: str, wait_label: str) -> None:
-        time.sleep(2)
-        st_i, b_i = _req(session, "POST", "/db/read", json_body={"path": ic_path}, timeout=30)
-        st_l, b_l = _req(session, "POST", "/db/read", json_body={"path": lead_path}, timeout=30)
-        _save(out_dir, step + "_internal_clients", {"http": st_i, "body": b_i, "after": wait_label})
-        _save(out_dir, step + "_leads", {"http": st_l, "body": b_l, "after": wait_label})
-        log(f"{step} db/read internal HTTP {st_i} leads HTTP {st_l}")
-
-    # --- Wait for FUB webhooks ---
-    wait1 = 35
-    log(f"06 sleeping {wait1}s for peopleCreated webhooks…")
-    time.sleep(wait1)
-    snapshot_intel("07", f"{wait1}s after create")
-
-    # --- Tag change (webhook; may not change acsIntel — not a default delta field) ---
-    st, body = _req(
-        session,
-        "POST",
-        "/integrations/followupboss/people/tags/add",
-        json_body={"personId": pid, "tags": [f"acs-e2e-{ts[:6]}"]},
-        timeout=60,
-    )
-    _save(out_dir, "08_tags_add", {"http": st, "body": body})
-    log(f"08 tags/add HTTP {st}")
-    wait2 = 25
-    log(f"09 sleeping {wait2}s after tags…")
-    time.sleep(wait2)
-    snapshot_intel("10", f"{wait2}s after tags")
-
-    # --- Material field change (peopleUpdated → intel_delta + scoring) ---
-    st, body = _req(
-        session,
-        "POST",
-        "/integrations/followupboss/people/get",
-        json_body={"personId": pid},
-        timeout=45,
-    )
-    prev_last = ""
-    if st == 200 and isinstance(body, dict):
-        prev_last = str(body.get("lastName") or "")
-    new_last = (prev_last or "LeadIntel") + "-delta" + uuid.uuid4().hex[:4]
-    st_u, body_u = _req(
-        session,
-        "POST",
-        "/integrations/followupboss/people/update",
-        json_body={"personId": pid, "lastName": new_last},
-        timeout=60,
-    )
-    _save(out_dir, "11_people_update_lastname", {"http": st_u, "request": {"lastName": new_last}, "body": body_u})
-    log(f"11 people/update lastName HTTP {st_u} -> {new_last!r}")
-    wait3 = 35
-    log(f"12 sleeping {wait3}s after lastName update…")
-    time.sleep(wait3)
-    snapshot_intel("13", f"{wait3}s after lastName")
-
-    # --- Synchronous webhook_test (workflow_debug, no duplicate eventId) ---
-    ev = "peopleUpdated"
-    wh_body = fub_webhook_minimal_body(
-        event=normalize_fub_webhook_event(ev),
-        person_id=pid,
-        event_id=f"e2e-manual-{uuid.uuid4().hex[:12]}",
-    )
-    st, body = _req(
-        session,
-        "POST",
-        "/integrations/followupboss/webhook_test",
-        json_body=wh_body,
-        timeout=180,
-    )
-    _save(out_dir, "14_webhook_test_people_updated", {"http": st, "request": wh_body, "body": body})
-    log(f"14 webhook_test peopleUpdated HTTP {st}")
-    snapshot_intel("15", "after webhook_test")
-
-    meta["finished_at"] = datetime.now(timezone.utc).isoformat()
-    meta["person_id"] = pid
-    _save(out_dir, "_meta", meta)
-
-    # --- Isolate intel_delta core error (workflow_debug shows last workflow only in multi-run) ---
-    wh_diag = fub_webhook_minimal_body(
-        event="peopleUpdated",
-        person_id=int(pid),
-        event_id=f"e2e-diag-intel-{uuid.uuid4().hex[:12]}",
-    )
-    st_d, body_d = _req(
-        session,
-        "POST",
-        "/integrations/followupboss/webhook_test?workflowId=contact.intel_delta_v1",
-        json_body=wh_diag,
-        timeout=180,
-    )
-    _save(out_dir, "16_webhook_test_intel_delta_only", {"http": st_d, "request": wh_diag, "body": body_d})
-    log(f"16 webhook_test intel_delta only HTTP {st_d}")
-
-    # --- Quick analysis hints ---
-    hints = _analyze_artifacts(out_dir)
-    _save(out_dir, "_analysis_hints", hints)
-    log("--- analysis hints ---")
-    for k, v in hints.items():
-        log(f"  {k}: {v}")
-
-    # --- Restore guardrail ---
-    if prev_guard is not None:
-        st_r, body_r = _req(session, "POST", "/db/read", json_body={"path": f"Realtors/{uid}"}, timeout=30)
-        if st_r == 200 and isinstance(body_r, dict) and isinstance(body_r.get("data"), dict):
-            merged_r = {**body_r["data"], "guardrailLevel": prev_guard}
-            st_u2, body_u2 = _req(
-                session,
-                "POST",
-                "/db/upsert",
-                json_body={"path": f"Realtors/{uid}", "data": merged_r, "merge": True},
-                timeout=30,
-            )
-            _save(out_dir, "17_profile_restore", {"http": st_u2, "body": body_u2})
-            log(f"17 profile restore guardrailLevel={prev_guard} HTTP {st_u2}")
-
-    _write_summary(out_dir, lines, meta)
-    log(f"Done. Artifacts: {out_dir}")
-    return 0
+def _analyze_dispatch(out_dir: Path, fname: str) -> dict[str, Any] | None:
+    p = out_dir / fname
+    if not p.exists():
+        return None
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    body = raw.get("body") if isinstance(raw.get("body"), dict) else {}
+    return body.get("webhook_dispatch") if isinstance(body.get("webhook_dispatch"), list) else None
 
 
 def _analyze_artifacts(out_dir: Path) -> dict[str, object]:
@@ -352,7 +322,7 @@ def _analyze_artifacts(out_dir: Path) -> dict[str, object]:
         det = str(core16.get("detail") or "")
         hints["intel_delta_only_core_http"] = wd16.get("core_http_status")
         if "NameError" in det:
-            hints["intel_delta_failure_class"] = "NameError (fixed in repo: pipeline._pipeline_meta lazy param)"
+            hints["intel_delta_failure_class"] = "NameError"
         elif det:
             hints["intel_delta_traceback_tail"] = det[-500:]
 
@@ -395,8 +365,10 @@ def _analyze_artifacts(out_dir: Path) -> dict[str, object]:
     return hints
 
 
-def _write_summary(out_dir: Path, lines: list[str], meta: dict[str, object]) -> None:
+def _write_summary(out_dir: Path, lines: list[str], meta: dict[str, Any], quality: dict[str, Any]) -> None:
     p = out_dir / "SUMMARY.md"
+    qj = out_dir / "QUALITY_GATES.json"
+    qj.write_text(json.dumps(quality, indent=2, default=str), encoding="utf-8")
     with p.open("w", encoding="utf-8") as f:
         f.write("# Lead intelligence E2E run\n\n")
         f.write(f"- run_id: `{meta.get('run_id')}`\n")
@@ -405,11 +377,282 @@ def _write_summary(out_dir: Path, lines: list[str], meta: dict[str, object]) -> 
         f.write(f"- probe_email: `{meta.get('probe_email')}`\n")
         f.write(f"- internal_clients: `{meta.get('internal_clients_path')}`\n")
         f.write(f"- leads: `{meta.get('leads_path')}`\n")
-        f.write(f"- guardrailLevel_before: `{meta.get('guardrailLevel_before')}`\n\n")
-        f.write("## Log\n\n```\n")
+        f.write(f"- guardrailLevel_before: `{meta.get('guardrailLevel_before')}`\n")
+        f.write(f"- local_mirror: `{out_dir / 'local_mirror'}`\n")
+        f.write(f"- workspace_copy: `{_BACKEND_ROOT / 'local_test_mirror'}`\n\n")
+        f.write("## Quality gates\n\n```json\n")
+        f.write(json.dumps(quality, indent=2, default=str))
+        f.write("\n```\n\n## Log\n\n```\n")
         f.write("\n".join(lines))
         f.write("\n```\n")
 
 
+def run(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Lead intelligence E2E + quality harness")
+    ap.add_argument("--stress", action="store_true", help="Longer polls + extra webhook_test burst (core load)")
+    ap.add_argument(
+        "--business-email",
+        default="",
+        help="Override probe email (else ACS_E2E_BUSINESS_EMAIL env, else acs.leadintel.{id}@example.com)",
+    )
+    ap.add_argument("--poll-intel-seconds", type=float, default=120.0, help="Max wait for InternalClients acsIntel")
+    ap.add_argument("--preserve-guardrail", action="store_true", help="Do not force hands-on / restore profile")
+    ap.add_argument(
+        "--quality-warnings-only",
+        action="store_true",
+        help="Do not exit non-zero on quality failures (still exit on HTTP / dispatch errors)",
+    )
+    args = ap.parse_args(argv)
+
+    session = get_session()
+    if not session.get("id_token"):
+        print("No ~/.acs-cli/session.json — run: python -m cli.acs auth login", file=sys.stderr)
+        return 2
+
+    lines: list[str] = []
+
+    def log(msg: str) -> None:
+        print(msg, flush=True)
+        lines.append(msg)
+
+    try:
+        session = _ensure_fresh_token(dict(session))
+    except NotLoggedIn as e:
+        print(str(e), file=sys.stderr)
+        return 2
+
+    uid = _uid_from_token(session["id_token"])
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + uuid.uuid4().hex[:8]
+    out_dir = _BACKEND_ROOT / "e2e_runs" / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    meta: dict[str, Any] = {"run_id": run_id, "started_at": datetime.now(timezone.utc).isoformat(), "uid": uid}
+    _save(out_dir, "_meta", meta)
+
+    poll_deadline = max(60.0, float(args.poll_intel_seconds))
+    if args.stress:
+        poll_deadline = max(poll_deadline, 180.0)
+
+    log(f"=== E2E lead intel run {run_id} uid={uid[:8]}… === stress={args.stress} poll={poll_deadline}s ===")
+
+    st, body = _req(session, "GET", "/health", json_body=None, timeout=30)
+    _save(out_dir, "01_health", {"http": st, "body": body})
+    log(f"01 health HTTP {st}")
+
+    st, body = _req(session, "GET", "/integrations/followupboss/status", timeout=30)
+    _save(out_dir, "02_fub_status", {"http": st, "body": body})
+    log(f"02 fub/status HTTP {st}")
+    if st >= 400:
+        return 3
+
+    st, body = _req(session, "POST", "/db/read", json_body={"path": f"Realtors/{uid}"}, timeout=30)
+    _save(out_dir, "03_profile_read_before", {"http": st, "body": body})
+    prev_guard = None
+    if st == 200 and isinstance(body, dict):
+        data = body.get("data")
+        if isinstance(data, dict) and "guardrailLevel" in data:
+            prev_guard = data.get("guardrailLevel")
+    meta["guardrailLevel_before"] = prev_guard
+    log(f"03 profile read HTTP {st} guardrailLevel_before={prev_guard!r}")
+
+    hands_on_effective = False
+    if not args.preserve_guardrail and st == 200 and isinstance(body, dict) and isinstance(body.get("data"), dict):
+        merged = {**body["data"], "guardrailLevel": 1}
+        st_g, body_g = _req(
+            session,
+            "POST",
+            "/db/upsert",
+            json_body={"path": f"Realtors/{uid}", "data": merged, "merge": True},
+            timeout=30,
+        )
+        _save(out_dir, "04_profile_hands_on", {"http": st_g, "body": body_g})
+        log(f"04 profile hands-on HTTP {st_g}")
+        hands_on_effective = st_g < 400
+    elif args.preserve_guardrail:
+        log("04 profile hands-on SKIPPED (--preserve-guardrail)")
+        hands_on_effective = prev_guard == 1
+
+    st_fr, body_fr = _req(session, "POST", "/integrations/followupboss/refresh", json_body={}, timeout=60)
+    _save(out_dir, "04b_fub_oauth_refresh", {"http": st_fr, "body": body_fr})
+    log(f"04b fub/oauth refresh HTTP {st_fr}")
+
+    ts = uuid.uuid4().hex[:10]
+    env_email = (os.environ.get("ACS_E2E_BUSINESS_EMAIL") or "").strip()
+    email = (args.business_email or env_email or f"acs.leadintel.{ts}@example.com").strip()
+    create_body: dict[str, Any] = {
+        "firstName": "ACS",
+        "lastName": f"LeadIntel-{ts}",
+        "emails": [{"value": email}],
+        "tags": ["acs-e2e", "lead-intel-probe"],
+        "stage": "New Lead",
+        "source": "Other",
+    }
+    if args.stress:
+        create_body["phones"] = [{"value": f"+1555{ts[-7:]}"}]
+
+    st, body = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/people/create",
+        json_body=create_body,
+        timeout=60,
+    )
+    _save(out_dir, "05_people_create", {"http": st, "request": create_body, "body": body})
+    log(f"05 people/create HTTP {st}")
+    pid = _person_id_from_create(body if isinstance(body, dict) else {})
+    if not pid:
+        log("ERROR: could not parse person id from create response")
+        _write_summary(out_dir, lines, meta, {"passed": False, "failures": ["person_id parse"], "warnings": []})
+        return 3
+
+    meta["person_id"] = pid
+    meta["probe_email"] = email
+    ic_path = f"Realtors/{uid}/InternalClients/{internal_client_doc_id(provider='followupboss', external_person_id=str(pid))}"
+    lead_path = f"Realtors/{uid}/Leads/{canonical_lead_doc_id(pid)}"
+    meta["internal_clients_path"] = ic_path
+    meta["leads_path"] = lead_path
+    log(f"    person_id={pid} email={email}")
+
+    def snap(label: str, suffix: str) -> None:
+        snap_body = fetch_enriched_snapshot(session, uid, pid, ic_path, lead_path)
+        _save(out_dir, f"snapshots_{suffix}_enriched", snap_body)
+        log(f"    snapshot {suffix} notes={len(snap_body.get('followupboss_notes') or [])}")
+
+    def snapshot_db_only(step: str, wait_label: str) -> None:
+        time.sleep(2)
+        st_i, b_i = _req(session, "POST", "/db/read", json_body={"path": ic_path}, timeout=30)
+        st_l, b_l = _req(session, "POST", "/db/read", json_body={"path": lead_path}, timeout=30)
+        _save(out_dir, f"{step}_internal_clients", {"http": st_i, "body": b_i, "after": wait_label})
+        _save(out_dir, f"{step}_leads", {"http": st_l, "body": b_l, "after": wait_label})
+        log(f"{step} db/read internal HTTP {st_i} leads HTTP {st_l}")
+
+    wait1 = 50.0 if args.stress else 35.0
+    log(f"06 polling intel up to {poll_deadline}s after create (min sleep {wait1}s)…")
+    time.sleep(min(15.0, wait1))
+    st_pi, _ = poll_until_intel_doc(session, ic_path, deadline_s=poll_deadline, poll_s=3.0, log=log)
+    if st_pi != 200:
+        time.sleep(max(0.0, wait1 - 15.0))
+        st_pi, _ = poll_until_intel_doc(session, ic_path, deadline_s=min(45.0, poll_deadline), poll_s=3.0, log=log)
+    snapshot_db_only("07", "after create / poll")
+    snap("after_create", "07")
+
+    st, body = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/people/tags/add",
+        json_body={"personId": pid, "tags": [f"acs-e2e-{ts[:6]}"]},
+        timeout=60,
+    )
+    _save(out_dir, "08_tags_add", {"http": st, "body": body})
+    log(f"08 tags/add HTTP {st}")
+    wait2 = 35.0 if args.stress else 25.0
+    log(f"09 sleeping {wait2}s after tags…")
+    time.sleep(wait2)
+    snapshot_db_only("10", f"{wait2}s after tags")
+    snap("after_tags", "10")
+
+    st, body = _req(session, "POST", "/integrations/followupboss/people/get", json_body={"personId": pid}, timeout=45)
+    prev_last = ""
+    if st == 200 and isinstance(body, dict):
+        prev_last = str(body.get("lastName") or "")
+    new_last = (prev_last or "LeadIntel") + "-delta" + uuid.uuid4().hex[:4]
+    st_u, body_u = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/people/update",
+        json_body={"personId": pid, "lastName": new_last},
+        timeout=60,
+    )
+    _save(out_dir, "11_people_update_lastname", {"http": st_u, "request": {"lastName": new_last}, "body": body_u})
+    log(f"11 people/update lastName HTTP {st_u} -> {new_last!r}")
+    wait3 = 45.0 if args.stress else 35.0
+    log(f"12 sleeping {wait3}s after lastName update…")
+    time.sleep(wait3)
+    snapshot_db_only("13", f"{wait3}s after lastName")
+    snap("after_lastname", "13")
+
+    wh_body = fub_webhook_minimal_body(
+        event=normalize_fub_webhook_event("peopleUpdated"),
+        person_id=pid,
+        event_id=f"e2e-manual-{uuid.uuid4().hex[:12]}",
+    )
+    st, body = _req(session, "POST", "/integrations/followupboss/webhook_test", json_body=wh_body, timeout=180)
+    _save(out_dir, "14_webhook_test_people_updated", {"http": st, "request": wh_body, "body": body})
+    log(f"14 webhook_test peopleUpdated HTTP {st}")
+    if st >= 400:
+        return 5
+    disp = _analyze_dispatch(out_dir, "14_webhook_test_people_updated.json")
+    if disp and any(isinstance(x, dict) and int(x.get("core_http_status") or 500) >= 400 for x in disp):
+        log(f"ERROR: webhook_dispatch failure {disp}")
+        return 5
+
+    snapshot_db_only("15", "after webhook_test")
+    snap("after_webhook_test", "15")
+
+    if args.stress:
+        stress_webhook_burst(session, pid, out_dir, log, iterations=4)
+
+    meta["finished_at"] = datetime.now(timezone.utc).isoformat()
+    _save(out_dir, "_meta", meta)
+
+    wh_diag = fub_webhook_minimal_body(
+        event="peopleUpdated",
+        person_id=int(pid),
+        event_id=f"e2e-diag-intel-{uuid.uuid4().hex[:12]}",
+    )
+    st_d, body_d = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/webhook_test?workflowId=contact.intel_delta_v1",
+        json_body=wh_diag,
+        timeout=180,
+    )
+    _save(out_dir, "16_webhook_test_intel_delta_only", {"http": st_d, "request": wh_diag, "body": body_d})
+    log(f"16 webhook_test intel_delta only HTTP {st_d}")
+    if st_d >= 400:
+        return 5
+
+    final_snap = fetch_enriched_snapshot(session, uid, pid, ic_path, lead_path)
+    _write_local_mirror(_BACKEND_ROOT, out_dir, final_snap, meta)
+    _save(out_dir, "18_final_enriched_snapshot", final_snap)
+
+    hints = _analyze_artifacts(out_dir)
+    _save(out_dir, "_analysis_hints", hints)
+    log("--- analysis hints ---")
+    for k, v in hints.items():
+        log(f"  {k}: {v}")
+
+    quality = evaluate_quality(final_snap, hands_on_effective=hands_on_effective, stress=args.stress)
+    quality["hints"] = hints
+    log("--- quality gates ---")
+    log(json.dumps(quality, indent=2, default=str))
+
+    if not args.preserve_guardrail and prev_guard is not None:
+        st_r, body_r = _req(session, "POST", "/db/read", json_body={"path": f"Realtors/{uid}"}, timeout=30)
+        if st_r == 200 and isinstance(body_r, dict) and isinstance(body_r.get("data"), dict):
+            merged_r = {**body_r["data"], "guardrailLevel": prev_guard}
+            st_u2, body_u2 = _req(
+                session,
+                "POST",
+                "/db/upsert",
+                json_body={"path": f"Realtors/{uid}", "data": merged_r, "merge": True},
+                timeout=30,
+            )
+            _save(out_dir, "17_profile_restore", {"http": st_u2, "body": body_u2})
+            log(f"17 profile restore guardrailLevel={prev_guard} HTTP {st_u2}")
+
+    _write_summary(out_dir, lines, meta, quality)
+
+    if not quality.get("passed"):
+        if args.quality_warnings_only:
+            log("WARN: quality failures (warnings-only mode — exit 0)")
+            log(f"Done. Artifacts: {out_dir}")
+            return 0
+        log(f"QUALITY FAIL: {quality.get('failures')}")
+        return 4
+
+    log(f"Done. Artifacts: {out_dir}")
+    return 0
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run())

@@ -756,6 +756,26 @@ def fub_notes_create(ctx: click.Context, person_id: int, note_body: str) -> None
     _out(status, resp, raw=ctx.obj["raw"])
 
 
+@fub_notes.command("list")
+@click.option("--id", "person_id", required=True, type=int, help="FUB person ID.")
+@click.option("--limit", default=100, show_default=True, type=int, help="Max notes (1–100).")
+@click.option("--offset", default=0, show_default=True, type=int, help="Pagination offset.")
+@click.pass_context
+def fub_notes_list(ctx: click.Context, person_id: int, limit: int, offset: int) -> None:
+    """List notes for a FUB person (newest batch via FUB /notes API)."""
+    try:
+        status, resp = request(
+            "POST",
+            "/integrations/followupboss/notes/list",
+            json={"personId": person_id, "limit": limit, "offset": offset},
+            base_url_override=ctx.obj.get("base_url"),
+            timeout=60,
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
 # ── fub tasks ────────────────────────────────────────────────────────────────
 
 @fub.group("tasks")

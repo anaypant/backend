@@ -47,6 +47,7 @@ ROUTES = {
     "/integrations/followupboss/people/tags/add":    ("followupboss", "tags_add",           {"POST"}),
     "/integrations/followupboss/people/tags/remove": ("followupboss", "tags_remove",        {"POST"}),
     "/integrations/followupboss/notes/create":       ("followupboss", "notes_create",       {"POST"}),
+    "/integrations/followupboss/notes/list":         ("followupboss", "notes_list",       {"POST"}),
     "/integrations/followupboss/tasks/create":       ("followupboss", "tasks_create",       {"POST"}),
     "/integrations/followupboss/import":             ("followupboss", "trigger_import",     {"POST"}),
     "/integrations/webhooks/followupboss": ("followupboss", "webhook_ingress", {"POST"}),
