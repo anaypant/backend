@@ -9,9 +9,19 @@ from dispatcher.webhook_workflow_map import (
 
 class WebhookWorkflowMapTest(unittest.TestCase):
     def test_people_created_aliases(self):
+        want = ["contact.enrichment_v1", "lead.scoring_v1"]
         for et in ("peopleCreated", "people_created", "PeopleCreated"):
             ids = resolve_workflow_ids_for_webhook("followupboss", et, explicit_workflow_id=None, policy={})
-            self.assertEqual(ids, ["contact.enrichment_v1"], msg=et)
+            self.assertEqual(ids, want, msg=et)
+
+    def test_people_updated_runs_intel_delta_then_scoring(self):
+        for et in ("peopleUpdated", "people_updated", "PeopleUpdated"):
+            ids = resolve_workflow_ids_for_webhook("followupboss", et, explicit_workflow_id=None, policy={})
+            self.assertEqual(
+                ids,
+                ["contact.intel_delta_v1", "lead.scoring_v1"],
+                msg=et,
+            )
 
     def test_explicit_overrides_table(self):
         ids = resolve_workflow_ids_for_webhook(

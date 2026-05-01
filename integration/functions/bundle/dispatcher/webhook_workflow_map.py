@@ -13,7 +13,7 @@ from typing import Any
 _FUB_EVENT_TO_WORKFLOWS: dict[str, list[str]] = {
     # Contact lifecycle — enrichment + scoring on every create/update
     "peoplecreated": ["contact.enrichment_v1", "lead.scoring_v1"],
-    "peopleupdated": ["lead.scoring_v1"],
+    "peopleupdated": ["contact.intel_delta_v1", "lead.scoring_v1"],
     # Appointment events — generate prep document
     "appointmentcreated": ["appointment.prep_v1"],
     "appointmentupdated": ["appointment.prep_v1"],

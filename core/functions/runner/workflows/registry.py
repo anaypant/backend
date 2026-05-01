@@ -12,6 +12,7 @@ from workflows import (
     auto_reply_v1,
     ads_management_v1,
     contact_enrichment_v1,
+    contact_intel_delta_v1,
     demo_joke_to_profile,
     drip_campaign_v1,
     hot_leads_v1,
@@ -25,6 +26,7 @@ _GRAPHS: dict[str, Any] = {
     "demo.joke_to_profile_v1": demo_joke_to_profile.build_demo_joke_graph(),
     "analytical.stub_v1": analytical_stub.build_analytical_stub_graph(),
     "contact.enrichment_v1": contact_enrichment_v1.build_contact_enrichment_graph(),
+    "contact.intel_delta_v1": contact_intel_delta_v1.build_contact_intel_delta_graph(),
     "migration.import_leads_v1": import_leads_v1.build_import_leads_graph(),
     # Glyde workflows
     "appointment.prep_v1": appointment_prep_v1.build_appointment_prep_graph(),
@@ -47,6 +49,10 @@ WORKFLOW_CAPS: dict[str, dict[str, bool]] = {
         "requires_integration_maintenance": False,
     },
     "contact.enrichment_v1": {
+        "volatile_external": False,
+        "requires_integration_maintenance": False,
+    },
+    "contact.intel_delta_v1": {
         "volatile_external": False,
         "requires_integration_maintenance": False,
     },

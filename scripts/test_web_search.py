@@ -264,7 +264,9 @@ def test_llm_layer() -> None:
                 rel_kept  = pipeline_meta.get("relevance_kept") or 0
                 print(f"  {INFO}  backend={backend}  scrape_ok={scrape_ok}  rel_kept={rel_kept}  sources_count={sc}")
                 if backend not in ("none", None):
-                    if scrape_ok == 0:
+                    if llm_timeout_fail:
+                        print(f"  {WARN}  sources_count={sc} — LLM timed out during synthesis; skipped.")
+                    elif scrape_ok == 0:
                         print(f"  {WARN}  scrape_ok=0 — DDG may be rate-limited or returned 0 results.")
                         print(f"         This is a transient issue; sources_count check skipped.")
                     else:

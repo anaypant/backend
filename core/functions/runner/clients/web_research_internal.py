@@ -35,6 +35,7 @@ def research_query_to_summary(
     result_limit: int | None = None,
     seed_urls: list[str] | None = None,
     force_backend: str | None = None,
+    lazy: bool = False,
 ) -> tuple[dict[str, Any], int]:
     """
     Run a research step for ``query``.
@@ -67,6 +68,7 @@ def research_query_to_summary(
             model=model,
             seed_urls=seed_urls,
             force_backend=force_backend,
+            lazy=lazy,
         )
 
     q = query.strip() if isinstance(query, str) else ""

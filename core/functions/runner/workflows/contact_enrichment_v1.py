@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -34,6 +35,7 @@ class EnrichmentState(TypedDict, total=False):
     synthesis_updates: dict[str, Any]
     screened_updates: dict[str, Any]
     budget_mode: str            # "premium" | "standard"
+    enrichment_tier: str        # "lazy" | "full"
     token_estimate: dict[str, int]  # {"in": N, "out": N, "search_calls": N}
 
 
@@ -135,6 +137,28 @@ def _node_normalize(state: EnrichmentState) -> dict[str, Any]:
     return {"acs": acs, "normalized_contact": norm}
 
 
+def _node_classify_enrichment_tier(state: EnrichmentState) -> dict[str, Any]:
+    """Choose lazy vs full snapshot enrichment (deterministic; no extra LLM)."""
+    acs: dict = state["acs"]
+    t0 = time.perf_counter()
+    if state.get("failed") or state.get("halt_duplicate"):
+        return {"acs": acs}
+
+    norm = state.get("normalized_contact") or {}
+    rp   = state.get("realtor_profile") or {}
+    tier = usage_tracker.resolve_snapshot_tier(rp, norm)
+
+    meta = acs_state.ensure_metadata(acs)
+    ce = meta.setdefault("contactEnrichment", {})
+    if isinstance(ce, dict):
+        ce["enrichmentTier"] = tier
+
+    workflow_audit.audit_log_node(
+        acs, "classify_enrichment_tier", duration_ms=(time.perf_counter() - t0) * 1000, extra={"tier": tier}
+    )
+    return {"acs": acs, "enrichment_tier": tier}
+
+
 # Domains treated as personal email providers — too generic to help with employer lookup.
 _PERSONAL_EMAIL_DOMAINS: frozenset[str] = frozenset({
     "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
@@ -216,11 +240,18 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     if biz_domain:
         seed_urls = [f"https://{biz_domain}"]
 
+    enrichment_tier = (state.get("enrichment_tier") or "full").strip().lower()
+    lazy = enrichment_tier == "lazy"
+
     # ── Budget-aware backend selection ────────────────────────────────────────
     mode, budget_usd, spent_usd, premium_backend = usage_tracker.check_mode(
         uid, realtor_profile=realtor_prof
     )
-    force_backend = None if mode == "premium" else "duckduckgo"
+    # Lazy tier never uses paid search; standard budget mode also forces DDG.
+    if lazy or mode != "premium":
+        force_backend = "duckduckgo"
+    else:
+        force_backend = None
 
     # ── Run pipeline ──────────────────────────────────────────────────────────
     wr_limit: int | None = None
@@ -230,12 +261,16 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
             wr_limit = int(raw_lim)
         except ValueError:
             pass
+    if lazy:
+        base_lim = wr_limit if wr_limit is not None else 2
+        wr_limit = max(1, min(base_lim, 2))
 
     res, st = web_research_internal.research_query_to_summary(
         query,
         result_limit=wr_limit,
         seed_urls=seed_urls,
         force_backend=force_backend,
+        lazy=lazy,
     )
     for _ in range(max(1, int(res.get("llm_calls") or 1))):
         workflow_audit.audit_bump_llm(acs)
@@ -264,6 +299,7 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
             "budget_mode":   mode,
             "spent_usd":     round(spent_usd, 4),
             "budget_usd":    round(budget_usd, 2),
+            "enrichment_tier": enrichment_tier,
         }
 
     if st >= 400:
@@ -280,6 +316,7 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
             "http": st,
             "sources": len(res.get("sources") or []),
             "budget_mode": mode,
+            "enrichment_tier": enrichment_tier,
             "company_domain": biz_domain or None,
             "seed_injected": bool(seed_urls),
         },
@@ -615,6 +652,43 @@ def _node_duplicate_finale(state: EnrichmentState) -> dict[str, Any]:
     return {"acs": acs}
 
 
+def _node_persist_intel_snapshot(state: EnrichmentState) -> dict[str, Any]:
+    """Store last-known contact fingerprint + research summary for delta workflows."""
+    acs: dict = state["acs"]
+    if state.get("failed") or state.get("halt_duplicate"):
+        return {"acs": acs}
+
+    uid = _uid(acs)
+    norm = state.get("normalized_contact") or {}
+    research = state.get("research") or {}
+    if not uid or not isinstance(norm.get("person_id"), int) or norm["person_id"] <= 0:
+        return {"acs": acs}
+
+    doc_id = normalize_integration_payload.internal_client_doc_id(norm)
+    path = f"Realtors/{uid}/InternalClients/{doc_id}"
+    tier = (state.get("enrichment_tier") or "full").strip().lower()
+    acs_intel = {
+        "snapshot": {
+            "display_name": norm.get("display_name"),
+            "emails":       norm.get("emails"),
+            "phones":       norm.get("phones"),
+            "person_id":    norm.get("person_id"),
+        },
+        "lastWebSummary":     (research.get("summary") or "")[:4000],
+        "lastEnrichmentTier": tier,
+        "lastEnrichedAt":     datetime.now(timezone.utc).isoformat(),
+    }
+    payload = {"ownerUid": uid, "createdBy": uid, "acsIntel": acs_intel}
+    try:
+        _, pst = db_internal.upsert_merge(path, payload, acting_uid=uid, timeout=15)
+        if pst not in (200, 201):
+            _logger.warning("persist_intel_snapshot: upsert http=%s path=%s", pst, path)
+    except Exception:
+        _logger.warning("persist_intel_snapshot: failed for %s", path, exc_info=True)
+
+    return {"acs": acs}
+
+
 def _node_record_usage(state: EnrichmentState) -> dict[str, Any]:
     """
     Best-effort usage recording.  Runs after finalize so it never blocks enrichment.
@@ -637,8 +711,12 @@ def _node_record_usage(state: EnrichmentState) -> dict[str, Any]:
     be     = pipe.get("search_backend") or "duckduckgo"
 
     budget_usd, _ = usage_tracker.get_budget_config(uid, state.get("realtor_profile"))
-    cost = usage_tracker.record_enrichment(
+    etier = (state.get("enrichment_tier") or "full").strip().lower()
+    usage_tier = "lazy_snapshot" if etier == "lazy" else "full_snapshot"
+    raw_cost = usage_tracker.record_workflow_run(
         uid,
+        workflow_id="contact.enrichment_v1",
+        usage_tier=usage_tier,
         mode=mode,
         search_backend=be,
         tokens_in=int(tok.get("in") or 0),
@@ -648,7 +726,12 @@ def _node_record_usage(state: EnrichmentState) -> dict[str, Any]:
     )
 
     if isinstance(ce, dict):
-        ce["usageRecorded"] = {"cost_usd": round(cost, 6), "budget_mode": mode}
+        ce["usageRecorded"] = {
+            "raw_cost_usd": round(raw_cost, 6),
+            "budget_mode": mode,
+            "usage_tier": usage_tier,
+            "enrichment_tier": etier,
+        }
     return {"acs": acs}
 
 
@@ -681,11 +764,13 @@ def build_contact_enrichment_graph():
     g.add_node("load_contact", _node_load_contact)
     g.add_node("check_internal_client", _node_check_internal_client)
     g.add_node("normalize", _node_normalize)
+    g.add_node("classify_enrichment_tier", _node_classify_enrichment_tier)
     g.add_node("web_research", _node_web_research)
     g.add_node("synthesis", _node_synthesis)
     g.add_node("policy_screen", _node_policy_screen)
     g.add_node("map_provider", _node_map_provider)
     g.add_node("send_provider", _node_send_provider)
+    g.add_node("persist_intel_snapshot", _node_persist_intel_snapshot)
     g.add_node("record_usage", _node_record_usage)
     g.add_node("finalize", _node_finalize)
     g.add_node("duplicate_finale", _node_duplicate_finale)
@@ -698,12 +783,14 @@ def build_contact_enrichment_graph():
         _route_after_internal_check,
         {"duplicate": "duplicate_finale", "continue": "normalize"},
     )
-    g.add_edge("normalize", "web_research")
+    g.add_edge("normalize", "classify_enrichment_tier")
+    g.add_edge("classify_enrichment_tier", "web_research")
     g.add_edge("web_research", "synthesis")
     g.add_edge("synthesis", "policy_screen")
     g.add_edge("policy_screen", "map_provider")
     g.add_edge("map_provider", "send_provider")
-    g.add_edge("send_provider", "record_usage")
+    g.add_edge("send_provider", "persist_intel_snapshot")
+    g.add_edge("persist_intel_snapshot", "record_usage")
     g.add_edge("record_usage", "finalize")
     g.add_edge("duplicate_finale", END)
     g.add_edge("finalize", END)

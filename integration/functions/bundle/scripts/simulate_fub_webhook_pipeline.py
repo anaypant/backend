@@ -2,6 +2,8 @@
 """
 Simulate FUB webhook → inject fake ``fubPerson`` → build ACS state → optional POST /core/v1/run.
 
+Also see ``python -m cli.acs lead-intel guide`` (from ``backend/``) for iterative FUB + webhook_test + DB inspect.
+
 **Full workflow** (fake ``fubPerson`` from ``example_fub_person.json``, POST to real core — no FUB API):
 
   python scripts/simulate_fub_webhook_pipeline.py \\

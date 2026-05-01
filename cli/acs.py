@@ -5,12 +5,13 @@ acs — ACS Backend CLI
 An AI-agent-friendly command-line interface to authenticate against and
 exercise every deployed feature of the ACS backend.
 
-Quick start:
-  pip install -r requirements.txt
-  python acs.py auth login --base-url https://acs-public-9l1ydz27.uc.gateway.dev \\
+Quick start (from ``backend/`` directory):
+  pip install -r cli/requirements.txt
+  python -m cli.acs auth login --base-url https://acs-public-9l1ydz27.uc.gateway.dev \\
       --email you@example.com --password secret --firebase-api-key AIza...
-  python acs.py health
-  python acs.py core catalog
+  python -m cli.acs health
+  python -m cli.acs core catalog
+  python -m cli.acs lead-intel guide
 """
 from __future__ import annotations
 
@@ -25,6 +26,8 @@ import requests as _requests
 
 from . import config
 from .client import CliError, request
+from .lead_intel import register as register_lead_intel
+from .lead_intel_helpers import fub_webhook_minimal_body, normalize_fub_webhook_event
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +465,9 @@ def integration_unit_checks(ctx: click.Context) -> None:
 
 @integration.command("webhook")
 @click.option("--event", required=True,
-              help='FUB event type, e.g. "personCreated", "personUpdated", "noteCreated".')
+              help='FUB event: peopleCreated, peopleUpdated, noteCreated, … (aliases: personCreated → peopleCreated).')
+@click.option("--person-id", "person_id", default=None, type=int,
+              help="For people* events without --payload: build minimal uri/resourceIds body (default: 1).")
 @click.option("--payload", default=None,
               help="JSON event payload. Defaults to a minimal stub for the event type.")
 @click.option("--workflow-id", default=None,
@@ -471,37 +476,36 @@ def integration_unit_checks(ctx: click.Context) -> None:
 def integration_webhook(
     ctx: click.Context,
     event: str,
+    person_id: Optional[int],
     payload: Optional[str],
     workflow_id: Optional[str],
 ) -> None:
     """POST /integrations/followupboss/webhook_test — simulate a FUB webhook event."""
-    _DEFAULT_PAYLOADS: dict[str, dict] = {
-        "personCreated": {
-            "person": {
-                "id": 1,
-                "firstName": "Test",
-                "lastName": "Lead",
-                "emails": [{"value": "test@example.com"}],
-                "stage": "New Lead",
-            }
-        },
-        "personUpdated": {
-            "person": {"id": 1, "firstName": "Test", "lastName": "Lead Updated", "stage": "Active Buyer"}
-        },
-        "noteCreated": {"note": {"id": 101, "body": "Called — interested in listings.", "personId": 1}},
-        "taskCreated": {"task": {"id": 201, "name": "Follow up call", "dueDate": "2026-05-01", "personId": 1}},
-        "appointmentCreated": {
-            "appointment": {"id": 301, "title": "Property showing", "startTime": "2026-05-02T14:00:00Z", "personId": 1}
-        },
-    }
+    canon = normalize_fub_webhook_event(event)
 
     if payload:
         try:
             payload_dict = json.loads(payload)
         except json.JSONDecodeError as e:
             _err(f"--payload is not valid JSON: {e}")
+        if isinstance(payload_dict, dict) and "event" not in payload_dict:
+            payload_dict = dict(payload_dict)
+            payload_dict["event"] = canon
+    elif canon in ("peopleCreated", "peopleUpdated"):
+        pid = int(person_id) if person_id is not None else 1
+        payload_dict = fub_webhook_minimal_body(event=canon, person_id=pid)
     else:
-        payload_dict = _DEFAULT_PAYLOADS.get(event, {"event_type": event})
+        _DEFAULT_PAYLOADS: dict[str, dict] = {
+            "noteCreated": {"event": "noteCreated", "note": {"id": 101, "body": "Called — interested in listings.", "personId": 1}},
+            "taskCreated": {"event": "taskCreated", "task": {"id": 201, "name": "Follow up call", "dueDate": "2026-05-01", "personId": 1}},
+            "appointmentCreated": {
+                "event": "appointmentCreated",
+                "appointment": {"id": 301, "title": "Property showing", "startTime": "2026-05-02T14:00:00Z", "personId": 1},
+            },
+        }
+        payload_dict = _DEFAULT_PAYLOADS.get(canon)
+        if payload_dict is None:
+            payload_dict = {"event": canon, "event_type": canon}
 
     url = "/integrations/followupboss/webhook_test"
     if workflow_id:
@@ -511,9 +515,9 @@ def integration_webhook(
         status, body = request(
             "POST", url,
             json=payload_dict,
-            headers={"X-FUB-Event": event},
+            headers={"X-FUB-Event": canon},
             base_url_override=ctx.obj.get("base_url"),
-            timeout=60,
+            timeout=120,
         )
     except CliError as e:
         _err(str(e))
@@ -867,6 +871,9 @@ def whoami(ctx: click.Context) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+register_lead_intel(cli)
+
 
 if __name__ == "__main__":
     cli()

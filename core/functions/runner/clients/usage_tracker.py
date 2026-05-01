@@ -44,11 +44,26 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from clients import db_internal
 
 _logger = logging.getLogger(__name__)
+
+SnapshotTier = Literal["lazy", "full"]
+
+# Same personal-email notion as contact_enrichment_v1 (keep in sync for tier gating).
+_PERSONAL_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
+    "icloud.com", "me.com", "mac.com", "protonmail.com",
+    "proton.me", "aol.com", "msn.com", "live.com",
+    "ymail.com", "googlemail.com",
+})
+_TEST_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "example.com", "example.org", "example.net", "test.com",
+    "localhost", "acs-test.dev", "mailinator.com", "yopmail.com",
+    "example-acs-test.com", "berkshire-test.com",
+})
 
 # ── Cost model ────────────────────────────────────────────────────────────────
 
@@ -79,6 +94,54 @@ def _estimate_llm_cost(tokens_in: int, tokens_out: int) -> float:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
+def _norm_has_business_email(norm: dict[str, Any] | None) -> bool:
+    """True if normalized contact has a non-consumer email domain."""
+    if not isinstance(norm, dict):
+        return False
+    emails = norm.get("emails")
+    if not isinstance(emails, list):
+        return False
+    skip = _PERSONAL_EMAIL_DOMAINS | _TEST_EMAIL_DOMAINS
+    for e in emails:
+        if not isinstance(e, str) or "@" not in e:
+            continue
+        _, _, dom = e.strip().partition("@")
+        dom = dom.lower().strip()
+        if dom and dom not in skip:
+            return True
+    return False
+
+
+def resolve_snapshot_tier(
+    realtor_profile: dict[str, Any] | None,
+    normalized_contact: dict[str, Any] | None,
+) -> SnapshotTier:
+    """
+    Decide lazy vs full enrichment for ``peopleCreated``.
+
+    Config on ``Realtors/{uid}.enrichmentConfig``:
+
+    - ``lazyDefaultOnCreate`` (bool, default True) — when True, new contacts use the
+      cheaper lazy path unless a full trigger matches.
+    - ``fullOnBusinessEmail`` (bool, default True) — business (non-consumer) email → full.
+
+    When ``lazyDefaultOnCreate`` is False, always ``full`` (legacy behaviour).
+    """
+    cfg: dict[str, Any] = {}
+    if isinstance(realtor_profile, dict):
+        raw = realtor_profile.get("enrichmentConfig")
+        if isinstance(raw, dict):
+            cfg = raw
+
+    if cfg.get("lazyDefaultOnCreate") is False:
+        return "full"
+
+    if cfg.get("fullOnBusinessEmail", True) and _norm_has_business_email(normalized_contact):
+        return "full"
+
+    return "lazy"
+
 
 def get_budget_config(uid: str, realtor_profile: dict[str, Any] | None = None) -> tuple[float, str]:
     """
@@ -146,6 +209,102 @@ def check_mode(
     return mode, budget_usd, spent_usd, premium_backend
 
 
+def _cost_weight_for_tier(usage_tier: str) -> float:
+    if usage_tier == "lazy_snapshot":
+        return 0.25
+    if usage_tier == "intel_delta":
+        return 0.20
+    return 1.0
+
+
+def record_workflow_run(
+    uid: str,
+    *,
+    workflow_id: str,
+    usage_tier: str,
+    mode: str,
+    search_backend: str,
+    tokens_in: int,
+    tokens_out: int,
+    search_calls: int,
+    budget_usd: float,
+    cost_weight: float | None = None,
+) -> float:
+    """
+    Record one workflow run against the monthly budget.
+
+    ``usage_tier``: ``lazy_snapshot`` | ``full_snapshot`` | ``intel_delta``
+
+    ``cost_weight`` scales how much of the estimated USD counts toward ``spentUsd``
+    (defaults from tier: lazy 0.25×, delta 0.20×, full 1.0×).
+
+    Returns raw (unweighted) estimated USD for this run's LLM + search components.
+    """
+    month = _current_month()
+    path  = f"Realtors/{uid}/BillingUsage/{month}"
+
+    w = cost_weight if cost_weight is not None else _cost_weight_for_tier(usage_tier)
+
+    llm_cost    = _estimate_llm_cost(tokens_in, tokens_out)
+    search_cost = _estimate_search_cost(search_backend, search_calls)
+    raw_total   = llm_cost + search_cost
+    weighted    = raw_total * w
+
+    current: dict[str, Any] = {}
+    try:
+        body, st = db_internal.read_document(path, acting_uid=uid)
+        if st == 200 and isinstance(body.get("data"), dict):
+            current = body["data"]
+    except Exception:
+        pass
+
+    is_premium = mode == "premium"
+    wf_counts = dict(current.get("workflowRunCounts") or {})
+    wf_counts[workflow_id] = int(wf_counts.get(workflow_id) or 0) + 1
+
+    lazy_n   = int(current.get("lazySnapshotRuns") or 0)
+    full_n   = int(current.get("fullSnapshotRuns") or 0)
+    delta_n  = int(current.get("intelDeltaRuns") or 0)
+    if usage_tier == "lazy_snapshot":
+        lazy_n += 1
+    elif usage_tier == "intel_delta":
+        delta_n += 1
+    else:
+        full_n += 1
+
+    updated: dict[str, Any] = {
+        "ownerUid":                    uid,
+        "month":                       month,
+        "budgetUsd":                   budget_usd,
+        "spentUsd":                    round(float(current.get("spentUsd") or 0) + weighted, 6),
+        "enrichmentsTotal":            int(current.get("enrichmentsTotal") or 0) + 1,
+        "enrichmentsPremium":          int(current.get("enrichmentsPremium") or 0) + (1 if is_premium else 0),
+        "enrichmentsStandard":         int(current.get("enrichmentsStandard") or 0) + (0 if is_premium else 1),
+        "llmTokensInEstimated":        int(current.get("llmTokensInEstimated") or 0) + tokens_in,
+        "llmTokensOutEstimated":       int(current.get("llmTokensOutEstimated") or 0) + tokens_out,
+        "llmCostUsd":                  round(float(current.get("llmCostUsd") or 0) + llm_cost * w, 6),
+        "searchApiCalls":              int(current.get("searchApiCalls") or 0) + search_calls,
+        "searchCostUsd":               round(float(current.get("searchCostUsd") or 0) + search_cost * w, 6),
+        "lastWorkflowId":             workflow_id,
+        "lastUsageTier":              usage_tier,
+        "lastUpdatedSearch":           search_backend,
+        "lastUpdated":                 datetime.now(timezone.utc).isoformat(),
+        "workflowRunCounts":          wf_counts,
+        "lazySnapshotRuns":           lazy_n,
+        "fullSnapshotRuns":           full_n,
+        "intelDeltaRuns":             delta_n,
+    }
+
+    try:
+        _, st = db_internal.upsert_merge(path, updated, acting_uid=uid, timeout=10)
+        if st not in (200, 201):
+            _logger.warning("usage_tracker: upsert returned %s for uid=%s", st, uid)
+    except Exception:
+        _logger.warning("usage_tracker: record_workflow_run failed for uid=%s", uid, exc_info=True)
+
+    return raw_total
+
+
 def record_enrichment(
     uid: str,
     *,
@@ -156,56 +315,19 @@ def record_enrichment(
     search_calls: int,
     budget_usd: float,
 ) -> float:
-    """
-    Record one enrichment's usage.  Returns estimated_cost_usd.
-
-    Uses read-modify-write (shallow merge via db_internal).  Accepts minor
-    inaccuracy from concurrent writes; amounts involved are too small to matter.
-    Never raises.
-    """
-    month = _current_month()
-    path  = f"Realtors/{uid}/BillingUsage/{month}"
-
-    llm_cost    = _estimate_llm_cost(tokens_in, tokens_out)
-    search_cost = _estimate_search_cost(search_backend, search_calls)
-    total_cost  = llm_cost + search_cost
-
-    # Read current aggregate
-    current: dict[str, Any] = {}
-    try:
-        body, st = db_internal.read_document(path, acting_uid=uid)
-        if st == 200 and isinstance(body.get("data"), dict):
-            current = body["data"]
-    except Exception:
-        pass
-
-    # Accumulate
-    is_premium = mode == "premium"
-    updated: dict[str, Any] = {
-        "ownerUid":                    uid,
-        "month":                       month,
-        "budgetUsd":                   budget_usd,
-        "spentUsd":                    round(float(current.get("spentUsd") or 0) + total_cost, 6),
-        "enrichmentsTotal":            int(current.get("enrichmentsTotal") or 0) + 1,
-        "enrichmentsPremium":          int(current.get("enrichmentsPremium") or 0) + (1 if is_premium else 0),
-        "enrichmentsStandard":         int(current.get("enrichmentsStandard") or 0) + (0 if is_premium else 1),
-        "llmTokensInEstimated":        int(current.get("llmTokensInEstimated") or 0) + tokens_in,
-        "llmTokensOutEstimated":       int(current.get("llmTokensOutEstimated") or 0) + tokens_out,
-        "llmCostUsd":                  round(float(current.get("llmCostUsd") or 0) + llm_cost, 6),
-        "searchApiCalls":              int(current.get("searchApiCalls") or 0) + search_calls,
-        "searchCostUsd":               round(float(current.get("searchCostUsd") or 0) + search_cost, 6),
-        "lastUpdatedSearch":           search_backend,
-        "lastUpdated":                 datetime.now(timezone.utc).isoformat(),
-    }
-
-    try:
-        _, st = db_internal.upsert_merge(path, updated, acting_uid=uid, timeout=10)
-        if st not in (200, 201):
-            _logger.warning("usage_tracker: upsert returned %s for uid=%s", st, uid)
-    except Exception:
-        _logger.warning("usage_tracker: record_enrichment failed for uid=%s", uid, exc_info=True)
-
-    return total_cost
+    """Deprecated: use ``record_workflow_run``. Kept for backward compatibility."""
+    return record_workflow_run(
+        uid,
+        workflow_id="contact.enrichment_v1",
+        usage_tier="full_snapshot",
+        mode=mode,
+        search_backend=search_backend,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        search_calls=search_calls,
+        budget_usd=budget_usd,
+        cost_weight=1.0,
+    )
 
 
 def usage_summary(uid: str, realtor_profile: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -231,6 +353,10 @@ def usage_summary(uid: str, realtor_profile: dict[str, Any] | None = None) -> di
         "enrichments_total":         int(usage.get("enrichmentsTotal") or 0),
         "enrichments_premium":       int(usage.get("enrichmentsPremium") or 0),
         "enrichments_standard":      int(usage.get("enrichmentsStandard") or 0),
+        "lazy_snapshot_runs":      int(usage.get("lazySnapshotRuns") or 0),
+        "full_snapshot_runs":      int(usage.get("fullSnapshotRuns") or 0),
+        "intel_delta_runs":        int(usage.get("intelDeltaRuns") or 0),
+        "workflow_run_counts":     dict(usage.get("workflowRunCounts") or {}),
         "llm_tokens_in_estimated":   int(usage.get("llmTokensInEstimated") or 0),
         "llm_tokens_out_estimated":  int(usage.get("llmTokensOutEstimated") or 0),
         "breakdown": {

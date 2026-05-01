@@ -14,7 +14,7 @@ from langgraph.graph import END, StateGraph
 
 from clients import db_internal, llm_internal
 from state import acs_state
-from workflows import workflow_audit
+from workflows import normalize_integration_payload, workflow_audit
 from workflows.migrations.schemas.lead_internal_v1 import canonical_lead_id as _make_canonical_lead_id
 
 _logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ class LeadScoringState(TypedDict, total=False):
     realtor_profile: dict[str, Any]
     glyde_settings: dict[str, Any]
     lead: dict[str, Any]
+    acs_intel: dict[str, Any] | None
     canonical_lead_id: str
     deterministic_score: int
     llm_score: int
@@ -130,6 +131,52 @@ def _node_load_lead(state: LeadScoringState) -> dict[str, Any]:
     return {"acs": acs, "lead": lead, "canonical_lead_id": cid}
 
 
+def _node_load_acs_intel(state: LeadScoringState) -> dict[str, Any]:
+    """Load Realtors/{{uid}}/InternalClients/* acsIntel for scoring context (enrichment + delta)."""
+    acs: dict = state["acs"]
+    t0 = time.perf_counter()
+    if state.get("failed"):
+        return {"acs": acs, "acs_intel": None}
+
+    uid = _uid(acs)
+    if not uid:
+        return {"acs": acs, "acs_intel": None}
+
+    try:
+        norm = normalize_integration_payload.normalize_contact(acs)
+    except Exception as e:
+        _logger.debug("load_acs_intel: normalize skipped: %s", e)
+        return {"acs": acs, "acs_intel": None}
+
+    doc_id = normalize_integration_payload.internal_client_doc_id(norm)
+    path = f"Realtors/{uid}/InternalClients/{doc_id}"
+    body, st = db_internal.read_document(path, acting_uid=uid)
+    workflow_audit.audit_bump_db_read(acs)
+
+    meta = acs_state.ensure_metadata(acs)
+    ls = meta.setdefault("leadScoring", {})
+    if st != 200 or not isinstance(body.get("data"), dict):
+        if isinstance(ls, dict):
+            ls["acsIntel"] = {"loaded": False, "http": st, "path": path}
+        workflow_audit.audit_log_node(acs, "load_acs_intel", duration_ms=(time.perf_counter() - t0) * 1000, extra={"http": st})
+        return {"acs": acs, "acs_intel": None}
+
+    data = body["data"]
+    ai = data.get("acsIntel") if isinstance(data.get("acsIntel"), dict) else None
+    if isinstance(ls, dict):
+        summary = str((ai or {}).get("lastWebSummary") or "")
+        ls["acsIntel"] = {
+            "loaded": bool(ai),
+            "http": st,
+            "tier": (ai or {}).get("lastEnrichmentTier"),
+            "enriched_at": (ai or {}).get("lastEnrichedAt"),
+            "summary_len": len(summary),
+        }
+
+    workflow_audit.audit_log_node(acs, "load_acs_intel", duration_ms=(time.perf_counter() - t0) * 1000, extra={"http": st, "has_intel": bool(ai)})
+    return {"acs": acs, "acs_intel": ai}
+
+
 def _days_since(date_str: str | None) -> int | None:
     if not date_str:
         return None
@@ -208,6 +255,12 @@ def _node_compute_deterministic_score(state: LeadScoringState) -> dict[str, Any]
         score += 4
         reasons.append("organic_source+4")
 
+    intel = state.get("acs_intel") or {}
+    summary = str(intel.get("lastWebSummary") or "").strip()
+    if len(summary) > 200:
+        score = min(60, score + 3)
+        reasons.append("acs_intel_summary+3")
+
     score = max(0, min(60, score))
 
     meta = acs_state.ensure_metadata(acs)
@@ -238,6 +291,11 @@ def _node_llm_qualitative_score(state: LeadScoringState) -> dict[str, Any]:
                     "tags", "notes", "source", "sourceLabel", "lastContacted", "lastActivityAt",
                     "price", "background", "properties", "status")
     signal_count = sum(1 for k in _SIGNAL_KEYS if lead.get(k))
+    intel = state.get("acs_intel") or {}
+    intel_summary = str(intel.get("lastWebSummary") or "").strip()
+    if len(intel_summary) > 120:
+        signal_count += 2
+
     if signal_count < 2:
         meta = acs_state.ensure_metadata(acs)
         meta.setdefault("leadScoring", {})
@@ -258,16 +316,28 @@ def _node_llm_qualitative_score(state: LeadScoringState) -> dict[str, Any]:
         "properties", "background", "status", "price", "timeframe",
         "givenName", "familyName",
     )
+    ai = state.get("acs_intel") or {}
+    acs_intel_context = None
+    if isinstance(ai, dict) and ai:
+        acs_intel_context = {
+            "last_web_summary": str(ai.get("lastWebSummary") or "")[:3000],
+            "tier": ai.get("lastEnrichmentTier"),
+            "as_of": ai.get("lastEnrichedAt"),
+        }
+
     messages = [
         {
             "role": "user",
             "content": json.dumps(
                 {
                     "lead": {k: lead[k] for k in _LLM_KEYS if k in lead},
+                    "acs_intel_context": acs_intel_context,
                     "instruction": (
                         "Score this real estate lead on a scale of 0-40 based on conversion likelihood. "
                         "Consider: engagement signals (recency, response time), notes content, "
                         "stated budget and requirements, property interests, background, stage, source. "
+                        "When acs_intel_context is present, treat last_web_summary as supplementary "
+                        "open-web / ACS research context (not the lead's own words); weigh it lightly and note uncertainty. "
                         "Return JSON only: "
                         "{\"score\": <int 0-40>, \"rationale\": <string under 500 chars, be specific and actionable>}"
                     ),
@@ -427,6 +497,7 @@ def build_lead_scoring_graph():
     g = StateGraph(LeadScoringState)
     g.add_node("load_realtor_profile", _node_load_realtor_profile)
     g.add_node("load_lead", _node_load_lead)
+    g.add_node("load_acs_intel", _node_load_acs_intel)
     g.add_node("compute_deterministic_score", _node_compute_deterministic_score)
     g.add_node("llm_qualitative_score", _node_llm_qualitative_score)
     g.add_node("merge_scores", _node_merge_scores)
@@ -436,7 +507,8 @@ def build_lead_scoring_graph():
 
     g.set_entry_point("load_realtor_profile")
     g.add_edge("load_realtor_profile", "load_lead")
-    g.add_edge("load_lead", "compute_deterministic_score")
+    g.add_edge("load_lead", "load_acs_intel")
+    g.add_edge("load_acs_intel", "compute_deterministic_score")
     g.add_edge("compute_deterministic_score", "llm_qualitative_score")
     g.add_edge("llm_qualitative_score", "merge_scores")
     g.add_edge("merge_scores", "store_score")

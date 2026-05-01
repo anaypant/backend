@@ -40,7 +40,9 @@ def _default_model() -> str:
     return (os.environ.get("ACS_ENRICHMENT_LLM_MODEL") or "openai/gpt-4o-mini").strip() or "openai/gpt-4o-mini"
 
 
-def _coalesce_scraped(query: str, scraped: list[dict[str, Any]]) -> str:
+def _coalesce_scraped(query: str, scraped: list[dict[str, Any]], *, lazy: bool = False) -> str:
+    per_page = 4000 if lazy else 12_000
+    cap = 40_000 if lazy else 100_000
     parts: list[str] = []
     parts.append(f"User query:\n{query.strip()}\n")
     parts.append("--- Scraped pages (relevance score, title, URL, plain text) ---\n")
@@ -52,10 +54,10 @@ def _coalesce_scraped(query: str, scraped: list[dict[str, Any]]) -> str:
         rel = row.get("_relevance")
         rel_str = f" rel={rel:.2f}" if rel is not None else ""
         text = row.get("text") if isinstance(row.get("text"), str) else ""
-        text = sanitize_page_text(text, max_chars=12_000)
+        text = sanitize_page_text(text, max_chars=per_page)
         parts.append(f"[{i}]{rel_str} title={title}\nurl={url}\n{text}\n")
     raw = "\n".join(parts)
-    return sanitize_page_text(raw, max_chars=100_000)
+    return sanitize_page_text(raw, max_chars=cap)
 
 
 def _estimate_tokens(messages: list[dict], response_text: str) -> tuple[int, int]:
@@ -134,6 +136,7 @@ def run_research_pipeline(
     model: str | None = None,
     seed_urls: list[str] | None = None,
     force_backend: str | None = None,
+    lazy: bool = False,
 ) -> tuple[dict[str, Any], int]:
     """
     Full in-house web research pipeline.
@@ -142,15 +145,10 @@ def run_research_pipeline(
     ──────────
     seed_urls
         URLs to scrape directly, prepended before search results.
-        Typically the contact's company homepage (extracted from email domain).
-        These bypass the search engine entirely — always free and highly relevant.
     force_backend
-        Override ``ACS_WEB_SEARCH_BACKEND`` env var.  Used by the budget system
-        to downgrade to ``duckduckgo`` (free) when the user's monthly quota is
-        exhausted.
-
-    Returns ``(payload, http_status)`` where payload includes:
-        summary, sources, mode, llm_calls, tokens_in, tokens_out, pipeline
+        Override ``ACS_WEB_SEARCH_BACKEND`` for budget downgrade to DDG.
+    lazy
+        Cap scrape count; when seeds exist, skip general web search entirely.
     """
     q = query.strip() if isinstance(query, str) else ""
     if not q:
@@ -159,23 +157,31 @@ def run_research_pipeline(
             "llm_calls": 0, "tokens_in": 0, "tokens_out": 0,
         }, 400
 
-    limit      = max(1, min(20, int(result_limit)))
+    limit = max(1, min(20, int(result_limit)))
+    if lazy:
+        limit = max(1, min(limit, 2))
     fetch_pool = min(40, max(limit + 4, limit * 3))
+    if lazy:
+        fetch_pool = min(10, max(limit + 2, 6))
 
     prov = provider or _default_provider()
     mdl  = model    or _default_model()
 
     seeds = [u for u in (seed_urls or []) if isinstance(u, str) and u.strip() and not is_blocked_url(u)]
 
+    skip_general_search = bool(lazy and seeds)
+
     # ── Step 1–2: search + blacklist ─────────────────────────────────────────
-    # force_backend overrides env var for budget-mode downgrade
     effective_backend_env = os.environ.get("ACS_WEB_SEARCH_BACKEND")
     if force_backend:
         os.environ["ACS_WEB_SEARCH_BACKEND"] = force_backend
     try:
-        raw_hits, backend = search_top_results(q, fetch_count=fetch_pool)
+        if skip_general_search:
+            raw_hits: list[dict[str, Any]] = []
+            backend = "lazy_seeds_only"
+        else:
+            raw_hits, backend = search_top_results(q, fetch_count=fetch_pool)
     finally:
-        # Restore original env var (thread-safe enough for single-threaded CF)
         if force_backend:
             if effective_backend_env is not None:
                 os.environ["ACS_WEB_SEARCH_BACKEND"] = effective_backend_env
@@ -210,7 +216,7 @@ def run_research_pipeline(
 
     filtered = merged[: limit + 4]
 
-    search_calls = 1 if backend not in ("none",) else 0
+    search_calls = 0 if skip_general_search else (0 if backend == "none" else 1)
 
     # ── LLM-only fallback (no URLs survived) ─────────────────────────────────
     if not filtered:
@@ -275,7 +281,7 @@ def run_research_pipeline(
             }, st
 
     # ── Step 5: LLM synthesis ─────────────────────────────────────────────────
-    coalesced = _coalesce_scraped(q, kept)
+    coalesced = _coalesce_scraped(q, kept, lazy=lazy)
     schema = (
         "Return JSON only with two keys: "
         "summary (string — concise factual synthesis of the query based on the pages below), "
@@ -284,7 +290,8 @@ def run_research_pipeline(
         "If you wrote a non-empty summary you MUST return at least one source. "
         "Do not fabricate URLs — only use URLs from the pages provided below)."
     )
-    messages = [{"role": "user", "content": f"{schema}\n\n{coalesced}"[:120_000]}]
+    msg_cap = 35_000 if lazy else 120_000
+    messages = [{"role": "user", "content": f"{schema}\n\n{coalesced}"[:msg_cap]}]
 
     result, st, calls = _llm_call(messages, provider=prov, model=mdl)
     if "error" in result:
@@ -333,6 +340,7 @@ def _pipeline_meta(
 
     return {
         "search_backend":       backend,
+        "lazy":                 lazy,
         "seed_urls_injected":   len(seeds) if seeds else 0,
         "urls_after_blacklist": len(filtered),
         "scrape_ok":            scrape_ok,
