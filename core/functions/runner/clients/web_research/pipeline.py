@@ -232,7 +232,7 @@ def run_research_pipeline(
                 **result,
                 "mode": "llm_fallback_error",
                 "llm_calls": calls,
-                "pipeline": _pipeline_meta(backend, [], [], [], seeds),
+                "pipeline": _pipeline_meta(backend, [], [], [], seeds, lazy=lazy),
             }, 503
         return {
             **result,
@@ -240,7 +240,7 @@ def run_research_pipeline(
             "llm_calls": calls,
             "llm": {"provider": prov, "model": mdl},
             "search_calls": search_calls,
-            "pipeline": _pipeline_meta(backend, filtered, [], [], seeds),
+            "pipeline": _pipeline_meta(backend, filtered, [], [], seeds, lazy=lazy),
         }, st
 
     # ── Step 3: concurrent scrape ─────────────────────────────────────────────
@@ -269,7 +269,7 @@ def run_research_pipeline(
                     "mode": "scrape_empty_llm_fallback_error",
                     "llm_calls": calls,
                     "search_calls": search_calls,
-                    "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
+                    "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds, lazy=lazy),
                 }, 503
             return {
                 **result,
@@ -277,7 +277,7 @@ def run_research_pipeline(
                 "llm_calls": calls,
                 "llm": {"provider": prov, "model": mdl},
                 "search_calls": search_calls,
-                "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
+                "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds, lazy=lazy),
             }, st
 
     # ── Step 5: LLM synthesis ─────────────────────────────────────────────────
@@ -300,7 +300,7 @@ def run_research_pipeline(
             "mode": "pipeline_llm_error",
             "llm_calls": calls,
             "search_calls": search_calls,
-            "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
+            "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds, lazy=lazy),
         }, 503
 
     return {
@@ -309,7 +309,7 @@ def run_research_pipeline(
         "llm_calls": calls,
         "llm": {"provider": prov, "model": mdl},
         "search_calls": search_calls,
-        "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds),
+        "pipeline": _pipeline_meta(backend, filtered, scraped, rejected, seeds, lazy=lazy),
     }, st
 
 
@@ -319,6 +319,8 @@ def _pipeline_meta(
     scraped: list[dict[str, Any]],
     rejected: list[dict[str, Any]],
     seeds: list[str] | None = None,
+    *,
+    lazy: bool = False,
 ) -> dict[str, Any]:
     scrape_ok      = sum(1 for s in scraped if isinstance(s, dict) and s.get("ok"))
     render_needed  = 0

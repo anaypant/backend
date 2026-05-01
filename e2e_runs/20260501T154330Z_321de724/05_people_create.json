@@ -1,0 +1,24 @@
+{
+  "http": 401,
+  "request": {
+    "firstName": "ACS",
+    "lastName": "LeadIntel-a125122693",
+    "emails": [
+      {
+        "value": "acs.leadintel.a125122693@example.com"
+      }
+    ],
+    "tags": [
+      "acs-e2e",
+      "lead-intel-probe"
+    ],
+    "stage": "New Lead",
+    "source": "Other"
+  },
+  "body": {
+    "success": false,
+    "errorMessage": "Access token has expired. Renew using refresh token",
+    "errorCode": "expired-access-token",
+    "errorDetails": []
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "webhook_test_workflow_debug_present": true,
+  "webhook_dispatch": [
+    {
+      "workflow_id": "contact.intel_delta_v1",
+      "core_http_status": 500,
+      "error": "workflow execution failed"
+    },
+    {
+      "workflow_id": "lead.scoring_v1",
+      "core_http_status": 200
+    }
+  ],
+  "volatile_external_allowed_in_debug": true,
+  "workflow_audit_nodes_count": null,
+  "intel_after_create": {
+    "http": 404,
+    "lastEnrichmentTier": null,
+    "lastEnrichedAt": null,
+    "summary_len": 0
+  },
+  "intel_after_tags": {
+    "http": 200,
+    "lastEnrichmentTier": null,
+    "lastEnrichedAt": "2026-05-01T15:45:31.829282+00:00",
+    "summary_len": 0
+  },
+  "intel_after_lastname": {
+    "http": 200,
+    "lastEnrichmentTier": null,
+    "lastEnrichedAt": "2026-05-01T15:45:31.829282+00:00",
+    "summary_len": 0
+  },
+  "intel_after_webhook_test": {
+    "http": 200,
+    "lastEnrichmentTier": null,
+    "lastEnrichedAt": "2026-05-01T15:45:31.829282+00:00",
+    "summary_len": 0
+  }
+}

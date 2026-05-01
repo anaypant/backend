@@ -1,0 +1,15 @@
+{
+  "http": 200,
+  "body": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/Leads/followupboss_170",
+    "id": "followupboss_170",
+    "data": {
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "glydeScoreUpdatedAt": "2026-05-01T15:46:53.058154+00:00",
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "glydeIsHot": false,
+      "glydeScore": 23
+    }
+  },
+  "after": "after webhook_test"
+}

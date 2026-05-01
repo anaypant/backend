@@ -1,0 +1,11 @@
+{
+  "run_id": "20260501T154428Z_9aa0bab2",
+  "started_at": "2026-05-01T15:44:28.795126+00:00",
+  "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "guardrailLevel_before": 1,
+  "person_id": 170,
+  "probe_email": "acs.leadintel.c661331ec9@example.com",
+  "internal_clients_path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_170",
+  "leads_path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/Leads/followupboss_170",
+  "finished_at": "2026-05-01T15:47:00.426821+00:00"
+}
