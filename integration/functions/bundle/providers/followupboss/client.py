@@ -133,8 +133,21 @@ class FubClient:
     def create_note(self, person_id: int, body: str) -> tuple[dict, int]:
         return post_json(f"{self.base}/notes", {"personId": person_id, "body": body}, headers=self._headers())
 
-    def create_task(self, person_id: int, body: str) -> tuple[dict, int]:
-        return post_json(f"{self.base}/tasks", {"personId": person_id, "body": body}, headers=self._headers())
+    def create_task(
+        self,
+        person_id: int,
+        name: str,
+        *,
+        due_date: str | None = None,
+        task_type: str | None = None,
+    ) -> tuple[dict, int]:
+        """POST /v1/tasks — FUB tasks use 'name', not 'body'."""
+        payload: dict = {"personId": person_id, "name": name}
+        if due_date:
+            payload["dueDate"] = due_date
+        if task_type:
+            payload["type"] = task_type
+        return post_json(f"{self.base}/tasks", payload, headers=self._headers())
 
     def upsert_person(self, payload: dict) -> tuple[dict, int]:
         """POST /v1/people — create or merge by matching email."""

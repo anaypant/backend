@@ -1,0 +1,2099 @@
+{
+  "run_ts": "20260501T063558Z",
+  "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "phases": {
+    "p0_refresh": {
+      "http": 200,
+      "ok": true
+    },
+    "p1_personas": {
+      "hot_buyer": 165,
+      "motivated_seller": 166,
+      "zillow_lead": 167,
+      "cold_lead": 168,
+      "enrichment_target": 169
+    },
+    "p2_lead_scoring": {
+      "S1": {
+        "id": "S1",
+        "label": "Hot buyer \u2014 FUB ID resolution test (id-only payload)",
+        "payload": {
+          "person": {
+            "id": 165
+          }
+        },
+        "assertions": [
+          [
+            "workflow completed",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF966C0>"
+          ],
+          [
+            "score present",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF96FB0>"
+          ],
+          [
+            "llm rationale",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF97060>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 6.21,
+        "extract": {
+          "audit": {
+            "run_id": "3ca1d9bf-2911-4f45-b501-6b3d69e9bc92",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617448934,
+                "duration_ms": 1084.422,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617449549,
+                "duration_ms": 613.365,
+                "extra": {
+                  "canonical_id": "followupboss_165"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617449550,
+                "duration_ms": 0.02,
+                "extra": {
+                  "score": 0,
+                  "reasons_count": 0
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617449551,
+                "duration_ms": 0.009,
+                "extra": {
+                  "llm_score": 10,
+                  "skipped": "sparse_lead"
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617449553,
+                "duration_ms": 0.007,
+                "extra": {
+                  "final": 10,
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617449980,
+                "duration_ms": 426.715,
+                "extra": {
+                  "http": 200,
+                  "score": 10
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617449982,
+                "duration_ms": 0.002,
+                "extra": {
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617449983
+              }
+            ],
+            "billing": {
+              "llm_calls": 0,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617447850,
+            "finished_at_epoch_ms": 1777617449984,
+            "duration_ms": 2134,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 0,
+              "reasons": []
+            },
+            "llm": {
+              "score": 10,
+              "rationale": "Insufficient lead data for qualitative scoring. Provide contact info, stage, or notes to improve accuracy."
+            },
+            "final": {
+              "score": 10,
+              "threshold": 70,
+              "is_hot": false
+            }
+          },
+          "errors": []
+        },
+        "passed": 3,
+        "total": 3,
+        "failed": []
+      },
+      "S4": {
+        "id": "S4",
+        "label": "Cold/inactive lead \u2014 FUB person",
+        "payload": {
+          "person": {
+            "id": 168
+          }
+        },
+        "assertions": [
+          [
+            "final_score < 50",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF96F00>"
+          ],
+          [
+            "is_hot == False",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF96400>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 6.47,
+        "extract": {
+          "audit": {
+            "run_id": "cc6a003c-7d9d-4829-8541-24df411a2fd4",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617449019,
+                "duration_ms": 1044.697,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617449598,
+                "duration_ms": 577.199,
+                "extra": {
+                  "canonical_id": "followupboss_168"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617449600,
+                "duration_ms": 0.099,
+                "extra": {
+                  "score": 0,
+                  "reasons_count": 0
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617449602,
+                "duration_ms": 0.011,
+                "extra": {
+                  "llm_score": 10,
+                  "skipped": "sparse_lead"
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617449603,
+                "duration_ms": 0.007,
+                "extra": {
+                  "final": 10,
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617450181,
+                "duration_ms": 576.998,
+                "extra": {
+                  "http": 200,
+                  "score": 10
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617450182,
+                "duration_ms": 0.002,
+                "extra": {
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617450184
+              }
+            ],
+            "billing": {
+              "llm_calls": 0,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617447974,
+            "finished_at_epoch_ms": 1777617450184,
+            "duration_ms": 2210,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 0,
+              "reasons": []
+            },
+            "llm": {
+              "score": 10,
+              "rationale": "Insufficient lead data for qualitative scoring. Provide contact info, stage, or notes to improve accuracy."
+            },
+            "final": {
+              "score": 10,
+              "threshold": 70,
+              "is_hot": false
+            }
+          },
+          "errors": []
+        },
+        "passed": 2,
+        "total": 2,
+        "failed": []
+      },
+      "S2": {
+        "id": "S2",
+        "label": "Motivated seller \u2014 FUB ID resolution test",
+        "payload": {
+          "person": {
+            "id": 166
+          }
+        },
+        "assertions": [
+          [
+            "workflow completed",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF97110>"
+          ],
+          [
+            "score present",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF964B0>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 6.74,
+        "extract": {
+          "audit": {
+            "run_id": "0762c4e8-8878-435f-a71d-65eba671bd4a",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617449334,
+                "duration_ms": 1339.29,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617449861,
+                "duration_ms": 525.171,
+                "extra": {
+                  "canonical_id": "followupboss_166"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617449862,
+                "duration_ms": 0.018,
+                "extra": {
+                  "score": 0,
+                  "reasons_count": 0
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617449863,
+                "duration_ms": 0.008,
+                "extra": {
+                  "llm_score": 10,
+                  "skipped": "sparse_lead"
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617449864,
+                "duration_ms": 0.079,
+                "extra": {
+                  "final": 10,
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617450564,
+                "duration_ms": 698.76,
+                "extra": {
+                  "http": 200,
+                  "score": 10
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617450565,
+                "duration_ms": 0.001,
+                "extra": {
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617450566
+              }
+            ],
+            "billing": {
+              "llm_calls": 0,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617447995,
+            "finished_at_epoch_ms": 1777617450567,
+            "duration_ms": 2572,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 0,
+              "reasons": []
+            },
+            "llm": {
+              "score": 10,
+              "rationale": "Insufficient lead data for qualitative scoring. Provide contact info, stage, or notes to improve accuracy."
+            },
+            "final": {
+              "score": 10,
+              "threshold": 70,
+              "is_hot": false
+            }
+          },
+          "errors": []
+        },
+        "passed": 2,
+        "total": 2,
+        "failed": []
+      },
+      "S7": {
+        "id": "S7",
+        "label": "Existing FUB contact \u2014 Dhiren Rao (id=157)",
+        "payload": {
+          "person": {
+            "id": 157
+          }
+        },
+        "assertions": [
+          [
+            "workflow completed",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF97530>"
+          ],
+          [
+            "score present",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF975E0>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 3.44,
+        "extract": {
+          "audit": {
+            "run_id": "113a7e9e-31bf-4718-a0a1-8493781b231e",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617452264,
+                "duration_ms": 1107.631,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617452865,
+                "duration_ms": 599.824,
+                "extra": {
+                  "canonical_id": "followupboss_157"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617452867,
+                "duration_ms": 0.023,
+                "extra": {
+                  "score": 0,
+                  "reasons_count": 0
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617452868,
+                "duration_ms": 0.011,
+                "extra": {
+                  "llm_score": 10,
+                  "skipped": "sparse_lead"
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617452869,
+                "duration_ms": 0.006,
+                "extra": {
+                  "final": 10,
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617453401,
+                "duration_ms": 530.594,
+                "extra": {
+                  "http": 200,
+                  "score": 10
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617453402,
+                "duration_ms": 0.002,
+                "extra": {
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617453403
+              }
+            ],
+            "billing": {
+              "llm_calls": 0,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617451156,
+            "finished_at_epoch_ms": 1777617453404,
+            "duration_ms": 2248,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 0,
+              "reasons": []
+            },
+            "llm": {
+              "score": 10,
+              "rationale": "Insufficient lead data for qualitative scoring. Provide contact info, stage, or notes to improve accuracy."
+            },
+            "final": {
+              "score": 10,
+              "threshold": 70,
+              "is_hot": false
+            }
+          },
+          "errors": []
+        },
+        "passed": 2,
+        "total": 2,
+        "failed": []
+      },
+      "S3": {
+        "id": "S3",
+        "label": "Zillow inquiry \u2014 FUB ID resolution test",
+        "payload": {
+          "person": {
+            "id": 167
+          }
+        },
+        "assertions": [
+          [
+            "workflow completed",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF971C0>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 10.48,
+        "extract": {
+          "audit": {
+            "run_id": "e64610ce-6c8c-4838-aa75-d005cd925c8d",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617453103,
+                "duration_ms": 1191.212,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617453600,
+                "duration_ms": 494.681,
+                "extra": {
+                  "canonical_id": "followupboss_167"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617453601,
+                "duration_ms": 0.036,
+                "extra": {
+                  "score": 0,
+                  "reasons_count": 0
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617453603,
+                "duration_ms": 0.014,
+                "extra": {
+                  "llm_score": 10,
+                  "skipped": "sparse_lead"
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617453604,
+                "duration_ms": 0.034,
+                "extra": {
+                  "final": 10,
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617454215,
+                "duration_ms": 610.065,
+                "extra": {
+                  "http": 200,
+                  "score": 10
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617454216,
+                "duration_ms": 0.008,
+                "extra": {
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617454217
+              }
+            ],
+            "billing": {
+              "llm_calls": 0,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617451911,
+            "finished_at_epoch_ms": 1777617454217,
+            "duration_ms": 2306,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 0,
+              "reasons": []
+            },
+            "llm": {
+              "score": 10,
+              "rationale": "Insufficient lead data for qualitative scoring. Provide contact info, stage, or notes to improve accuracy."
+            },
+            "final": {
+              "score": 10,
+              "threshold": 70,
+              "is_hot": false
+            }
+          },
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      },
+      "S5": {
+        "id": "S5",
+        "label": "Inline hot buyer \u2014 Elon Musk (payload only)",
+        "payload": {
+          "person": {
+            "id": 9001,
+            "firstName": "Elon",
+            "lastName": "Musk",
+            "emails": [
+              {
+                "value": "elon@x.com"
+              }
+            ],
+            "phones": [
+              {
+                "value": "+15125550001"
+              }
+            ],
+            "stage": "Active Buyer",
+            "source": "Referral",
+            "price": 50000000,
+            "tags": [
+              "ultra-high-net-worth",
+              "cash-buyer"
+            ],
+            "lastContacted": "2026-04-30T00:00:00Z",
+            "notes": [
+              "Responded within 2 hours. Budget unconstrained.",
+              "Wants 100+ acres Travis County, airstrip. Cash. 30-day close."
+            ]
+          }
+        },
+        "assertions": [
+          [
+            "final_score >= 70",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF97270>"
+          ],
+          [
+            "is_hot == True",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF97320>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 11.06,
+        "extract": {
+          "audit": {
+            "run_id": "7698e59b-e1f1-460e-bfbb-2e19989b16e4",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617452020,
+                "duration_ms": 1091.26,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617452495,
+                "duration_ms": 473.243,
+                "extra": {
+                  "canonical_id": "followupboss_9001"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617452496,
+                "duration_ms": 0.063,
+                "extra": {
+                  "score": 50,
+                  "reasons_count": 5
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617453956,
+                "duration_ms": 1459.129,
+                "extra": {
+                  "llm_score": 38
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617453957,
+                "duration_ms": 0.008,
+                "extra": {
+                  "final": 88,
+                  "is_hot": true
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617454382,
+                "duration_ms": 424.136,
+                "extra": {
+                  "http": 200,
+                  "score": 88
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617454869,
+                "duration_ms": 486.349,
+                "extra": {
+                  "notif_http": 200,
+                  "score": 88
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617454871
+              }
+            ],
+            "billing": {
+              "llm_calls": 1,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617450929,
+            "finished_at_epoch_ms": 1777617454871,
+            "duration_ms": 3942,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 50,
+              "reasons": [
+                "has_email+8",
+                "has_phone+8",
+                "stage:active buyer+20",
+                "recent_contact<=7d+10",
+                "organic_source+4"
+              ]
+            },
+            "llm": {
+              "score": 38,
+              "rationale": "The lead shows high engagement with a response time of under 2 hours, and is currently in the 'Active Buyer' stage with a significant budget of $50 million. The request for 100+ acres with an airstrip indicates a serious and specific interest. Being a cash buyer and the referral source adds trust to the lead's intentions. The combination of these factors suggests a strong likelihood of conversion within a 30-day close timeframe."
+            },
+            "final": {
+              "score": 88,
+              "threshold": 70,
+              "is_hot": true
+            }
+          },
+          "errors": []
+        },
+        "passed": 2,
+        "total": 2,
+        "failed": []
+      },
+      "S6": {
+        "id": "S6",
+        "label": "Inline dead lead \u2014 no contact info",
+        "payload": {
+          "person": {
+            "id": 9004,
+            "firstName": "Bob",
+            "lastName": "Williams",
+            "emails": [],
+            "phones": [],
+            "stage": "Inactive",
+            "source": "Cold Outreach",
+            "tags": [
+              "cold",
+              "no-response"
+            ],
+            "lastContacted": "2025-09-01T00:00:00Z",
+            "notes": [
+              "Never responded. 6 months stale."
+            ]
+          }
+        },
+        "assertions": [
+          [
+            "final_score < 40",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF973D0>"
+          ],
+          [
+            "is_hot == False",
+            "<function phase2_lead_scoring.<locals>.<lambda> at 0x0000028D9BF97480>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 12.95,
+        "extract": {
+          "audit": {
+            "run_id": "48af6f70-6e66-4452-bfb0-4b91b8628186",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617453223,
+                "duration_ms": 1049.658,
+                "extra": {
+                  "profile_http": 200,
+                  "settings_http": 404
+                }
+              },
+              {
+                "node": "load_lead",
+                "at_epoch_ms": 1777617453741,
+                "duration_ms": 516.657,
+                "extra": {
+                  "canonical_id": "followupboss_9004"
+                }
+              },
+              {
+                "node": "compute_deterministic_score",
+                "at_epoch_ms": 1777617453743,
+                "duration_ms": 0.089,
+                "extra": {
+                  "score": 0,
+                  "reasons_count": 3
+                }
+              },
+              {
+                "node": "llm_qualitative_score",
+                "at_epoch_ms": 1777617456212,
+                "duration_ms": 2467.923,
+                "extra": {
+                  "llm_score": 10
+                }
+              },
+              {
+                "node": "merge_scores",
+                "at_epoch_ms": 1777617456213,
+                "duration_ms": 0.01,
+                "extra": {
+                  "final": 10,
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "store_score",
+                "at_epoch_ms": 1777617456700,
+                "duration_ms": 485.813,
+                "extra": {
+                  "http": 200,
+                  "score": 10
+                }
+              },
+              {
+                "node": "check_hot_threshold",
+                "at_epoch_ms": 1777617456702,
+                "duration_ms": 0.018,
+                "extra": {
+                  "is_hot": false
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617456703
+              }
+            ],
+            "billing": {
+              "llm_calls": 1,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "lead.scoring_v1",
+            "started_at_epoch_ms": 1777617452173,
+            "finished_at_epoch_ms": 1777617456704,
+            "duration_ms": 4531,
+            "status": "completed"
+          },
+          "scoring": {
+            "deterministic": {
+              "score": 0,
+              "reasons": [
+                "stage:inactive-5",
+                "tag:cold-5",
+                "inactive>90d-8"
+              ]
+            },
+            "llm": {
+              "score": 10,
+              "rationale": "The lead, Bob Williams, is currently listed as 'Inactive' with no engagement signals as indicated by the absence of emails or phone calls. He has been marked with 'cold' and 'no-response' tags and has not responded to outreach for 6 months, which significantly lowers his conversion likelihood. The source is 'Cold Outreach,' typically associated with lower engagement. To improve the score, a more targeted re-engagement strategy with personalized communication may be necessary, focusing on potenti"
+            },
+            "final": {
+              "score": 10,
+              "threshold": 70,
+              "is_hot": false
+            }
+          },
+          "errors": []
+        },
+        "passed": 2,
+        "total": 2,
+        "failed": []
+      }
+    },
+    "p3_contact_enrichment": {
+      "E2": {
+        "id": "E2",
+        "label": "Anonymous \u2014 email only",
+        "assertions": [
+          [
+            "workflow ok",
+            "<function phase3_contact_enrichment.<locals>.<lambda> at 0x0000028D9BF97A00>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 5.9,
+        "extract": {
+          "audit": {
+            "run_id": "9afff95f-0611-4532-85bd-14b75e3987ce",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617459912,
+                "duration_ms": 515.216,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777617459914,
+                "duration_ms": 0.002,
+                "extra": {
+                  "keys": [
+                    "person",
+                    "event",
+                    "eventId"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777617460415,
+                "duration_ms": 495.2,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_8002",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777617460419,
+                "duration_ms": 0.006
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777617461581,
+                "duration_ms": 1160.093,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777617462650,
+                "duration_ms": 1065.934,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 161,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777617462652,
+                "duration_ms": 0.027,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777617462655,
+                "duration_ms": 0.01,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 8002,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777617462657,
+                "duration_ms": 0.011,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617462659
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777617459397,
+            "finished_at_epoch_ms": 1777617462659,
+            "duration_ms": 3262,
+            "status": "completed"
+          },
+          "enrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_8002",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "8002",
+              "display_name": "person 8002",
+              "emails": [
+                "anon_buyer_1777617455@yahoo.com"
+              ],
+              "phones": [],
+              "person_id": 8002,
+              "event_type": "personCreated",
+              "raw": {
+                "uri": null,
+                "event": "personCreated",
+                "eventId": "test_anon_1777617455",
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "scrape_then_llm"
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      },
+      "E4": {
+        "id": "E4",
+        "label": "FUB real person \u2014 enrichment target",
+        "assertions": [
+          [
+            "workflow ok",
+            "<function phase3_contact_enrichment.<locals>.<lambda> at 0x0000028D9BF97E20>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 6.31,
+        "extract": {
+          "audit": {
+            "run_id": "e5e66be1-e720-47d8-a8fc-95c938063c93",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617459929,
+                "duration_ms": 498.75,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777617459932,
+                "duration_ms": 0.002,
+                "extra": {
+                  "keys": [
+                    "person",
+                    "event",
+                    "eventId"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777617460430,
+                "duration_ms": 496.017,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_169",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777617460431,
+                "duration_ms": 0.004
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777617461651,
+                "duration_ms": 1218.089,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777617463052,
+                "duration_ms": 1399.157,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 118,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777617463054,
+                "duration_ms": 0.022,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777617463055,
+                "duration_ms": 0.007,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 169,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777617463056,
+                "duration_ms": 0.011,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617463058
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777617459430,
+            "finished_at_epoch_ms": 1777617463058,
+            "duration_ms": 3628,
+            "status": "completed"
+          },
+          "enrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_169",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "169",
+              "display_name": "person 169",
+              "emails": [],
+              "phones": [],
+              "person_id": 169,
+              "event_type": "personCreated",
+              "raw": {
+                "uri": null,
+                "event": "personCreated",
+                "eventId": "test_enrich_1777617455",
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "scrape_then_llm"
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      },
+      "E3": {
+        "id": "E3",
+        "label": "FUB update event \u2014 James Rivera",
+        "assertions": [
+          [
+            "workflow ok",
+            "<function phase3_contact_enrichment.<locals>.<lambda> at 0x0000028D9BF97B60>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 6.9,
+        "extract": {
+          "audit": {
+            "run_id": "0aa286ed-18f3-4e76-b169-770092fbeced",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617459974,
+                "duration_ms": 531.481,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777617459976,
+                "duration_ms": 0.003,
+                "extra": {
+                  "keys": [
+                    "person",
+                    "event",
+                    "eventId"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777617460563,
+                "duration_ms": 585.386,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_8003",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777617460565,
+                "duration_ms": 0.005
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777617462073,
+                "duration_ms": 1506.821,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777617463663,
+                "duration_ms": 1588.888,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 162,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777617463665,
+                "duration_ms": 0.024,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777617463666,
+                "duration_ms": 0.007,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 8003,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777617463667,
+                "duration_ms": 0.009,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617463669
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777617459442,
+            "finished_at_epoch_ms": 1777617463669,
+            "duration_ms": 4227,
+            "status": "completed"
+          },
+          "enrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_8003",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "8003",
+              "display_name": "James Rivera",
+              "emails": [
+                "jrivera_1777617455@realmail.com"
+              ],
+              "phones": [],
+              "person_id": 8003,
+              "event_type": "personUpdated",
+              "raw": {
+                "uri": null,
+                "event": "personUpdated",
+                "eventId": "test_jrivera_1777617455",
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "scrape_then_llm"
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      },
+      "E1": {
+        "id": "E1",
+        "label": "Named celebrity \u2014 Oprah Winfrey",
+        "assertions": [
+          [
+            "workflow ok",
+            "<function phase3_contact_enrichment.<locals>.<lambda> at 0x0000028D9BF97740>"
+          ],
+          [
+            "enriched data",
+            "<function phase3_contact_enrichment.<locals>.<lambda> at 0x0000028D9BF97690>"
+          ]
+        ],
+        "http": 200,
+        "elapsed": 8.59,
+        "extract": {
+          "audit": {
+            "run_id": "d619aefc-0b6c-4b5a-ad60-a4cccafcd005",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617460005,
+                "duration_ms": 571.363,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_contact",
+                "at_epoch_ms": 1777617460007,
+                "duration_ms": 0.003,
+                "extra": {
+                  "keys": [
+                    "person",
+                    "event",
+                    "eventId"
+                  ]
+                }
+              },
+              {
+                "node": "check_internal_client",
+                "at_epoch_ms": 1777617460583,
+                "duration_ms": 572.55,
+                "extra": {
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_8001",
+                  "http": 404,
+                  "exists": false
+                }
+              },
+              {
+                "node": "normalize",
+                "at_epoch_ms": 1777617460585,
+                "duration_ms": 0.005
+              },
+              {
+                "node": "web_research",
+                "at_epoch_ms": 1777617463363,
+                "duration_ms": 2776.424,
+                "extra": {
+                  "http": 200,
+                  "sources": 0
+                }
+              },
+              {
+                "node": "synthesis",
+                "at_epoch_ms": 1777617465328,
+                "duration_ms": 1962.256,
+                "extra": {
+                  "update_keys": [
+                    "suggested_note"
+                  ],
+                  "suggested_note_len": 147,
+                  "tags_len": 0,
+                  "coercion": "empty",
+                  "fallback_note": true
+                }
+              },
+              {
+                "node": "policy_screen",
+                "at_epoch_ms": 1777617465329,
+                "duration_ms": 0.024,
+                "extra": {
+                  "screened_keys": [
+                    "suggested_note"
+                  ]
+                }
+              },
+              {
+                "node": "map_provider",
+                "at_epoch_ms": 1777617465331,
+                "duration_ms": 0.008,
+                "extra": {
+                  "actions": 1,
+                  "person_id": 8001,
+                  "screened_keys": [
+                    "suggested_note"
+                  ],
+                  "fub_maps_note_only": true,
+                  "note_nonempty": true
+                }
+              },
+              {
+                "node": "send_provider",
+                "at_epoch_ms": 1777617465332,
+                "duration_ms": 0.011,
+                "extra": {
+                  "skipped": "volatile_external_not_allowed"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617465333
+              }
+            ],
+            "billing": {
+              "llm_calls": 2,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "contact.enrichment_v1",
+            "started_at_epoch_ms": 1777617459433,
+            "finished_at_epoch_ms": 1777617465334,
+            "duration_ms": 5901,
+            "status": "completed"
+          },
+          "enrichment": {
+            "realtorProfileLoaded": true,
+            "internalClientPath": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_8001",
+            "internalClientExists": false,
+            "normalized": {
+              "provider": "followupboss",
+              "external_person_id": "8001",
+              "display_name": "Oprah Winfrey",
+              "emails": [
+                "oprah@harpo.com"
+              ],
+              "phones": [
+                "+13105550801"
+              ],
+              "person_id": 8001,
+              "event_type": "personCreated",
+              "raw": {
+                "uri": null,
+                "event": "personCreated",
+                "eventId": "test_oprah_1777617455",
+                "has_fub_person": true
+              }
+            },
+            "webResearch": {
+              "http_status": 200,
+              "mode": "scrape_then_llm"
+            },
+            "synthesis": {
+              "http_status": 200,
+              "keys": [
+                "suggested_note"
+              ],
+              "coercion": "empty",
+              "fallback_note": true
+            },
+            "policyScreened": {
+              "allowed_keys": [
+                "suggested_note"
+              ]
+            },
+            "mappedActions": 1,
+            "egress": {
+              "mode": "skipped_by_policy"
+            }
+          },
+          "errors": []
+        },
+        "passed": 2,
+        "total": 2,
+        "failed": []
+      }
+    },
+    "p4_hot_notify": {
+      "http": 200,
+      "elapsed": 2.7,
+      "hot_leads_count": 0,
+      "extract": {
+        "audit": {
+          "run_id": "611c6788-87ac-40a5-8055-04dcd302c21f",
+          "nodes": [
+            {
+              "node": "load_settings",
+              "at_epoch_ms": 1777617467016,
+              "duration_ms": 521.268
+            },
+            {
+              "node": "load_scored_leads",
+              "at_epoch_ms": 1777617467110,
+              "duration_ms": 92.275,
+              "extra": {
+                "count": 0,
+                "threshold": 70
+              }
+            },
+            {
+              "node": "rank_shortlist",
+              "at_epoch_ms": 1777617467112,
+              "duration_ms": 0.008,
+              "extra": {
+                "shortlist_count": 0
+              }
+            },
+            {
+              "node": "diff_against_previous",
+              "at_epoch_ms": 1777617467513,
+              "duration_ms": 399.203,
+              "extra": {
+                "prev_count": 0,
+                "new_hot": 0
+              }
+            },
+            {
+              "node": "store_hot_leads",
+              "at_epoch_ms": 1777617468052,
+              "duration_ms": 537.618,
+              "extra": {
+                "http": 200,
+                "count": 0
+              }
+            },
+            {
+              "node": "notify_realtor",
+              "at_epoch_ms": 1777617468054,
+              "duration_ms": 0.004,
+              "extra": {
+                "skipped": "no_new_hot"
+              }
+            },
+            {
+              "node": "finalize",
+              "at_epoch_ms": 1777617468055
+            }
+          ],
+          "billing": {
+            "llm_calls": 0,
+            "llm_tokens_reported": null,
+            "db_reads": 2,
+            "db_queries": 1
+          },
+          "workflow_id": "lead.hot_notify_v1",
+          "started_at_epoch_ms": 1777617466494,
+          "finished_at_epoch_ms": 1777617468055,
+          "duration_ms": 1561,
+          "status": "completed"
+        },
+        "result": {},
+        "errors": []
+      }
+    },
+    "p5_appointment_prep": {
+      "A2": {
+        "id": "A2",
+        "label": "Listing presentation \u2014 existing contact",
+        "http": 200,
+        "elapsed": 8.79,
+        "extract": {
+          "audit": {
+            "run_id": "97cfd9bf-577b-4c2a-be00-25d25fd94166",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617469920,
+                "duration_ms": 514.962,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_appointment",
+                "at_epoch_ms": 1777617469921,
+                "duration_ms": 0.004,
+                "extra": {
+                  "has_appt": true
+                }
+              },
+              {
+                "node": "fetch_contact_context",
+                "at_epoch_ms": 1777617470436,
+                "duration_ms": 513.461,
+                "extra": {
+                  "person_id": 157,
+                  "contact_keys": [
+                    "id"
+                  ]
+                }
+              },
+              {
+                "node": "llm_generate_prep_doc",
+                "at_epoch_ms": 1777617475865,
+                "duration_ms": 5427.167,
+                "extra": {
+                  "doc_len": 2895
+                }
+              },
+              {
+                "node": "store_prep_doc",
+                "at_epoch_ms": 1777617476383,
+                "duration_ms": 516.856,
+                "extra": {
+                  "http": 200,
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/AppointmentPreps/appt_1777617466_002"
+                }
+              },
+              {
+                "node": "create_notification",
+                "at_epoch_ms": 1777617476883,
+                "duration_ms": 498.624,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617476885
+              }
+            ],
+            "billing": {
+              "llm_calls": 1,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "appointment.prep_v1",
+            "started_at_epoch_ms": 1777617469405,
+            "finished_at_epoch_ms": 1777617476885,
+            "duration_ms": 7480,
+            "status": "completed"
+          },
+          "result": {
+            "stored": true,
+            "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/AppointmentPreps/appt_1777617466_002"
+          },
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      },
+      "A1": {
+        "id": "A1",
+        "label": "Buyer consultation \u2014 hot buyer",
+        "http": 200,
+        "elapsed": 9.61,
+        "extract": {
+          "audit": {
+            "run_id": "2a101382-8321-44f2-aaff-561264e8f27e",
+            "nodes": [
+              {
+                "node": "load_realtor_profile",
+                "at_epoch_ms": 1777617469913,
+                "duration_ms": 511.748,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "load_appointment",
+                "at_epoch_ms": 1777617469916,
+                "duration_ms": 0.005,
+                "extra": {
+                  "has_appt": true
+                }
+              },
+              {
+                "node": "fetch_contact_context",
+                "at_epoch_ms": 1777617470411,
+                "duration_ms": 493.562,
+                "extra": {
+                  "person_id": 165,
+                  "contact_keys": [
+                    "id"
+                  ]
+                }
+              },
+              {
+                "node": "llm_generate_prep_doc",
+                "at_epoch_ms": 1777617476488,
+                "duration_ms": 6075.629,
+                "extra": {
+                  "doc_len": 3300
+                }
+              },
+              {
+                "node": "store_prep_doc",
+                "at_epoch_ms": 1777617477015,
+                "duration_ms": 525.264,
+                "extra": {
+                  "http": 200,
+                  "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/AppointmentPreps/appt_1777617466_001"
+                }
+              },
+              {
+                "node": "create_notification",
+                "at_epoch_ms": 1777617477653,
+                "duration_ms": 637.249,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617477655
+              }
+            ],
+            "billing": {
+              "llm_calls": 1,
+              "llm_tokens_reported": null,
+              "db_reads": 3,
+              "db_queries": 0
+            },
+            "workflow_id": "appointment.prep_v1",
+            "started_at_epoch_ms": 1777617469401,
+            "finished_at_epoch_ms": 1777617477655,
+            "duration_ms": 8254,
+            "status": "completed"
+          },
+          "result": {
+            "stored": true,
+            "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/AppointmentPreps/appt_1777617466_001"
+          },
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      }
+    },
+    "p6_import_leads": {
+      "IM1": {
+        "http": 500,
+        "elapsed": 1.11,
+        "ok": false,
+        "errors": [
+          {
+            "phase": "integration_load",
+            "message": "integration from_providers failed http=503 detail=integration_bridge_not_configured"
+          },
+          {
+            "phase": "workflow",
+            "message": "no lead rows: provide payload.source_batches / payload.people, payload.personId for FUB refresh, or source.provider followupboss with integration configured for full list sync"
+          }
+        ]
+      },
+      "IM2": {
+        "http": 500,
+        "elapsed": 1.28,
+        "ok": true,
+        "bridge_limited": true,
+        "errors": [
+          {
+            "phase": "integration_load",
+            "message": "integration from_providers failed http=503 detail=integration_bridge_not_configured"
+          },
+          {
+            "phase": "workflow",
+            "message": "no lead rows: provide payload.source_batches / payload.people, payload.personId for FUB refresh, or source.provider followupboss with integration configured for full list sync"
+          }
+        ]
+      }
+    },
+    "p7_volatile": {
+      "V2": {
+        "id": "V2",
+        "label": "Drip campaign \u2014 new lead",
+        "workflow": "campaign.drip_v1",
+        "http": 200,
+        "elapsed": 2.57,
+        "extract": {
+          "audit": {
+            "run_id": "5c56a7e2-0e47-44c7-a958-de1f6d9b40a4",
+            "nodes": [
+              {
+                "node": "load_settings",
+                "at_epoch_ms": 1777617482514,
+                "duration_ms": 1053.672
+              },
+              {
+                "node": "query_eligible_leads",
+                "at_epoch_ms": 1777617482594,
+                "duration_ms": 77.79,
+                "extra": {
+                  "total": 0,
+                  "eligible": 0,
+                  "date": "2026-05-01"
+                }
+              },
+              {
+                "node": "quarantine_filter",
+                "at_epoch_ms": 1777617482595,
+                "duration_ms": 0.005,
+                "extra": {
+                  "before": 0,
+                  "after": 0,
+                  "skipped": 0
+                }
+              },
+              {
+                "node": "personalize_and_send",
+                "at_epoch_ms": 1777617482597,
+                "duration_ms": 0.003,
+                "extra": {
+                  "skipped": "no_eligible"
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617482599,
+                "extra": {
+                  "messages_sent": 0
+                }
+              }
+            ],
+            "billing": {
+              "llm_calls": 0,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 1
+            },
+            "workflow_id": "campaign.drip_v1",
+            "started_at_epoch_ms": 1777617481461,
+            "finished_at_epoch_ms": 1777617482599,
+            "duration_ms": 1138,
+            "status": "completed"
+          },
+          "result": {},
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      },
+      "V1": {
+        "id": "V1",
+        "label": "Auto reply \u2014 simulated incoming message",
+        "workflow": "communication.auto_reply_v1",
+        "http": 200,
+        "elapsed": 4.1,
+        "extract": {
+          "audit": {
+            "run_id": "3f0e819f-3367-4e92-bb32-0c48d352c2a1",
+            "nodes": [
+              {
+                "node": "load_settings",
+                "at_epoch_ms": 1777617482529,
+                "duration_ms": 1074.896
+              },
+              {
+                "node": "check_enabled",
+                "at_epoch_ms": 1777617482531,
+                "duration_ms": 0.004,
+                "extra": {
+                  "enabled": false
+                }
+              },
+              {
+                "node": "fetch_thread_context",
+                "at_epoch_ms": 1777617482534,
+                "duration_ms": 0.043,
+                "extra": {
+                  "thread_len": 1
+                }
+              },
+              {
+                "node": "llm_draft_reply",
+                "at_epoch_ms": 1777617483596,
+                "duration_ms": 1060.223,
+                "extra": {
+                  "draft_len": 155
+                }
+              },
+              {
+                "node": "send_reply",
+                "at_epoch_ms": 1777617483598,
+                "duration_ms": 0.004,
+                "extra": {
+                  "skipped": "auto_reply_disabled_in_settings"
+                }
+              },
+              {
+                "node": "log_communication",
+                "at_epoch_ms": 1777617484152,
+                "duration_ms": 551.358,
+                "extra": {
+                  "http": 200
+                }
+              },
+              {
+                "node": "finalize",
+                "at_epoch_ms": 1777617484153
+              }
+            ],
+            "billing": {
+              "llm_calls": 1,
+              "llm_tokens_reported": null,
+              "db_reads": 2,
+              "db_queries": 0
+            },
+            "workflow_id": "communication.auto_reply_v1",
+            "started_at_epoch_ms": 1777617481454,
+            "finished_at_epoch_ms": 1777617484154,
+            "duration_ms": 2700,
+            "status": "completed"
+          },
+          "result": {},
+          "errors": []
+        },
+        "passed": 1,
+        "total": 1,
+        "failed": []
+      }
+    },
+    "p8_readback": {
+      "hot_buyer": {
+        "http": 200,
+        "id": 165,
+        "stage": "Lead",
+        "tags": [],
+        "ok": true
+      },
+      "motivated_seller": {
+        "http": 200,
+        "id": 166,
+        "stage": "Lead",
+        "tags": [],
+        "ok": true
+      },
+      "zillow_lead": {
+        "http": 200,
+        "id": 167,
+        "stage": "Lead",
+        "tags": [],
+        "ok": true
+      },
+      "cold_lead": {
+        "http": 200,
+        "id": 168,
+        "stage": "Lead",
+        "tags": [],
+        "ok": true
+      },
+      "enrichment_target": {
+        "http": 200,
+        "id": 169,
+        "stage": "Lead",
+        "tags": [],
+        "ok": true
+      }
+    }
+  },
+  "summary": {
+    "total_elapsed_s": 134.8,
+    "assertions_passed": 23,
+    "assertions_total": 23,
+    "personas_created": 5
+  }
+}

@@ -348,7 +348,12 @@ def notes_create(request):
 def tasks_create(request):
     """
     POST /integrations/followupboss/tasks/create
-    Body: { "personId": 123, "body": "Follow up on listing interest by Friday." }
+    Body: {
+      "personId": 123,
+      "name": "Follow up on listing interest by Friday.",
+      "dueDate": "2026-05-10",   // optional ISO date
+      "type": "To-do"            // optional FUB task type
+    }
     """
     _, client, err = _auth(request)
     if err:
@@ -358,13 +363,17 @@ def tasks_create(request):
         return err
 
     person_id = body.get("personId") or body.get("id")
-    task_body = (body.get("body") or "").strip()
+    # Accept either 'name' (correct FUB field) or 'body' (legacy alias)
+    task_name = (body.get("name") or body.get("body") or "").strip()
     if not isinstance(person_id, int) or person_id <= 0:
         return json_response({"error": "personId (positive int) required"}, 400)
-    if not task_body:
-        return json_response({"error": "body (non-empty string) required"}, 400)
+    if not task_name:
+        return json_response({"error": "name (non-empty string) required"}, 400)
 
-    resp, st = client.create_task(person_id, task_body)
+    due_date = (body.get("dueDate") or body.get("due_date") or "").strip() or None
+    task_type = (body.get("type") or "").strip() or None
+
+    resp, st = client.create_task(person_id, task_name, due_date=due_date, task_type=task_type)
     return json_response(resp if isinstance(resp, dict) else {}, st)
 
 
