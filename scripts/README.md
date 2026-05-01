@@ -45,12 +45,12 @@ Exit code **1** — one or more routes are missing from the internal gateway.
 
 ### Adding a new integration route
 
-1. Add the route to `backend/api/gateway.tf` under `integration_proxy_paths`
-   with `"x-google-backend".address = "${local.integration_internal_base}/..."`.
-2. Add the **same** path to `backend/integration/api/main.tf` under
-   `integration_paths`, using `"x-google-backend" = local.integration_backend`
-   and `security = []`.
-3. Run `python backend/scripts/check_routes.py` — confirm exit 0.
-4. Register the handler in `backend/integration/functions/bundle/routes/public_api.py`.
-5. Implement the handler in the appropriate provider module.
-6. Deploy via HCP Terraform.
+1. Register the handler in `backend/integration/functions/bundle/routes/public_api.py`.
+2. Implement the handler in the appropriate provider module.
+3. Add the **same** path to **both** `backend/api/gateway.tf` (`integration_proxy_paths`) and
+   `backend/integration/api/main.tf` (`integration_paths`).  For almost all FUB routes the
+   public block uses `x-google-backend.address = "${local.integration_internal_base}/…/"`.
+   **Exception:** `GET /integrations/followupboss/oauth/callback` proxies to `callback_bridge`
+   instead — `check_routes.py` accounts for that.
+4. Run `python backend/scripts/check_routes.py` — confirm exit 0.
+5. Deploy via HCP Terraform (public + internal integration gateways).

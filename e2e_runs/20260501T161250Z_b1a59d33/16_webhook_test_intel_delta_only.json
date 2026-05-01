@@ -1,0 +1,58 @@
+{
+  "http": 200,
+  "request": {
+    "eventId": "e2e-diag-intel-2e4bc51f77a9",
+    "event": "peopleUpdated",
+    "resourceIds": [
+      172
+    ],
+    "uri": "https://api.followupboss.com/v1/people?id=172"
+  },
+  "body": {
+    "ok": true,
+    "accepted": true,
+    "eventId": "e2e-diag-intel-2e4bc51f77a9",
+    "workflows": [
+      "contact.intel_delta_v1"
+    ],
+    "webhook_dispatch": [
+      {
+        "workflow_id": "contact.intel_delta_v1",
+        "core_http_status": 200
+      }
+    ],
+    "workflow_debug": {
+      "core_http_status": 200,
+      "core_run": {
+        "status": "completed",
+        "error": null
+      },
+      "state": {
+        "correlation_id": "e2e-diag-intel-2e4bc51f77a9",
+        "metadata_core": {
+          "workflow_id": "contact.intel_delta_v1",
+          "status": "completed",
+          "phase": "done"
+        },
+        "metadata_workflowDemo": {},
+        "metadata_execution_policy": {
+          "policy_version": 1,
+          "volatile_external_allowed": true,
+          "integration_maintenance_allowed": true,
+          "guardrail_level": 1
+        },
+        "metadata_workflow_routing": null,
+        "metadata_skipped_outbound": null,
+        "outbound_actions_count": 0,
+        "skipped_outbound_count": 0,
+        "errors": []
+      },
+      "dispatch": [
+        {
+          "workflow_id": "contact.intel_delta_v1",
+          "core_http_status": 200
+        }
+      ]
+    }
+  }
+}

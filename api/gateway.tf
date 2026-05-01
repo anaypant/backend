@@ -4,7 +4,11 @@
 # Every integration path added here (x-google-backend → integration_internal_base) MUST also be
 # added to backend/integration/api/main.tf (the internal integration gateway).  The two-layer
 # gateway design means the public gateway forwards to the internal gateway, which must know the
-# path or it returns 404.  Run before every deploy:
+# path or it returns 404.
+#
+# Every Follow Up Boss path in backend/integration/functions/bundle/routes/public_api.py ROUTES
+# (except internal/webhook_sync and oauth/callback special-cases) MUST appear here and on the
+# internal gateway — run:
 #
 #   python backend/scripts/check_routes.py
 #
@@ -711,6 +715,23 @@ locals {
           deadline         = local.integration_upstream_deadline
         }
         responses = { "200" = { description = "OK" }, "201" = { description = "Created" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "502" = { description = "Bad gateway" } }
+      }
+    }
+    "/integrations/followupboss/notes/list" = {
+      post = {
+        summary     = "FUB list notes for person (paginated)"
+        operationId = "integrations_followupboss_notes_list"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/notes/list/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = local.integration_upstream_deadline
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
       }
     }
     "/integrations/followupboss/tasks/create" = {

@@ -1,0 +1,80 @@
+{
+  "http": 201,
+  "request": {
+    "firstName": "ACS",
+    "lastName": "LeadIntel-2c52df65a0",
+    "emails": [
+      {
+        "value": "acs.leadintel.2c52df65a0@example.com"
+      }
+    ],
+    "tags": [
+      "acs-e2e",
+      "lead-intel-probe"
+    ],
+    "stage": "New Lead",
+    "source": "Other",
+    "phones": [
+      {
+        "value": "+15552df65a0"
+      }
+    ]
+  },
+  "body": {
+    "id": 172,
+    "created": "2026-05-01T16:13:08Z",
+    "updated": "2026-05-01T16:13:08Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T16:13:08Z",
+    "name": "Acs LeadIntel-2c52df65a0",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-2c52df65a0",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": null,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.2c52df65a0@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+15552df65a0",
+        "type": "mobile",
+        "status": "Not Validated",
+        "isPrimary": 1,
+        "normalized": "+15552650",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true
+  }
+}

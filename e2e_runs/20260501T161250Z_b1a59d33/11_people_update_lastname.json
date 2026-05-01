@@ -1,0 +1,80 @@
+{
+  "http": 200,
+  "request": {
+    "lastName": "LeadIntel-2c52df65a0-deltac3fa"
+  },
+  "body": {
+    "id": 172,
+    "created": "2026-05-01T16:13:08Z",
+    "updated": "2026-05-01T16:14:36Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T16:14:36Z",
+    "name": "Acs LeadIntel-2c52df65a0-deltac3fa",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-2c52df65a0-deltac3fa",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": null,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-e2e-2c52df",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.2c52df65a0@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+15552df65a0",
+        "type": "mobile",
+        "status": "Invalid",
+        "isPrimary": 1,
+        "normalized": "+15552650",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": []
+  }
+}

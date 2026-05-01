@@ -1,0 +1,52 @@
+{
+  "passed": false,
+  "failures": [
+    "HTTP 404 on notes_list",
+    "hands-on: no FUB note body contains 'ACS' (expected createNote from workflows)"
+  ],
+  "warnings": [
+    "hands-on: no long ACS note (>80 chars) \u2014 notes may be very short",
+    "lastWebSummary empty \u2014 common for lazy + low-signal email; not a hard fail",
+    "stress: lastWebSummary < 40 chars \u2014 research may be starved or blocked"
+  ],
+  "hints": {
+    "intel_delta_only_core_http": 200,
+    "webhook_test_workflow_debug_present": true,
+    "webhook_dispatch": [
+      {
+        "workflow_id": "contact.intel_delta_v1",
+        "core_http_status": 200
+      },
+      {
+        "workflow_id": "lead.scoring_v1",
+        "core_http_status": 200
+      }
+    ],
+    "volatile_external_allowed_in_debug": true,
+    "workflow_audit_nodes_count": null,
+    "intel_after_create": {
+      "http": 200,
+      "lastEnrichmentTier": "lazy",
+      "lastEnrichedAt": "2026-05-01T16:13:33.833595+00:00",
+      "summary_len": 0
+    },
+    "intel_after_tags": {
+      "http": 200,
+      "lastEnrichmentTier": "lazy",
+      "lastEnrichedAt": "2026-05-01T16:13:33.833595+00:00",
+      "summary_len": 0
+    },
+    "intel_after_lastname": {
+      "http": 200,
+      "lastEnrichmentTier": "intel_delta",
+      "lastEnrichedAt": "2026-05-01T16:14:58.961809+00:00",
+      "summary_len": 0
+    },
+    "intel_after_webhook_test": {
+      "http": 200,
+      "lastEnrichmentTier": "intel_delta",
+      "lastEnrichedAt": "2026-05-01T16:14:58.961809+00:00",
+      "summary_len": 0
+    }
+  }
+}

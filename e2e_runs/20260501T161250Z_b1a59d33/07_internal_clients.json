@@ -1,0 +1,27 @@
+{
+  "http": 200,
+  "body": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_172",
+    "id": "followupboss_172",
+    "data": {
+      "acsIntel": {
+        "lastWebSummary": "",
+        "lastEnrichmentTier": "lazy",
+        "lastEnrichedAt": "2026-05-01T16:13:33.833595+00:00",
+        "snapshot": {
+          "person_id": 172,
+          "display_name": "Acs LeadIntel-2c52df65a0",
+          "phones": [
+            "+15552df65a0"
+          ],
+          "emails": [
+            "acs.leadintel.2c52df65a0@example.com"
+          ]
+        }
+      },
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1"
+    }
+  },
+  "after": "after create / poll"
+}

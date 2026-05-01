@@ -9,11 +9,15 @@ on:
     paths:
       - "core/**"
       - "integration/**"
+      - "api/**"
+      - "scripts/check_routes.py"
       - ".github/workflows/backend-python-tests.yml"
   pull_request:
     paths:
       - "core/**"
       - "integration/**"
+      - "api/**"
+      - "scripts/check_routes.py"
       - ".github/workflows/backend-python-tests.yml"
   workflow_dispatch:
 
@@ -25,6 +29,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gateway-route-parity:
+    name: API gateway + bundle route parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify Terraform vs public_api.py (integration routes)
+        run: python scripts/check_routes.py
+
   core-runner:
     name: Core runner (LangGraph / workflows)
     runs-on: ubuntu-latest

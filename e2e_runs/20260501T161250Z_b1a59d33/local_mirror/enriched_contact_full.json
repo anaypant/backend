@@ -1,0 +1,160 @@
+{
+  "captured_at": "2026-05-01T16:16:45.531363+00:00",
+  "realtor_uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+  "followupboss_person_id": 172,
+  "http": {
+    "people_get": 200,
+    "notes_list": 404,
+    "internal_clients_read": 200,
+    "leads_read": 200,
+    "billing_usage_read": 200
+  },
+  "followupboss_person": {
+    "id": 172,
+    "created": "2026-05-01T16:13:08Z",
+    "updated": "2026-05-01T16:14:36Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T16:15:08Z",
+    "name": "Acs LeadIntel-2c52df65a0-deltac3fa",
+    "firstName": "Acs",
+    "lastName": "LeadIntel-2c52df65a0-deltac3fa",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": false,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-e2e-2c52df",
+      "lead-intel-probe"
+    ],
+    "emails": [
+      {
+        "value": "acs.leadintel.2c52df65a0@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+15552df65a0",
+        "type": "mobile",
+        "status": "Invalid",
+        "isPrimary": 1,
+        "normalized": "+15552650",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": []
+  },
+  "followupboss_notes": [],
+  "firestore_internal_clients": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/InternalClients/followupboss_172",
+    "id": "followupboss_172",
+    "data": {
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "acsIntel": {
+        "lastWebSummary": "",
+        "lastEnrichmentTier": "intel_delta",
+        "lastEnrichedAt": "2026-05-01T16:14:58.961809+00:00",
+        "snapshot": {
+          "person_id": 172,
+          "display_name": "Acs LeadIntel-2c52df65a0-deltac3fa",
+          "phones": [
+            "+15552df65a0"
+          ],
+          "emails": [
+            "acs.leadintel.2c52df65a0@example.com"
+          ]
+        }
+      },
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1"
+    }
+  },
+  "firestore_leads": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/Leads/followupboss_172",
+    "id": "followupboss_172",
+    "data": {
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "glydeScoreUpdatedAt": "2026-05-01T16:16:36.430624+00:00",
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "glydeIsHot": false,
+      "glydeScore": 31
+    }
+  },
+  "firestore_billing_usage": {
+    "path": "Realtors/d0ihHKrh7xVhpALiVRFOLCzeA0h1/BillingUsage/2026-05",
+    "id": "2026-05",
+    "data": {
+      "enrichmentsPremium": 4,
+      "searchCostUsd": 0.0,
+      "lastUpdated": "2026-05-01T16:15:00.204527+00:00",
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "spentUsd": 0.00039,
+      "fullSnapshotRuns": 0,
+      "month": "2026-05",
+      "lastUsageTier": "intel_delta",
+      "workflowRunCounts": {
+        "contact.enrichment_v1": 2,
+        "contact.intel_delta_v1": 2
+      },
+      "lastWorkflowId": "contact.intel_delta_v1",
+      "enrichmentsStandard": 0,
+      "llmTokensOutEstimated": 709,
+      "llmCostUsd": 0.00039,
+      "llmTokensInEstimated": 8851,
+      "budgetUsd": 1.0,
+      "lazySnapshotRuns": 2,
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "searchApiCalls": 4,
+      "enrichmentsTotal": 4,
+      "lastUpdatedSearch": "duckduckgo",
+      "intelDeltaRuns": 2
+    }
+  },
+  "quality_extracts": {
+    "acs_note_bodies": [],
+    "lastWebSummary_preview": "",
+    "lastWebSummary_len": 0,
+    "lastEnrichmentTier": "intel_delta",
+    "lastEnrichedAt": "2026-05-01T16:14:58.961809+00:00",
+    "glydeScore": 31,
+    "glydeIsHot": false
+  }
+}

@@ -2,9 +2,9 @@
 #
 # !! ROUTE PARITY RULE !!
 # Every integration path in backend/api/gateway.tf that routes to integration_internal_base MUST
-# have a matching entry in the integration_paths local below.  Omitting a path here causes the
-# internal gateway to return 404 even though the public gateway correctly accepts the request.
-# Run before every deploy:
+# have a matching entry in the integration_paths local below.  Every Follow Up Boss path in
+# integration/functions/bundle/routes/public_api.py ROUTES (except documented exceptions) must exist
+# on both gateways.  Run before every deploy:
 #
 #   python backend/scripts/check_routes.py
 #
@@ -445,6 +445,24 @@ locals {
           "400" = { description = "Bad request" }
           "401" = { description = "Unauthorized" }
           "403" = { description = "Forbidden" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
+    "/integrations/followupboss/notes/list" = {
+      post = {
+        summary            = "FUB list notes for person (paginated)"
+        operationId        = "integrations_followupboss_notes_list"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = local.integration_backend
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "404" = { description = "Not found" }
           "502" = { description = "Bad gateway" }
         }
       }
