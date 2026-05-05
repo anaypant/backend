@@ -1,0 +1,20 @@
+{
+  "id": "S10_scoring_nudge_B",
+  "title": "Minor FUB edit + webhook (auto lane eligible)",
+  "person_id": 179,
+  "metrics": {
+    "captured_at": "2026-05-01T19:07:29.201891+00:00",
+    "http_people_get": 200,
+    "http_internal_clients": 200,
+    "http_leads": 200,
+    "glydeScore": 39,
+    "glydeLeadLane": "nurture",
+    "glydeLaneUserPinned": false,
+    "glydeIsHot": false,
+    "lastEnrichmentTier": "lazy",
+    "lastEnrichedAt": "2026-05-01T19:04:29.124694+00:00",
+    "lastWebSummary_len": 0,
+    "fub_phone_count": 1,
+    "fub_email_count": 1
+  }
+}

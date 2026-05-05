@@ -1,0 +1,20 @@
+{
+  "id": "S1_cold_baseline",
+  "title": "Cold ingress \u2014 minimal graph",
+  "person_id": 175,
+  "metrics": {
+    "captured_at": "2026-05-01T18:32:21.513823+00:00",
+    "http_people_get": 200,
+    "http_internal_clients": 200,
+    "http_leads": 200,
+    "glydeScore": 15,
+    "glydeLeadLane": "nurture",
+    "glydeLaneUserPinned": null,
+    "glydeIsHot": false,
+    "lastEnrichmentTier": "lazy",
+    "lastEnrichedAt": "2026-05-01T18:31:44.797523+00:00",
+    "lastWebSummary_len": 0,
+    "fub_phone_count": 0,
+    "fub_email_count": 1
+  }
+}

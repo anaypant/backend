@@ -1,0 +1,60 @@
+{
+  "http": 200,
+  "body": {
+    "ok": true,
+    "accepted": true,
+    "eventId": "pm-lc-scoring-37e2be0fcb",
+    "workflows": [
+      "contact.intel_delta_v1",
+      "lead.scoring_v1"
+    ],
+    "webhook_dispatch": [
+      {
+        "workflow_id": "contact.intel_delta_v1",
+        "core_http_status": 200
+      },
+      {
+        "workflow_id": "lead.scoring_v1",
+        "core_http_status": 200
+      }
+    ],
+    "workflow_debug": {
+      "core_http_status": 200,
+      "core_run": {
+        "status": "completed",
+        "error": null
+      },
+      "state": {
+        "correlation_id": "pm-lc-scoring-37e2be0fcb",
+        "metadata_core": {
+          "workflow_id": "lead.scoring_v1",
+          "status": "completed",
+          "phase": "done"
+        },
+        "metadata_workflowDemo": {},
+        "metadata_execution_policy": {
+          "policy_version": 1,
+          "volatile_external_allowed": true,
+          "integration_maintenance_allowed": true,
+          "guardrail_level": 1
+        },
+        "metadata_workflow_routing": null,
+        "metadata_skipped_outbound": null,
+        "outbound_actions_count": 0,
+        "skipped_outbound_count": 0,
+        "errors": []
+      },
+      "workflow_audit_nodes_count": 10,
+      "dispatch": [
+        {
+          "workflow_id": "contact.intel_delta_v1",
+          "core_http_status": 200
+        },
+        {
+          "workflow_id": "lead.scoring_v1",
+          "core_http_status": 200
+        }
+      ]
+    }
+  }
+}

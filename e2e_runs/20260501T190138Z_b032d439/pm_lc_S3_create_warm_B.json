@@ -1,0 +1,60 @@
+{
+  "http": 201,
+  "body": {
+    "id": 179,
+    "created": "2026-05-01T19:04:10Z",
+    "updated": "2026-05-01T19:04:10Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T19:04:10Z",
+    "name": "Acs WarmLane-794e2d65ae",
+    "firstName": "Acs",
+    "lastName": "WarmLane-794e2d65ae",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": null,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-pm-lc-warm"
+    ],
+    "emails": [
+      {
+        "value": "acs.warm.794e2d65ae@gmail.com",
+        "type": "home",
+        "status": "Valid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+142555d65ae",
+        "type": "mobile",
+        "status": "Not Validated",
+        "isPrimary": 1,
+        "normalized": "+14255565",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true
+  }
+}

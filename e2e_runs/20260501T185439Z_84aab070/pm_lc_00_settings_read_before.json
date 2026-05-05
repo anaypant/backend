@@ -1,0 +1,11 @@
+{
+  "http": 200,
+  "body": {
+    "data": {
+      "createdBy": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "ownerUid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+      "leadLaneAutoMode": "off",
+      "updatedAt": "2026-05-01T18:40:12.613619+00:00"
+    }
+  }
+}

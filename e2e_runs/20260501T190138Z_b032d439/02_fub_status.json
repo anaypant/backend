@@ -1,0 +1,14 @@
+{
+  "http": 200,
+  "body": {
+    "ok": true,
+    "uid": "d0ihHKrh7xVhpALiVRFOLCzeA0h1",
+    "connectionStatus": "connected_with_webhook_sync_issues",
+    "integrated": true,
+    "canOauthStart": false,
+    "oauthStartPath": "/integrations/followupboss/oauth/start",
+    "disconnectPath": "/integrations/followupboss/disconnect",
+    "hasAccessTokenRef": true,
+    "hasRefreshTokenRef": true
+  }
+}

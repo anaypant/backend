@@ -65,7 +65,9 @@ Runs against `~/.acs-cli/session.json` and writes an artifact folder under `back
 cd backend
 python scripts/e2e_lead_intel_deployed.py
 python scripts/e2e_lead_intel_deployed.py --test-lead-lane-api
+python scripts/e2e_lead_intel_deployed.py --pm-lane-lifecycle
 ```
 
 - **Default run:** snapshots include `glydeLeadLane`, pin fields, `glydeQuarantined`, and `GlydeSettings.leadLaneAutoMode` in `quality_extracts` (plus `http.glyde_settings_read`). `QUALITY_GATES.json` adds lane-vs-tier warnings; `ENRICHMENT_QUALITY.md` adds lane rows and §1b when `--test-lead-lane-api` was used.
 - **`--test-lead-lane-api`:** after `contact.intel_delta_v1`, probes `POST /integrations/glyde/leads/lane` (empty body → 400, invalid lane → 400, set nurture pinned → 200), then **restores** active + unpinned (`16e`), saves `16b`–`16e` JSON, and fails the run if the nurture write does not succeed. Pair with **Api Health Suite → Glyde routes** in the lite frontend after deploy.
+- **`--pm-lane-lifecycle`:** PM-only matrix on the deployed stack: health + FUB status, then two disposable FUB people (cold minimal graph → add phone; warm ingress; operator nurture+pin → active+unpin; scoring nudge). Temporarily sets `leadLaneAutoMode=on` and restores it in `pm_lc_ZZ_settings_restore.json`. Artifacts: `PM_LANE_LIFECYCLE.md`, `PM_LANE_LIFECYCLE_GATES.json`, `SUMMARY_PM_LANE.md`, per-step `pm_lc_*.json`. Combine with `--stress` for longer sleeps. Does **not** run the full intel enrichment E2E.

@@ -1,6 +1,7 @@
 # QUERY function — list documents in a Firestore collection with filters / order / pagination.
 
 import acs_internal as acs
+import atom_operator
 
 import datetime
 import json
@@ -258,15 +259,20 @@ def main(request):
         query = coll
 
     if not _is_admin(decoded):
-        if _forbidden_owner_filters(filters, uid):
-            return _json_response({"error": "forbidden"}, 403)
-        if not _ownership_ok_for_non_admin(filters, uid):
-            return _json_response(
-                {
-                    "error": "forbidden: include filter ownerUid or createdBy == your uid",
-                },
-                403,
-            )
+        if atom_operator.is_atom_managed_collection_query_path(col_path) and atom_operator.is_atom_operator(
+            decoded
+        ):
+            pass
+        else:
+            if _forbidden_owner_filters(filters, uid):
+                return _json_response({"error": "forbidden"}, 403)
+            if not _ownership_ok_for_non_admin(filters, uid):
+                return _json_response(
+                    {
+                        "error": "forbidden: include filter ownerUid or createdBy == your uid",
+                    },
+                    403,
+                )
 
     for f in filters:
         if not isinstance(f, dict):

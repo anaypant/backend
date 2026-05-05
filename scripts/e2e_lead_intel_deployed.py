@@ -21,6 +21,10 @@ value + set nurture pinned on the E2E probe lead), then **restores** active + un
 ``16b``–``16e`` JSON artifacts, and adds lane consistency hints to ``QUALITY_GATES.json`` /
 ``ENRICHMENT_QUALITY.md`` for PM sign-off.
 
+``--pm-lane-lifecycle``: PM cold→warm→operator lane matrix on **two disposable FUB people** — turns
+``leadLaneAutoMode`` **on** for the run (restored after), captures score/lane/tier/FUB richness at each
+step, writes ``PM_LANE_LIFECYCLE.md`` + ``PM_LANE_LIFECYCLE_GATES.json`` + per-step JSON under the run dir.
+
 Exit codes: 0 success, 2 auth/config, 3 FUB/person failure, 4 quality hard-fail, 5 HTTP gate.
 """
 
@@ -788,16 +792,397 @@ def _write_summary(out_dir: Path, lines: list[str], meta: dict[str, Any], qualit
         f.write(f"- leads: `{meta.get('leads_path')}`\n")
         if meta.get("lead_lane_api_e2e"):
             f.write("- **lead lane API E2E:** see `16b`–`16e` JSON, `QUALITY_GATES.json` → `lead_lane_api_e2e`, and ENRICHMENT_QUALITY §1b\n")
+        if meta.get("pm_lane_lifecycle"):
+            f.write("- **PM lane lifecycle:** see **[PM_LANE_LIFECYCLE.md](./PM_LANE_LIFECYCLE.md)** and `PM_LANE_LIFECYCLE_GATES.json`\n")
         f.write(f"- guardrailLevel_before: `{meta.get('guardrailLevel_before')}`\n")
         f.write(f"- local_mirror: `{out_dir / 'local_mirror'}`\n")
         f.write(f"- workspace_copy: `{_BACKEND_ROOT / 'local_test_mirror'}`\n\n")
-        f.write("## Enrichment quality (human-readable)\n\n")
-        f.write("See **[ENRICHMENT_QUALITY.md](./ENRICHMENT_QUALITY.md)** for rubric, excerpts, usage slice, and interpretation.\n\n")
+        if meta.get("pm_lane_lifecycle"):
+            f.write("## PM lane lifecycle quality\n\n")
+            f.write("This run did **not** execute the full enrichment E2E. See **PM_LANE_LIFECYCLE.md** for the cold→warm→operator matrix and gate rationale.\n\n")
+        else:
+            f.write("## Enrichment quality (human-readable)\n\n")
+            f.write("See **[ENRICHMENT_QUALITY.md](./ENRICHMENT_QUALITY.md)** for rubric, excerpts, usage slice, and interpretation.\n\n")
         f.write("## Quality gates\n\n```json\n")
         f.write(json.dumps(quality, indent=2, default=str))
         f.write("\n```\n\n## Log\n\n```\n")
         f.write("\n".join(lines))
         f.write("\n```\n")
+
+
+def _lane_metrics_pm(session: dict, uid: str, pid: int) -> dict[str, Any]:
+    ic_path = f"Realtors/{uid}/InternalClients/{internal_client_doc_id(provider='followupboss', external_person_id=str(pid))}"
+    lead_path = f"Realtors/{uid}/Leads/{canonical_lead_doc_id(pid)}"
+    st_p, person = _req(
+        session,
+        "POST",
+        "/integrations/followupboss/people/get",
+        json_body={"personId": pid},
+        timeout=60,
+    )
+    st_i, ic_raw = _req(session, "POST", "/db/read", json_body={"path": ic_path}, timeout=30)
+    st_l, lead_raw = _req(session, "POST", "/db/read", json_body={"path": lead_path}, timeout=30)
+    # /db/read may return {"data": null} when the doc does not exist yet — never treat as dict.
+    ic_payload = ic_raw.get("data") if isinstance(ic_raw, dict) else None
+    ic_data = ic_payload if isinstance(ic_payload, dict) else {}
+    ai_raw = ic_data.get("acsIntel")
+    ai = ai_raw if isinstance(ai_raw, dict) else {}
+    lead_payload = lead_raw.get("data") if isinstance(lead_raw, dict) else None
+    lead_data = lead_payload if isinstance(lead_payload, dict) else {}
+    phones = emails = 0
+    if isinstance(person, dict):
+        pl = person.get("phones")
+        if isinstance(pl, list):
+            phones = len(pl)
+        el = person.get("emails")
+        if isinstance(el, list):
+            emails = len(el)
+    return {
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "http_people_get": st_p,
+        "http_internal_clients": st_i,
+        "http_leads": st_l,
+        "glydeScore": lead_data.get("glydeScore"),
+        "glydeLeadLane": lead_data.get("glydeLeadLane"),
+        "glydeLaneUserPinned": lead_data.get("glydeLaneUserPinned"),
+        "glydeIsHot": lead_data.get("glydeIsHot"),
+        "lastEnrichmentTier": ai.get("lastEnrichmentTier"),
+        "lastEnrichedAt": ai.get("lastEnrichedAt"),
+        "lastWebSummary_len": len(str(ai.get("lastWebSummary") or "")),
+        "fub_phone_count": phones,
+        "fub_email_count": emails,
+    }
+
+
+def _wait_lead_row(session: dict, uid: str, pid: int, log, *, deadline_s: float = 180.0, poll_s: float = 5.0) -> bool:
+    path = f"Realtors/{uid}/Leads/{canonical_lead_doc_id(pid)}"
+    deadline = time.time() + deadline_s
+    while time.time() < deadline:
+        st, body = _req(session, "POST", "/db/read", json_body={"path": path}, timeout=30)
+        if st == 200 and isinstance(body.get("data"), dict) and body["data"]:
+            d = body["data"]
+            if d.get("ownerUid") or d.get("glydeScore") is not None:
+                return True
+        log(f"    … waiting Firestore Leads row ({max(0, int(deadline - time.time()))}s)")
+        time.sleep(poll_s)
+    return False
+
+
+def _webhook_pm_updated(session: dict, pid: int, event_tag: str) -> tuple[int, object]:
+    body = fub_webhook_minimal_body(
+        event=normalize_fub_webhook_event("peopleUpdated"),
+        person_id=pid,
+        event_id=event_tag,
+    )
+    return _req(session, "POST", "/integrations/followupboss/webhook_test", json_body=body, timeout=180)
+
+
+def _evaluate_pm_lane_phases(phases: list[dict[str, Any]]) -> dict[str, Any]:
+    fails: list[str] = []
+    warns: list[str] = []
+    by = {p["id"]: p for p in phases if p.get("id")}
+
+    s6 = by.get("S6_active_to_nurture_B")
+    if s6:
+        lane = str((s6.get("metrics") or {}).get("glydeLeadLane") or "").lower()
+        if lane != "nurture":
+            fails.append(f"S6: expected nurture after operator pin, got {lane!r}")
+
+    s8 = by.get("S8_nurture_to_active_B")
+    if s8:
+        m = s8.get("metrics") or {}
+        lane = str(m.get("glydeLeadLane") or "").lower()
+        pin = m.get("glydeLaneUserPinned")
+        if lane != "active":
+            fails.append(f"S8: expected active after operator restore, got {lane!r}")
+        if pin is True:
+            fails.append("S8: expected glydeLaneUserPinned not True after unpin restore")
+
+    s1, s2 = by.get("S1_cold_baseline"), by.get("S2_after_warmup_A")
+    if s1 and s2:
+        a, b = s1.get("metrics") or {}, s2.get("metrics") or {}
+        la, lb = str(a.get("glydeLeadLane") or "").lower(), str(b.get("glydeLeadLane") or "").lower()
+        if isinstance(a.get("glydeScore"), int) and isinstance(b.get("glydeScore"), int):
+            if b["glydeScore"] < a["glydeScore"]:
+                warns.append("Person A: score decreased after warm-up (timing or duplicate scoring noise).")
+        if la == "nurture" and lb == "nurture":
+            warns.append("Person A: stayed nurture after adding phone — policy may still classify as nurture until next score cycle.")
+
+    s4 = by.get("S4_warm_ingress_B")
+    if s4:
+        sc = (s4.get("metrics") or {}).get("glydeScore")
+        if isinstance(sc, int) and sc < 22:
+            warns.append("Person B: warm-ingress score still very low — verify scoring signal or FUB email heuristics.")
+
+    return {"passed": len(fails) == 0, "failures": fails, "warnings": warns}
+
+
+def _write_pm_lane_lifecycle_md(
+    out_dir: Path,
+    *,
+    phases: list[dict[str, Any]],
+    gates: dict[str, Any],
+    meta: dict[str, Any],
+) -> None:
+    lines: list[str] = [
+        "# PM — Lead lane lifecycle (cold ↔ warm ↔ operator)",
+        "",
+        "Automated matrix on the **deployed** stack using two disposable FUB people. "
+        "For this run, **`leadLaneAutoMode` is temporarily set to `on`** (restored in `pm_lc_ZZ_settings_restore.json`).",
+        "",
+        f"- **run_id:** `{meta.get('run_id')}`",
+        f"- **uid:** `{meta.get('uid')}`",
+        f"- **Person A (cold arc):** `{meta.get('pm_lane_person_a')}`",
+        f"- **Person B (warm + operator arc):** `{meta.get('pm_lane_person_b')}`",
+        "",
+        "## Storyboard",
+        "",
+        "| Arc | Intent |",
+        "|-----|--------|",
+        "| **Cold ingress** | Person A: example email, **no phone** — thin graph, expect low score / nurture tendency. |",
+        "| **Cold → warm** | Add phone + `peopleUpdated` — expect score or lane to move toward **active** when automation is on. |",
+        "| **Warm ingress** | Person B: phone + stronger primary email — richer signal vs A. |",
+        "| **Active → nurture** | Operator `POST /integrations/glyde/leads/lane` **nurture** + **pinned** on B. |",
+        "| **Nurture → active** | Operator **active** + **unpinned** — hand back to automation. |",
+        "| **Scoring nudge** | Minor FUB field + webhook on B — lane may move under policy while unpinned. |",
+        "",
+        "> **Reading `lastEnrichmentTier`:** this is the label from the **last completed** enrichment/intel run; it can lag a lane change until the next workflow.",
+        "",
+        "## Metrics by step",
+        "",
+        "| Step | Person | Score | Lane | Pinned | Tier | FUB phones | FUB emails | Summary len |",
+        "|------|--------|-------|------|--------|------|------------|------------|---------------|",
+    ]
+    for ph in phases:
+        m = ph.get("metrics") or {}
+        lines.append(
+            "| {sid} | {pid} | {sc} | {lane} | {pin} | {tier} | {phc} | {emc} | {slen} |".format(
+                sid=str(ph.get("id", "")),
+                pid=str(ph.get("person_id", "")),
+                sc=str(m.get("glydeScore", "")),
+                lane=str(m.get("glydeLeadLane", "")),
+                pin=str(m.get("glydeLaneUserPinned", "")),
+                tier=str(m.get("lastEnrichmentTier", "")),
+                phc=str(m.get("fub_phone_count", "")),
+                emc=str(m.get("fub_email_count", "")),
+                slen=str(m.get("lastWebSummary_len", "")),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Gates (robustness)",
+            "",
+            "```json",
+            json.dumps(gates, indent=2, default=str),
+            "```",
+            "",
+            "_Failures block a green PM sign-off; warnings are informational._",
+            "",
+        ]
+    )
+    (out_dir / "PM_LANE_LIFECYCLE.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def _run_pm_lane_lifecycle(
+    session: dict,
+    uid: str,
+    run_id: str,
+    out_dir: Path,
+    meta: dict[str, Any],
+    lines: list[str],
+    log,
+    args: Any,
+) -> int:
+    phases: list[dict[str, Any]] = []
+    meta["pm_lane_lifecycle"] = True
+    prev_mode: str | None = None
+    scale = 2.0 if getattr(args, "stress", False) else 1.0
+
+    def sleep_s(base: float) -> None:
+        time.sleep(base * scale)
+
+    def push_phase(phase_id: str, title: str, pid: int, metrics: dict[str, Any]) -> None:
+        row = {"id": phase_id, "title": title, "person_id": pid, "metrics": metrics}
+        phases.append(row)
+        _save(out_dir, f"pm_lc_{phase_id}", row)
+
+    try:
+        stg, bdg = _req(session, "GET", "/integrations/glyde/settings", json_body=None, timeout=60)
+        prev_raw = (bdg.get("data") if isinstance(bdg, dict) else {}) or {}
+        if isinstance(prev_raw, dict):
+            raw_m = prev_raw.get("leadLaneAutoMode")
+            if isinstance(raw_m, str) and raw_m.strip():
+                prev_mode = raw_m.strip().lower()
+        _save(out_dir, "pm_lc_00_settings_read_before", {"http": stg, "body": bdg})
+
+        st_on, b_on = _req(
+            session,
+            "POST",
+            "/integrations/glyde/settings/update",
+            json_body={"leadLaneAutoMode": "on"},
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_00_settings_merge_on", {"http": st_on, "body": b_on})
+        log(f"pm_lc leadLaneAutoMode=on (will restore to {prev_mode!r}) HTTP {st_on}")
+        if st_on >= 400:
+            return 5
+
+        ts = uuid.uuid4().hex[:10]
+        email_a = f"acs.cold.{ts}@example.com"
+        st_c, b_c = _req(
+            session,
+            "POST",
+            "/integrations/followupboss/people/create",
+            json_body={
+                "firstName": "ACS",
+                "lastName": f"ColdLane-{ts}",
+                "emails": [{"value": email_a}],
+                "tags": ["acs-pm-lc-cold", "acs-e2e"],
+                "stage": "New Lead",
+                "source": "Other",
+            },
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_S0_create_cold_A", {"http": st_c, "body": b_c})
+        pid_a = _person_id_from_create(b_c if isinstance(b_c, dict) else {})
+        if not pid_a:
+            log("ERROR: could not parse Person A id")
+            return 3
+        log(f"pm_lc Person A (cold) id={pid_a}")
+        if not _wait_lead_row(session, uid, pid_a, log, deadline_s=200 * scale):
+            log("WARN: Person A Leads row not seen in time")
+        sleep_s(22)
+        push_phase("S1_cold_baseline", "Cold ingress — minimal graph", pid_a, _lane_metrics_pm(session, uid, pid_a))
+
+        st_u, b_u = _req(
+            session,
+            "POST",
+            "/integrations/followupboss/people/update",
+            json_body={
+                "personId": pid_a,
+                "phones": [{"value": "+1202555" + ts[-4:], "type": "mobile"}],
+            },
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_S1b_add_phone_A", {"http": st_u, "body": b_u})
+        stw, bw = _webhook_pm_updated(session, pid_a, f"pm-lc-warm-a-{uuid.uuid4().hex[:10]}")
+        _save(out_dir, "pm_lc_S1c_webhook_after_phone_A", {"http": stw, "body": bw})
+        if stw >= 400:
+            return 5
+        sleep_s(48)
+        push_phase("S2_after_warmup_A", "Cold→warm — phone + webhook", pid_a, _lane_metrics_pm(session, uid, pid_a))
+
+        env_email = (os.environ.get("ACS_E2E_BUSINESS_EMAIL") or "").strip()
+        email_b = env_email if env_email else f"acs.warm.{ts}@gmail.com"
+        st_cb, b_cb = _req(
+            session,
+            "POST",
+            "/integrations/followupboss/people/create",
+            json_body={
+                "firstName": "ACS",
+                "lastName": f"WarmLane-{ts}",
+                "emails": [{"value": email_b}],
+                "phones": [{"value": f"+142555{ts[-5:]}", "type": "mobile"}],
+                "tags": ["acs-pm-lc-warm", "acs-e2e"],
+                "stage": "New Lead",
+                "source": "Other",
+            },
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_S3_create_warm_B", {"http": st_cb, "body": b_cb})
+        pid_b = _person_id_from_create(b_cb if isinstance(b_cb, dict) else {})
+        if not pid_b:
+            log("ERROR: could not parse Person B id")
+            return 3
+        log(f"pm_lc Person B (warm) id={pid_b} email={email_b!r}")
+        if not _wait_lead_row(session, uid, pid_b, log, deadline_s=200 * scale):
+            log("WARN: Person B Leads row not seen in time")
+        sleep_s(22)
+        st_wb, b_wb = _webhook_pm_updated(session, pid_b, f"pm-lc-warm-b-{uuid.uuid4().hex[:10]}")
+        _save(out_dir, "pm_lc_S3b_webhook_warm_B", {"http": st_wb, "body": b_wb})
+        if st_wb >= 400:
+            return 5
+        sleep_s(42)
+        push_phase("S4_warm_ingress_B", "Warm ingress — phone + stronger email", pid_b, _lane_metrics_pm(session, uid, pid_b))
+
+        cid_b = canonical_lead_doc_id(pid_b)
+        st_n, b_n = _req(
+            session,
+            "POST",
+            "/integrations/glyde/leads/lane",
+            json_body={"canonicalLeadId": cid_b, "glydeLeadLane": "nurture", "glydeLaneUserPinned": True},
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_S5_operator_nurture_B", {"http": st_n, "body": b_n})
+        if st_n >= 400:
+            return 5
+        sleep_s(4)
+        push_phase("S6_active_to_nurture_B", "Operator — nurture + pin", pid_b, _lane_metrics_pm(session, uid, pid_b))
+
+        st_r, b_r = _req(
+            session,
+            "POST",
+            "/integrations/glyde/leads/lane",
+            json_body={"canonicalLeadId": cid_b, "glydeLeadLane": "active", "glydeLaneUserPinned": False},
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_S7_operator_active_unpinned_B", {"http": st_r, "body": b_r})
+        if st_r >= 400:
+            return 5
+        sleep_s(4)
+        push_phase("S8_nurture_to_active_B", "Operator — active + unpin", pid_b, _lane_metrics_pm(session, uid, pid_b))
+
+        st_ub, b_ub = _req(
+            session,
+            "POST",
+            "/integrations/followupboss/people/update",
+            json_body={"personId": pid_b, "company": f"PM-LC-Co-{ts[:4]}"},
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_S9_company_nudge_B", {"http": st_ub, "body": b_ub})
+        st_w3, b_w3 = _webhook_pm_updated(session, pid_b, f"pm-lc-scoring-{uuid.uuid4().hex[:10]}")
+        _save(out_dir, "pm_lc_S9b_webhook_after_company_B", {"http": st_w3, "body": b_w3})
+        if st_w3 >= 400:
+            return 5
+        sleep_s(42)
+        push_phase("S10_scoring_nudge_B", "Minor FUB edit + webhook (auto lane eligible)", pid_b, _lane_metrics_pm(session, uid, pid_b))
+
+        gates = _evaluate_pm_lane_phases(phases)
+        meta["pm_lane_person_a"] = pid_a
+        meta["pm_lane_person_b"] = pid_b
+        meta["finished_at"] = datetime.now(timezone.utc).isoformat()
+        _save(out_dir, "PM_LANE_LIFECYCLE_GATES", gates)
+        _write_pm_lane_lifecycle_md(out_dir, phases=phases, gates=gates, meta=meta)
+        mirror = _BACKEND_ROOT / "local_test_mirror"
+        mirror.mkdir(parents=True, exist_ok=True)
+        (mirror / "lead_intel_last_pm_lane_lifecycle.md").write_text(
+            (out_dir / "PM_LANE_LIFECYCLE.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        with (out_dir / "SUMMARY_PM_LANE.md").open("w", encoding="utf-8") as sf:
+            sf.write("# PM lane lifecycle run\n\n")
+            sf.write(f"- run_id: `{run_id}`\n")
+            sf.write(f"- Person A: `{pid_a}`  Person B: `{pid_b}`\n")
+            sf.write("- Read [PM_LANE_LIFECYCLE.md](./PM_LANE_LIFECYCLE.md)\n\n## Gates\n\n```json\n")
+            sf.write(json.dumps(gates, indent=2, default=str))
+            sf.write("\n```\n")
+        _save(out_dir, "_meta", meta)
+        log("--- PM lane lifecycle gates ---")
+        log(json.dumps(gates, indent=2, default=str))
+        log(f"Done PM lane lifecycle. Artifacts: {out_dir}")
+        return 0 if gates.get("passed") else 4
+    finally:
+        restore = prev_mode if prev_mode else "off"
+        st_rv, b_rv = _req(
+            session,
+            "POST",
+            "/integrations/glyde/settings/update",
+            json_body={"leadLaneAutoMode": restore},
+            timeout=60,
+        )
+        _save(out_dir, "pm_lc_ZZ_settings_restore", {"http": st_rv, "body": b_rv, "restored_to": restore})
+        log(f"pm_lc settings restore leadLaneAutoMode={restore!r} HTTP {st_rv}")
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -825,6 +1210,11 @@ def run(argv: list[str] | None = None) -> int:
         "--test-lead-lane-api",
         action="store_true",
         help="After intel_delta webhook: probe POST /integrations/glyde/leads/lane (validation + bad lane + set nurture on this E2E lead). For post-deploy PM verification.",
+    )
+    ap.add_argument(
+        "--pm-lane-lifecycle",
+        action="store_true",
+        help="PM matrix only: two disposable FUB people (cold→warm + warm→operator lane), temporary leadLaneAutoMode=on, PM_LANE_LIFECYCLE.md + gates; skips full intel E2E.",
     )
     args = ap.parse_args(argv)
 
@@ -890,6 +1280,25 @@ def run(argv: list[str] | None = None) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     meta: dict[str, Any] = {"run_id": run_id, "started_at": datetime.now(timezone.utc).isoformat(), "uid": uid}
     _save(out_dir, "_meta", meta)
+
+    if args.pm_lane_lifecycle:
+        log(f"=== PM lane lifecycle only {run_id} uid={uid[:8]}… stress={args.stress} ===")
+        st_h, body_h = _req(session, "GET", "/health", json_body=None, timeout=30)
+        _save(out_dir, "01_health", {"http": st_h, "body": body_h})
+        log(f"01 health HTTP {st_h}")
+        st_f, body_f = _req(session, "GET", "/integrations/followupboss/status", timeout=30)
+        _save(out_dir, "02_fub_status", {"http": st_f, "body": body_f})
+        log(f"02 fub/status HTTP {st_f}")
+        if st_f >= 400:
+            return 3
+        rc = _run_pm_lane_lifecycle(session, uid, run_id, out_dir, meta, lines, log, args)
+        try:
+            gates = json.loads((out_dir / "PM_LANE_LIFECYCLE_GATES.json").read_text(encoding="utf-8"))
+        except Exception:
+            gates = {"passed": rc == 0, "failures": [], "warnings": ["PM_LANE_LIFECYCLE_GATES.json missing or unreadable"]}
+        _save(out_dir, "_meta", meta)
+        _write_summary(out_dir, lines, meta, gates)
+        return rc
 
     poll_deadline = max(60.0, float(args.poll_intel_seconds))
     if args.stress:

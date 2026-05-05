@@ -1,0 +1,20 @@
+{
+  "id": "S6_active_to_nurture_B",
+  "title": "Operator \u2014 nurture + pin",
+  "person_id": 176,
+  "metrics": {
+    "captured_at": "2026-05-01T18:38:50.516967+00:00",
+    "http_people_get": 200,
+    "http_internal_clients": 200,
+    "http_leads": 200,
+    "glydeScore": 34,
+    "glydeLeadLane": "nurture",
+    "glydeLaneUserPinned": true,
+    "glydeIsHot": false,
+    "lastEnrichmentTier": "lazy",
+    "lastEnrichedAt": "2026-05-01T18:34:12.570965+00:00",
+    "lastWebSummary_len": 0,
+    "fub_phone_count": 1,
+    "fub_email_count": 1
+  }
+}

@@ -1,6 +1,7 @@
 # DELETE function for database
 
 import acs_internal as acs
+import atom_operator
 
 import json
 import os
@@ -57,8 +58,10 @@ def _is_admin(decoded: dict) -> bool:
     return role == "admin"
 
 
-def _caller_may_delete(decoded: dict, doc_data: dict | None) -> bool:
+def _caller_may_delete(decoded: dict, doc_data: dict | None, doc_path: str) -> bool:
     if _is_admin(decoded):
+        return True
+    if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return True
     if not doc_data:
         return False
@@ -140,7 +143,7 @@ def main(request):
     if not snap.exists:
         return _json_response({"error": "not found"}, 404)
 
-    if not _caller_may_delete(decoded, snap.to_dict()):
+    if not _caller_may_delete(decoded, snap.to_dict(), doc_path):
         return _json_response({"error": "forbidden"}, 403)
 
     doc_ref.delete()

@@ -1,0 +1,76 @@
+{
+  "http": 200,
+  "body": {
+    "id": 178,
+    "created": "2026-05-01T19:01:44Z",
+    "updated": "2026-05-01T19:02:46Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T19:02:46Z",
+    "name": "Acs ColdLane-794e2d65ae",
+    "firstName": "Acs",
+    "lastName": "ColdLane-794e2d65ae",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": null,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-pm-lc-cold"
+    ],
+    "emails": [
+      {
+        "value": "acs.cold.794e2d65ae@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [
+      {
+        "value": "+120255565ae",
+        "type": "mobile",
+        "status": "Not Validated",
+        "isPrimary": 1,
+        "normalized": "+120255565",
+        "isLandline": null,
+        "isOnboardingNumber": false
+      }
+    ],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true,
+    "dealStatus": null,
+    "dealStage": null,
+    "dealName": null,
+    "dealCloseDate": null,
+    "dealPrice": null,
+    "firstToClaimOffer": false,
+    "collaborators": [
+      {
+        "id": 1,
+        "name": "Anay Pant",
+        "assigned": true,
+        "role": "Broker"
+      }
+    ],
+    "teamLeaders": [],
+    "pondMembers": []
+  }
+}

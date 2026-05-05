@@ -1,0 +1,6 @@
+{
+  "http": 400,
+  "body": {
+    "error": "No update fields provided. Supply at least one of: firstName, lastName, stage, source, emails, phones, price"
+  }
+}

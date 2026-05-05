@@ -1,6 +1,7 @@
 # READ function for database
 
 import acs_internal as acs
+import atom_operator
 
 import datetime
 import json
@@ -78,9 +79,18 @@ def _linked_auth_uids(doc_data: dict | None) -> set[str]:
 def _caller_may_read(decoded: dict, doc_data: dict | None, doc_path: str) -> bool:
     if _is_admin(decoded):
         return True
-    if _is_own_role_profile_path(decoded, doc_path):
+    if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return True
     parts = [p for p in doc_path.strip().split("/") if p]
+    if (
+        len(parts) >= 2
+        and parts[0] == "AtomErrorReports"
+        and doc_data
+        and (doc_data.get("ownerUid") or doc_data.get("createdBy")) == decoded.get("uid")
+    ):
+        return True
+    if _is_own_role_profile_path(decoded, doc_path):
+        return True
     if (
         len(parts) == 2
         and parts[0] in ("Realtors", "Internals")

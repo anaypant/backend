@@ -1,0 +1,20 @@
+{
+  "id": "S8_nurture_to_active_B",
+  "title": "Operator \u2014 active + unpin",
+  "person_id": 176,
+  "metrics": {
+    "captured_at": "2026-05-01T18:39:04.887611+00:00",
+    "http_people_get": 200,
+    "http_internal_clients": 200,
+    "http_leads": 200,
+    "glydeScore": 34,
+    "glydeLeadLane": "active",
+    "glydeLaneUserPinned": false,
+    "glydeIsHot": false,
+    "lastEnrichmentTier": "lazy",
+    "lastEnrichedAt": "2026-05-01T18:34:12.570965+00:00",
+    "lastWebSummary_len": 0,
+    "fub_phone_count": 1,
+    "fub_email_count": 1
+  }
+}

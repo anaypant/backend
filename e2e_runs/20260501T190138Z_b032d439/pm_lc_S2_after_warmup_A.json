@@ -1,0 +1,20 @@
+{
+  "id": "S2_after_warmup_A",
+  "title": "Cold\u2192warm \u2014 phone + webhook",
+  "person_id": 178,
+  "metrics": {
+    "captured_at": "2026-05-01T19:04:09.376930+00:00",
+    "http_people_get": 200,
+    "http_internal_clients": 200,
+    "http_leads": 200,
+    "glydeScore": 21,
+    "glydeLeadLane": "nurture",
+    "glydeLaneUserPinned": null,
+    "glydeIsHot": false,
+    "lastEnrichmentTier": "intel_delta",
+    "lastEnrichedAt": "2026-05-01T19:03:05.520817+00:00",
+    "lastWebSummary_len": 0,
+    "fub_phone_count": 1,
+    "fub_email_count": 1
+  }
+}

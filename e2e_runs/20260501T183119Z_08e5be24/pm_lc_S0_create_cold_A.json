@@ -1,0 +1,50 @@
+{
+  "http": 201,
+  "body": {
+    "id": 175,
+    "created": "2026-05-01T18:31:27Z",
+    "updated": "2026-05-01T18:31:27Z",
+    "createdVia": "API",
+    "lastActivity": "2026-05-01T18:31:27Z",
+    "name": "Acs ColdLane-8d02b4d5ed",
+    "firstName": "Acs",
+    "lastName": "ColdLane-8d02b4d5ed",
+    "stage": "Lead",
+    "stageId": 2,
+    "type": "Buyer",
+    "source": "Other",
+    "sourceId": 14,
+    "sourceUrl": "",
+    "leadFlowId": null,
+    "delayed": null,
+    "contacted": 0,
+    "price": null,
+    "assignedLenderId": null,
+    "assignedLenderName": null,
+    "assignedUserId": 1,
+    "assignedPondId": null,
+    "assignedTo": "Anay Pant",
+    "tags": [
+      "acs-e2e",
+      "acs-pm-lc-cold"
+    ],
+    "emails": [
+      {
+        "value": "acs.cold.8d02b4d5ed@example.com",
+        "type": "home",
+        "status": "Invalid",
+        "isPrimary": 1
+      }
+    ],
+    "phones": [],
+    "addresses": [],
+    "picture": null,
+    "socialData": [],
+    "websiteVisits": 0,
+    "timeframeId": null,
+    "timeframeUpdated": null,
+    "timeframeStatus": null,
+    "timeframeDateRange": null,
+    "claimed": true
+  }
+}

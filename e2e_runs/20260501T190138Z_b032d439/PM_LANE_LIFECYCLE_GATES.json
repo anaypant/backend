@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "failures": [],
+  "warnings": [
+    "Person A: stayed nurture after adding phone \u2014 policy may still classify as nurture until next score cycle."
+  ]
+}

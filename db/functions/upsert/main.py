@@ -1,6 +1,7 @@
 # UPSERT function for database (create or merge-update)
 
 import acs_internal as acs
+import atom_operator
 
 import json
 import os
@@ -83,6 +84,8 @@ def _linked_auth_uids(existing: dict | None) -> set[str]:
 def _caller_may_update_existing(decoded: dict, existing: dict, doc_path: str) -> bool:
     if _is_admin(decoded):
         return True
+    if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
+        return True
     if _is_own_role_profile_path(decoded, doc_path):
         return True
     parts = [p for p in doc_path.strip().split("/") if p]
@@ -92,8 +95,18 @@ def _caller_may_update_existing(decoded: dict, existing: dict, doc_path: str) ->
     return _caller_owns_document(decoded, existing)
 
 
-def _caller_may_create(decoded: dict, data: dict) -> bool:
+def _atom_error_report_create_allowed(decoded: dict, doc_path: str) -> bool:
+    """Any authenticated Firebase user may create AtomErrorReports/* (ingest from Atom)."""
+    parts = [p for p in doc_path.strip().split("/") if p]
+    return len(parts) >= 2 and parts[0] == "AtomErrorReports" and bool(decoded.get("uid"))
+
+
+def _caller_may_create(decoded: dict, data: dict, doc_path: str) -> bool:
     if _is_admin(decoded):
+        return True
+    if _atom_error_report_create_allowed(decoded, doc_path):
+        return True
+    if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return True
     uid = decoded["uid"]
     owner_uid = data.get("ownerUid", uid)
@@ -101,9 +114,11 @@ def _caller_may_create(decoded: dict, data: dict) -> bool:
     return owner_uid == uid and created_by == uid
 
 
-def _strip_invalid_owner_changes(decoded: dict, patch: dict) -> dict | None:
+def _strip_invalid_owner_changes(decoded: dict, patch: dict, doc_path: str) -> dict | None:
     """Non-admins cannot set ownerUid/createdBy to another user. Returns None if forbidden."""
     if _is_admin(decoded):
+        return dict(patch)
+    if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return dict(patch)
     uid = decoded["uid"]
     out = dict(patch)
@@ -221,7 +236,7 @@ def main(request):
     if snap.exists:
         if not _caller_may_update_existing(decoded, existing_dict, effective_path):
             return _json_response({"error": "forbidden"}, 403)
-        patch = _strip_invalid_owner_changes(decoded, data)
+        patch = _strip_invalid_owner_changes(decoded, data, effective_path)
         if patch is None:
             return _json_response(
                 {"error": "forbidden: cannot reassign ownerUid or createdBy"},
@@ -230,7 +245,7 @@ def main(request):
         write_payload = patch
         created = False
     else:
-        if not _caller_may_create(decoded, data):
+        if not _caller_may_create(decoded, data, effective_path):
             return _json_response({"error": "forbidden"}, 403)
         write_payload = _prepare_write_for_create(decoded, data)
         created = True
