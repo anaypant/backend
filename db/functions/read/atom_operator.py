@@ -15,6 +15,8 @@ _ATOM_ROOT_COLLECTIONS = frozenset(
     }
 )
 
+_ATOM_USER_DIRECTORY_COLLECTIONS = frozenset({"Users", "Realtors", "Internals"})
+
 
 def _operator_email_allowlist() -> set[str]:
     raw = (os.environ.get("ACS_ATOM_OPERATOR_EMAILS") or "").strip().lower()
@@ -43,3 +45,15 @@ def is_atom_managed_document_path(doc_path: str) -> bool:
 def is_atom_managed_collection_query_path(col_path: str) -> bool:
     parts = [p for p in col_path.strip().split("/") if p]
     return len(parts) == 1 and parts[0] in _ATOM_ROOT_COLLECTIONS
+
+
+def is_atom_user_directory_document_path(doc_path: str) -> bool:
+    """Top-level ACS profile docs Atom may manage via the public /db API (read/query/upsert/delete)."""
+    parts = [p for p in doc_path.strip().split("/") if p]
+    return len(parts) == 2 and parts[0] in _ATOM_USER_DIRECTORY_COLLECTIONS
+
+
+def is_atom_user_directory_collection_query_path(col_path: str) -> bool:
+    """Top-level collection listing for user directory (Atom operator + /db/query)."""
+    parts = [p for p in col_path.strip().split("/") if p]
+    return len(parts) == 1 and parts[0] in _ATOM_USER_DIRECTORY_COLLECTIONS

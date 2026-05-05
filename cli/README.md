@@ -252,12 +252,13 @@ python acs.py integration resync-webhooks
 
 #### `admin promote`
 
-Promote a user to `role: internal, admin: true` (requires the caller to already
-have `admin: true` in their Firebase custom claims):
+Promote a user to `admin: true` with realtor role (same claims needed for **Atom** and ACS operator tools). The caller must already have `admin: true` (or platform service-account OIDC).
 
 ```bash
 python acs.py admin promote --uid d0ihHKrh7xVhpALiVRFOLCzeA0h1
 ```
+
+After promotion, the user must refresh their Firebase ID token (sign out/in or wait for refresh) before Atom recognizes admin access.
 
 ---
 

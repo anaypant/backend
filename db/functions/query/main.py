@@ -1,4 +1,7 @@
 # QUERY function — list documents in a Firestore collection with filters / order / pagination.
+#
+# External clients (e.g. Atom) must reach Firestore only via the public gateway → this Cloud Function
+# (POST /db/query with end-user Firebase Bearer). Direct Firestore SDK use from client apps is not supported.
 
 import acs_internal as acs
 import atom_operator
@@ -259,9 +262,11 @@ def main(request):
         query = coll
 
     if not _is_admin(decoded):
-        if atom_operator.is_atom_managed_collection_query_path(col_path) and atom_operator.is_atom_operator(
-            decoded
-        ):
+        op_ok = (
+            atom_operator.is_atom_managed_collection_query_path(col_path)
+            or atom_operator.is_atom_user_directory_collection_query_path(col_path)
+        )
+        if op_ok and atom_operator.is_atom_operator(decoded):
             pass
         else:
             if _forbidden_owner_filters(filters, uid):

@@ -1,4 +1,6 @@
 # UPSERT function for database (create or merge-update)
+#
+# External clients must use the gateway POST /db/upsert — not direct Firestore SDK access.
 
 import acs_internal as acs
 import atom_operator
@@ -84,6 +86,8 @@ def _linked_auth_uids(existing: dict | None) -> set[str]:
 def _caller_may_update_existing(decoded: dict, existing: dict, doc_path: str) -> bool:
     if _is_admin(decoded):
         return True
+    if atom_operator.is_atom_operator(decoded) and atom_operator.is_atom_user_directory_document_path(doc_path):
+        return True
     if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return True
     if _is_own_role_profile_path(decoded, doc_path):
@@ -117,6 +121,8 @@ def _caller_may_create(decoded: dict, data: dict, doc_path: str) -> bool:
 def _strip_invalid_owner_changes(decoded: dict, patch: dict, doc_path: str) -> dict | None:
     """Non-admins cannot set ownerUid/createdBy to another user. Returns None if forbidden."""
     if _is_admin(decoded):
+        return dict(patch)
+    if atom_operator.is_atom_operator(decoded) and atom_operator.is_atom_user_directory_document_path(doc_path):
         return dict(patch)
     if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return dict(patch)

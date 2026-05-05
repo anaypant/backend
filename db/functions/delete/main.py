@@ -1,4 +1,6 @@
 # DELETE function for database
+#
+# External clients must use the gateway POST /db/delete — not direct Firestore SDK access.
 
 import acs_internal as acs
 import atom_operator
@@ -60,6 +62,8 @@ def _is_admin(decoded: dict) -> bool:
 
 def _caller_may_delete(decoded: dict, doc_data: dict | None, doc_path: str) -> bool:
     if _is_admin(decoded):
+        return True
+    if atom_operator.is_atom_operator(decoded) and atom_operator.is_atom_user_directory_document_path(doc_path):
         return True
     if atom_operator.is_atom_managed_document_path(doc_path) and atom_operator.is_atom_operator(decoded):
         return True
