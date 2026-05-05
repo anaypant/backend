@@ -503,6 +503,23 @@ locals {
         }
       }
     }
+    "/integrations/followupboss/migration/import-batch" = {
+      post = {
+        summary            = "FUB migration batch via integration preflight + core"
+        operationId        = "integrations_followupboss_migration_import_batch"
+        consumes           = ["application/json"]
+        produces           = ["application/json"]
+        security           = []
+        "x-google-backend" = merge(local.integration_backend, { deadline = 300.0 })
+        responses = {
+          "200" = { description = "OK" }
+          "400" = { description = "Bad request" }
+          "401" = { description = "Unauthorized" }
+          "403" = { description = "Forbidden" }
+          "502" = { description = "Bad gateway" }
+        }
+      }
+    }
     "/integrations/glyde/settings" = {
       options = {
         summary            = "CORS preflight for glyde/settings"

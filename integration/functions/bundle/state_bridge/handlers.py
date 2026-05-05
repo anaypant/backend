@@ -124,6 +124,11 @@ def _collect_from_providers(uid: str, blocks: list[Any]) -> tuple[dict[str, Any]
     return merged, None
 
 
+def collect_from_providers_blocks(uid: str, blocks: list[Any]) -> tuple[dict[str, Any] | None, str | None]:
+    """Public wrapper for in-process callers (e.g. migration import preflight)."""
+    return _collect_from_providers(uid.strip(), blocks)
+
+
 def _state_from_providers_impl(request, *, uid: str):
     if request.method != "POST":
         return json_response({"error": "method not allowed"}, 405)

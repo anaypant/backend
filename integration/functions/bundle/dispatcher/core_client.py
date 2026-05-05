@@ -7,6 +7,10 @@ one or more ``workflow_id`` values, then POSTs here **once per workflow** with a
 
 Provider OAuth, list APIs, and refresh remain in integration; browser or internal clients may
 also call ``/core/v1/run`` via the public gateway when running workflows directly.
+
+Some FUB migration entrypoints (e.g. ``/integrations/followupboss/import`` and
+``/integrations/followupboss/migration/import-batch``) materialize CRM rows in integration before
+calling core, so core-run does not need ``INTEGRATION_BRIDGE_BASE_URL`` for those paths.
 """
 
 from typing import Any

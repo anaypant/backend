@@ -10,6 +10,7 @@ from providers.followupboss.fub_direct_ops import (
     tags_remove,
     tasks_create,
     trigger_import,
+    migration_import_batch,
 )
 from providers.followupboss.oauth import (
     connection_status,
@@ -94,6 +95,9 @@ class FollowUpBossProvider:
 
     def trigger_import(self, request):
         return trigger_import(request)
+
+    def migration_import_batch(self, request):
+        return migration_import_batch(request)
 
     def apply_outbound_actions(self, connection_id: str, actions: list[dict]) -> dict:
         return apply_outbound_actions(connection_id, actions)

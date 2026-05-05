@@ -436,6 +436,7 @@ def trigger_import(request):
         return err
 
     from dispatcher.core_client import send_state_to_core
+    from state_bridge.migration_import_preflight import preflight_migration_import_state
     import uuid as _uuid
 
     person_id = body.get("personId") or body.get("id")
@@ -455,6 +456,85 @@ def trigger_import(request):
         "payload": wf_payload,
         "metadata": {"execution_policy": {"volatile_external_allowed": False, "integration_maintenance_allowed": True}},
     }
+
+    state, pre_err = preflight_migration_import_state(uid, state)
+    if pre_err:
+        return json_response({"error": "import_preflight_failed", "detail": pre_err}, 502)
+
+    try:
+        resp, st = send_state_to_core(state, workflow_id="migration.import_leads_v1", timeout=120)
+    except Exception as e:
+        return json_response({"error": f"core run failed: {e}"}, 502)
+
+    return json_response(resp if isinstance(resp, dict) else {}, st)
+
+
+def migration_import_batch(request):
+    """
+    POST /integrations/followupboss/migration/import-batch
+
+    Materializes FUB rows in integration (in-process ``from_providers``), then invokes core.
+    Core does not call ``INTEGRATION_BRIDGE_BASE_URL`` for this entrypoint.
+    """
+    decoded, err, _token = resolve_realtor_bearer(request)
+    if err:
+        return integration_auth_error_response(err)
+    uid = decoded["uid"]
+
+    body, err = _body(request)
+    if err:
+        return err
+
+    body_uid = body.get("userId")
+    if not isinstance(body_uid, str) or not body_uid.strip():
+        return json_response({"error": "userId required (must match signed-in realtor)"}, 400)
+    if body_uid.strip() != uid:
+        return json_response({"error": "userId must match access token"}, 403)
+
+    has_person = body.get("personId") is not None and str(body.get("personId")).strip() != ""
+
+    payload: dict[str, Any] = {}
+    if has_person:
+        payload["personId"] = body.get("personId")
+    if body.get("maxListPages") is not None:
+        payload["maxListPages"] = body.get("maxListPages")
+    if not has_person:
+        payload["providerLoad"] = [
+            {
+                "provider": "followupboss",
+                "kind": "people_list_request",
+                "payload": {
+                    "batchSize": body.get("batchSize"),
+                    "offset": body.get("offset"),
+                    "next": body.get("next"),
+                },
+            },
+        ]
+
+    import uuid as _uuid
+
+    from dispatcher.core_client import send_state_to_core
+    from state_bridge.migration_import_preflight import (
+        materialize_provider_load_once,
+        preflight_migration_import_state,
+    )
+
+    state: dict[str, Any] = {
+        "state_version": 1,
+        "correlation_id": str(_uuid.uuid4()),
+        "tenant_id": None,
+        "user_id": uid,
+        "source": {"provider": "followupboss", "event_type": "migration.import_leads"},
+        "payload": payload,
+        "metadata": {},
+    }
+
+    if has_person:
+        state, pre_err = preflight_migration_import_state(uid, state)
+    else:
+        state, pre_err = materialize_provider_load_once(uid, state)
+    if pre_err:
+        return json_response({"error": "import_preflight_failed", "detail": pre_err}, 502)
 
     try:
         resp, st = send_state_to_core(state, workflow_id="migration.import_leads_v1", timeout=120)

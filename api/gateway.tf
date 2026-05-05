@@ -768,6 +768,23 @@ locals {
         responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "404" = { description = "Not found" }, "502" = { description = "Bad gateway" } }
       }
     }
+    "/integrations/followupboss/migration/import-batch" = {
+      post = {
+        summary     = "FUB migration batch: materialize in integration then core (no core integration bridge)"
+        operationId = "integrations_followupboss_migration_import_batch"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        parameters  = [local.integration_json_object_body]
+        security    = local.firebase_sec
+        "x-google-backend" = {
+          address          = "${local.integration_internal_base}/integrations/followupboss/migration/import-batch/"
+          path_translation = "CONSTANT_ADDRESS"
+          protocol         = "h2"
+          deadline         = 300.0
+        }
+        responses = { "200" = { description = "OK" }, "400" = { description = "Bad request" }, "401" = { description = "Unauthorized" }, "403" = { description = "Forbidden" }, "502" = { description = "Bad gateway" } }
+      }
+    }
     "/integrations/followupboss/disconnect" = {
       post = {
         summary     = "Integration followupboss/disconnect (proxied to internal integration gateway)"

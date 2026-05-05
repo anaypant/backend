@@ -50,6 +50,7 @@ ROUTES = {
     "/integrations/followupboss/notes/list":         ("followupboss", "notes_list",       {"POST"}),
     "/integrations/followupboss/tasks/create":       ("followupboss", "tasks_create",       {"POST"}),
     "/integrations/followupboss/import":             ("followupboss", "trigger_import",     {"POST"}),
+    "/integrations/followupboss/migration/import-batch": ("followupboss", "migration_import_batch", {"POST"}),
     "/integrations/webhooks/followupboss": ("followupboss", "webhook_ingress", {"POST"}),
     # Glyde routes
     "/integrations/glyde/settings": ("glyde", "get_settings", {"GET"}),
