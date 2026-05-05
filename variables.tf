@@ -124,17 +124,28 @@ variable "integration_oauth_browser_cors_origins" {
   description = "Browser origins allowed CORS on public GET/OPTIONS /integrations/followupboss/oauth/start. Set [] to disable; add http://localhost:3000 for local OAuth UI."
 }
 
+variable "integration_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = <<-EOT
+    Internal Integration API Gateway hostname (no scheme), same as terraform output integration_gateway_hostname.
+    When set, core-run INTEGRATION_BRIDGE_BASE_URL becomes https://{hostname} (ESP routes to integration-bridge).
+    Must match the deployed gateway (root check block). Leave empty to call the integration Cloud Function URL only
+    via fub_webhook_sync_worker_url (legacy single-URL mode).
+    EOT
+}
+
 variable "fub_webhook_sync_worker_url" {
   type        = string
   default     = ""
   description = <<-EOT
-    Integration-bridge HTTPS origin (no trailing slash), used by:
-    (1) integration Cloud Tasks / OIDC worker (FUB_WEBHOOK_SYNC_WORKER_URL),
-    (2) optional core-run INTEGRATION_BRIDGE_BASE_URL when core workflows call integration (e.g. migrations).
+    Integration-bridge Cloud Function HTTPS origin (no trailing slash) — terraform output -raw integration_bridge_function_url.
+    Used for: (1) integration Cloud Tasks OIDC target (FUB_WEBHOOK_SYNC_WORKER_URL),
+    (2) core-run INTEGRATION_BRIDGE_OIDC_AUDIENCE when calling the internal integration gateway (must match ESP jwt_audience).
 
-    Terraform cannot set this from module.integration in the same apply as module.core (integration depends on core).
-    After the first deploy that creates integration-bridge, set this to: terraform output -raw integration_bridge_function_url
-    then re-apply so integration tasks and core get the same origin.
+    When integration_internal_gateway_hostname is set, this must also be set (same apply) so core can mint valid OIDC tokens.
+
+    When integration_internal_gateway_hostname is empty, this URL alone is used as INTEGRATION_BRIDGE_BASE_URL (direct CF).
     EOT
 }
 

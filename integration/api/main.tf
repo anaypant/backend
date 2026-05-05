@@ -75,11 +75,11 @@ locals {
     }
     "/integrations/webhooks/v1/{provider}" = {
       post = {
-        summary            = "Integration webhooks v1 by provider"
-        operationId        = "integrations_webhooks_v1_provider"
-        consumes           = ["application/json"]
-        produces           = ["application/json"]
-        security           = []
+        summary     = "Integration webhooks v1 by provider"
+        operationId = "integrations_webhooks_v1_provider"
+        consumes    = ["application/json"]
+        produces    = ["application/json"]
+        security    = []
         parameters = [
           {
             name     = "provider"

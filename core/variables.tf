@@ -47,7 +47,13 @@ variable "secrets_internal_jwt_audience" {
 variable "fub_webhook_sync_worker_url" {
   type        = string
   default     = ""
-  description = "integration-bridge HTTPS origin (no trailing slash) → core-run INTEGRATION_BRIDGE_BASE_URL. Optional unless a core workflow calls integration (e.g. migration.from_providers, sync outbound). FUB webhooks hydrate CRM payloads in integration before invoking core."
+  description = "integration-bridge Cloud Function URL (no trailing slash). OIDC audience for gateway calls; INTEGRATION_BRIDGE_BASE_URL when integration_internal_gateway_hostname is empty."
+}
+
+variable "integration_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = "Internal integration API Gateway hostname (no scheme). When set, INTEGRATION_BRIDGE_BASE_URL=https://{host}. Requires fub_webhook_sync_worker_url for INTEGRATION_BRIDGE_OIDC_AUDIENCE."
 }
 
 variable "enable_core_dev_lab" {

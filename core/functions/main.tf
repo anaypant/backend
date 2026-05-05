@@ -12,7 +12,12 @@ terraform {
 }
 
 locals {
-  _bridge_base = trimspace(var.fub_webhook_sync_worker_url)
+  # INTEGRATION_BRIDGE_BASE_URL: prefer internal API Gateway (same host as backend/api → integration_internal_base).
+  # INTEGRATION_BRIDGE_OIDC_AUDIENCE: must match integration ESP jwt_audience = integration Cloud Function URL.
+  _cf_origin = trimsuffix(trimspace(var.fub_webhook_sync_worker_url), "/")
+  _igw_host  = trimsuffix(trimspace(var.integration_internal_gateway_hostname), "/")
+  _http_base = local._igw_host != "" ? "https://${local._igw_host}" : local._cf_origin
+
   core_env_public = merge(
     {
       CORE_INTERNAL_GATEWAY_HOSTNAME    = var.core_internal_gateway_hostname
@@ -24,9 +29,10 @@ locals {
       BACKEND_SERVICE_ACCOUNT_EMAIL     = var.backend_service_account_email
       # In-house web search: DuckDuckGo HTML scraping (free, no API key required).
       # Switch to "multi" for DDG + Wikipedia + Google News fan-out.
-      ACS_WEB_SEARCH_BACKEND            = "duckduckgo"
+      ACS_WEB_SEARCH_BACKEND = "duckduckgo"
     },
-    local._bridge_base != "" ? { INTEGRATION_BRIDGE_BASE_URL = trimsuffix(local._bridge_base, "/") } : {},
+    local._http_base != "" ? { INTEGRATION_BRIDGE_BASE_URL = local._http_base } : {},
+    local._cf_origin != "" ? { INTEGRATION_BRIDGE_OIDC_AUDIENCE = local._cf_origin } : {},
     var.enable_core_dev_lab ? { ACS_ENABLE_DEV_LAB = "1" } : {},
   )
 }
@@ -67,12 +73,12 @@ resource "google_cloudfunctions2_function" "core_run" {
   }
 
   service_config {
-    max_instance_count               = 5
-    available_memory                 = "512Mi"
+    max_instance_count = 5
+    available_memory   = "512Mi"
     # Cloud Run requires >= 1 CPU when max_instance_request_concurrency > 1.
-    available_cpu                    = "1"
-    timeout_seconds                  = 120
-    ingress_settings                 = "ALLOW_ALL"
+    available_cpu    = "1"
+    timeout_seconds  = 120
+    ingress_settings = "ALLOW_ALL"
     # Raised from 1 to support concurrent lab SSE streams alongside regular runs.
     max_instance_request_concurrency = 4
     service_account_email            = var.backend_service_account_email

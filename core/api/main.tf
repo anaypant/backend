@@ -47,7 +47,7 @@ locals {
           protocol         = "h2"
           jwt_audience     = trimsuffix(var.core_run_function.url, "/")
           # ESPv2 default is 15s; enrichment runs take up to 30s (web search + LLM).
-          deadline         = 120.0
+          deadline = 120.0
         }
         responses = {
           "200" = { description = "OK" }

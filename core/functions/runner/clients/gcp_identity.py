@@ -42,8 +42,13 @@ def id_token_for_llm_gateway() -> str:
 
 def id_token_for_integration_bridge() -> str:
     """
-    OIDC for POST integration-bridge ``/integrations/followupboss/internal/webhook_sync``
-    (same audience as Cloud Tasks: typically the bridge HTTPS origin, no trailing slash).
+    OIDC for POST integration ``/integrations/internal/state/from_providers`` (and related paths).
+
+    ``INTEGRATION_BRIDGE_OIDC_AUDIENCE`` must match the integration API config ``jwt_audience``
+    (typically the integration Cloud Function URL). When calling the internal **gateway** host,
+    set ``INTEGRATION_BRIDGE_BASE_URL`` to ``https://{integration_gateway_hostname}`` and set
+    the audience env to the function URL. When calling the function URL directly, both BASE and
+    audience default to that same origin.
     """
     base = (os.environ.get("INTEGRATION_BRIDGE_BASE_URL") or "").strip().rstrip("/")
     if not base:

@@ -28,8 +28,8 @@ locals {
   # L5: Integration — module.integration (db + core gateway + events + secrets; publishes integration_bridge_function_url).
   #
   # Cross-cutting URLs: set only at root when Terraform cannot infer without a cycle.
-  # Example: fub_webhook_sync_worker_url should equal terraform output integration_bridge_function_url
-  # for Cloud Tasks + optional core-run INTEGRATION_BRIDGE_BASE_URL (core workflows that call integration).
+  # Example: fub_webhook_sync_worker_url = output integration_bridge_function_url;
+  # integration_internal_gateway_hostname = output integration_gateway_hostname (core INTEGRATION_BRIDGE_BASE_URL).
   # FUB webhook person hydration is done in integration before POST /core/v1/run, so contact enrichment
   # does not require core to reach back into integration.
 
@@ -45,6 +45,12 @@ locals {
   _ev_gw_after_http                           = local._ev_gw_after_https != "" && startswith(lower(local._ev_gw_after_https), "http://") ? trimspace(trim(substr(local._ev_gw_after_https, 7, length(local._ev_gw_after_https) - 7), "/")) : local._ev_gw_after_https
   _ev_gw_host_only                            = local._ev_gw_after_http != "" ? split("/", local._ev_gw_after_http)[0] : ""
   events_internal_gateway_hostname_normalized = local._ev_gw_raw == "" ? "" : local._ev_gw_host_only
+
+  _int_gw_raw                                      = trimspace(var.integration_internal_gateway_hostname)
+  _int_gw_after_https                              = local._int_gw_raw != "" && startswith(lower(local._int_gw_raw), "https://") ? trimspace(trim(substr(local._int_gw_raw, 8, length(local._int_gw_raw) - 8), "/")) : local._int_gw_raw
+  _int_gw_after_http                               = local._int_gw_after_https != "" && startswith(lower(local._int_gw_after_https), "http://") ? trimspace(trim(substr(local._int_gw_after_https, 7, length(local._int_gw_after_https) - 7), "/")) : local._int_gw_after_https
+  _int_gw_host_only                                = local._int_gw_after_http != "" ? split("/", local._int_gw_after_http)[0] : ""
+  integration_internal_gateway_hostname_normalized = local._int_gw_raw == "" ? "" : local._int_gw_host_only
 
   # OIDC audience for calling secrets via the internal gateway must be the secrets-bridge function URL.
   _secrets_bridge_invoker_audience = nonsensitive(module.secrets.secrets_bridge_invoker_audience)
@@ -141,17 +147,18 @@ module "llm" {
 }
 
 module "core" {
-  source                            = "./core"
-  project_id                        = local.project_id
-  region                            = var.region
-  platform_sa_email                 = google_service_account.platform.email
-  db_internal_gateway_hostname      = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
-  llm_internal_gateway_hostname     = module.llm.llm_gateway_hostname
-  llm_internal_jwt_audience         = module.llm.llm_function_url
-  secrets_internal_gateway_hostname = nonsensitive(module.secrets.secrets_gateway_hostname)
-  secrets_internal_jwt_audience     = local.secrets_internal_jwt_audience_effective
-  fub_webhook_sync_worker_url       = var.fub_webhook_sync_worker_url
-  enable_core_dev_lab               = local.enable_core_dev_lab_effective
+  source                                = "./core"
+  project_id                            = local.project_id
+  region                                = var.region
+  platform_sa_email                     = google_service_account.platform.email
+  db_internal_gateway_hostname          = local.db_internal_gateway_hostname_normalized != "" ? local.db_internal_gateway_hostname_normalized : module.db.db_gateway_hostname
+  llm_internal_gateway_hostname         = module.llm.llm_gateway_hostname
+  llm_internal_jwt_audience             = module.llm.llm_function_url
+  secrets_internal_gateway_hostname     = nonsensitive(module.secrets.secrets_gateway_hostname)
+  secrets_internal_jwt_audience         = local.secrets_internal_jwt_audience_effective
+  integration_internal_gateway_hostname = local.integration_internal_gateway_hostname_normalized
+  fub_webhook_sync_worker_url           = var.fub_webhook_sync_worker_url
+  enable_core_dev_lab                   = local.enable_core_dev_lab_effective
   providers = {
     google      = google
     google-beta = google-beta
@@ -200,6 +207,16 @@ output "integration_bridge_function_url" {
   value       = module.integration.integration_bridge_function_url
 }
 
+output "integration_gateway_hostname" {
+  description = "Internal Integration API Gateway hostname (no scheme). Set variable integration_internal_gateway_hostname to this so core-run uses the same origin as backend/api gateway.tf."
+  value       = module.integration.integration_gateway_hostname
+}
+
+output "integration_internal_base_url" {
+  description = "Expected https origin for core INTEGRATION_BRIDGE_BASE_URL when using the internal gateway (no trailing slash)."
+  value       = "https://${trimsuffix(module.integration.integration_gateway_hostname, "/")}"
+}
+
 output "events_gateway_hostname" {
   description = "Internal domain-events API Gateway hostname (no scheme); set events_internal_gateway_hostname to this."
   value       = module.events.events_gateway_hostname
@@ -236,6 +253,36 @@ check "secrets_internal_jwt_audience_matches_secrets_bridge" {
       "effective=${local.secrets_jwt_aud_norm_effective}",
       "bridge=${local.secrets_jwt_aud_norm_bridge}",
     ])
+  }
+}
+
+check "integration_internal_gateway_hostname_matches_deployed" {
+  assert {
+    condition = (
+      local.integration_internal_gateway_hostname_normalized == "" ||
+      lower(trim(local.integration_internal_gateway_hostname_normalized, "/")) == lower(trim(module.integration.integration_gateway_hostname, "/"))
+    )
+    error_message = "integration_internal_gateway_hostname must match terraform output integration_gateway_hostname (deployed: ${module.integration.integration_gateway_hostname}). Hint: terraform output -raw integration_gateway_hostname"
+  }
+}
+
+check "integration_bridge_oidc_required_when_gateway_hostname_set" {
+  assert {
+    condition = (
+      local.integration_internal_gateway_hostname_normalized == "" ||
+      trimspace(var.fub_webhook_sync_worker_url) != ""
+    )
+    error_message = "When integration_internal_gateway_hostname is set, fub_webhook_sync_worker_url must be set to integration_bridge_function_url (OIDC audience for the internal integration gateway). Hint: terraform output -raw integration_bridge_function_url"
+  }
+}
+
+check "fub_webhook_sync_worker_url_matches_integration_bridge_function" {
+  assert {
+    condition = (
+      trimspace(var.fub_webhook_sync_worker_url) == "" ||
+      lower(trimsuffix(trimspace(var.fub_webhook_sync_worker_url), "/")) == lower(trimsuffix(module.integration.integration_bridge_function_url, "/"))
+    )
+    error_message = "fub_webhook_sync_worker_url must match terraform output integration_bridge_function_url (deployed CF URL). Got normalized mismatch vs ${module.integration.integration_bridge_function_url}"
   }
 }
 

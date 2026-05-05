@@ -104,16 +104,43 @@ def _persist_workflow_audit(exec_workflow_id: str, top: str, out_state: dict) ->
     meta = out_state.get("metadata") if isinstance(out_state.get("metadata"), dict) else {}
     wa = meta.get("workflowAudit") if isinstance(meta.get("workflowAudit"), dict) else {}
 
+    meta_block: dict = {
+        "workflowAudit": wa,
+        "core": meta.get("core") if isinstance(meta.get("core"), dict) else {},
+    }
+    ls = meta.get("leadScoring")
+    if isinstance(ls, dict):
+        meta_block["leadScoring"] = ls
+    ce = meta.get("contactEnrichment")
+    if isinstance(ce, dict):
+        meta_block["contactEnrichment"] = ce
+    errs = out_state.get("errors")
+    if isinstance(errs, list) and errs:
+        safe_errs: list[str] = []
+        for e in errs:
+            if isinstance(e, str):
+                safe_errs.append(e)
+            elif isinstance(e, dict):
+                m = e.get("message")
+                safe_errs.append(str(m) if m is not None else json.dumps(e)[:2000])
+            else:
+                safe_errs.append(str(e))
+        meta_block["errors"] = safe_errs
+
+    nodes = wa.get("nodes") if isinstance(wa.get("nodes"), list) else []
+    dur = wa.get("duration_ms")
+    summary = f"{exec_workflow_id} · {len(nodes)} node(s)"
+    if isinstance(dur, (int, float)):
+        summary += f" · {float(dur) / 1000:.2f}s"
+
     doc_path = f"Realtors/{uid.strip()}/WorkflowActivity/{correlation.strip()}"
     doc_data: dict = {
         "ownerUid": uid.strip(),
         "workflowId": exec_workflow_id,
         "status": top,
+        "summary": summary,
         "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "metadata": {
-            "workflowAudit": wa,
-            "core": meta.get("core") if isinstance(meta.get("core"), dict) else {},
-        },
+        "metadata": meta_block,
     }
     try:
         _, http = db_internal.upsert_merge(doc_path, doc_data, acting_uid=uid.strip(), timeout=10)

@@ -41,7 +41,13 @@ variable "secrets_internal_jwt_audience" {
 variable "fub_webhook_sync_worker_url" {
   type        = string
   default     = ""
-  description = "integration-bridge base URL for core-run internal FUB calls (optional)."
+  description = "integration-bridge Cloud Function URL for OIDC; optional INTEGRATION_BRIDGE_BASE_URL when integration_internal_gateway_hostname is empty."
+}
+
+variable "integration_internal_gateway_hostname" {
+  type        = string
+  default     = ""
+  description = "Internal integration API Gateway hostname (no scheme)."
 }
 
 variable "enable_core_dev_lab" {
