@@ -245,6 +245,24 @@ def _company_name_from_domain(domain: str) -> str:
     return base.replace("-", " ").replace("_", " ").title()
 
 
+def _cap_sources_for_meta(sources: Any, *, max_items: int = 25) -> list[dict[str, str]]:
+    """Trim sources for workflow metadata / Automation Lab (bounded size)."""
+    if not isinstance(sources, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in sources[:max_items]:
+        if not isinstance(item, dict):
+            continue
+        out.append(
+            {
+                "title": str(item.get("title") or "")[:500],
+                "url": str(item.get("url") or "")[:2000],
+                "snippet": str(item.get("snippet") or "")[:4000],
+            }
+        )
+    return out
+
+
 def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
     acs: dict = state["acs"]
     t0 = time.perf_counter()
@@ -327,6 +345,8 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
 
     meta = acs_state.ensure_metadata(acs)
     ce   = meta.setdefault("contactEnrichment", {})
+    summary_text = str(res.get("summary") or "").strip()
+    sources_meta = _cap_sources_for_meta(res.get("sources"))
     if isinstance(ce, dict):
         ce["webResearch"] = {
             "http_status":   st,
@@ -335,6 +355,8 @@ def _node_web_research(state: EnrichmentState) -> dict[str, Any]:
             "company_domain": biz_domain or None,
             "seed_injected": bool(seed_urls),
             "sources_count": len(res.get("sources") or []),
+            "summary":       summary_text[:12000],
+            "sources":       sources_meta,
             "pipeline":      res.get("pipeline"),
             "budget_mode":   mode,
             "spent_usd":     round(spent_usd, 4),
@@ -484,9 +506,11 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
     raw = body.get("text") if isinstance(body.get("text"), str) else ""
     updates: dict[str, Any] = {}
     coercion = "empty_body"
+    parsed_root: dict[str, Any] | None = None
     try:
         parsed = json.loads(raw) if raw.strip() else {}
         if isinstance(parsed, dict):
+            parsed_root = parsed
             updates, coercion = _coerce_synthesis_updates(parsed)
         else:
             updates, coercion = {}, "not_object_json"
@@ -510,15 +534,30 @@ def _node_synthesis(state: EnrichmentState) -> dict[str, Any]:
         "search_calls": prior_tok.get("search_calls", 0),
     }
 
+    syn_conf: str | None = None
+    syn_rat: str | None = None
+    if isinstance(parsed_root, dict):
+        _c = parsed_root.get("confidence")
+        _r = parsed_root.get("rationale")
+        if isinstance(_c, str) and _c.strip():
+            syn_conf = _c.strip()[:500]
+        if isinstance(_r, str) and _r.strip():
+            syn_rat = _r.strip()[:8000]
+
     meta = acs_state.ensure_metadata(acs)
     ce = meta.setdefault("contactEnrichment", {})
     if isinstance(ce, dict):
-        ce["synthesis"] = {
+        syn_meta: dict[str, Any] = {
             "http_status": st,
             "keys": list(updates.keys()),
             "coercion": coercion,
             "fallback_note": used_fallback,
         }
+        if syn_conf:
+            syn_meta["confidence"] = syn_conf
+        if syn_rat:
+            syn_meta["rationale"] = syn_rat
+        ce["synthesis"] = syn_meta
 
     sn = updates.get("suggested_note")
     sn_len = len(sn.strip()) if isinstance(sn, str) else 0
