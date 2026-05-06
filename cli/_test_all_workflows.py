@@ -670,10 +670,10 @@ def phase5_appointment_prep(personas: dict[str, int]) -> dict:
 def phase6_import_leads(personas: dict[str, int]) -> dict:
     """
     Test migration.import_leads_v1 two ways:
-      IM1 — single-person import using a freshly created FUB person ID
-            (avoids the integration_bridge requirement for full list fetching).
-      IM2 — full import (requires integration_bridge; recorded as known-limited
-            in dev if that env var is not configured).
+      IM1 — single-person import using a freshly created FUB person ID.
+      IM2 — full import via core ``/core/v1/run`` (may still require ``INTEGRATION_BRIDGE_BASE_URL``
+            on core if state is not preflighted in integration). Prefer exercising integration
+            entrypoints with ``acs fub import`` / ``acs fub import-batch`` for bridge-free runs.
     """
     print(f"\n{BOLD}")
     print("PHASE 6 — migration.import_leads_v1  (single + full import)")
@@ -698,9 +698,9 @@ def phase6_import_leads(personas: dict[str, int]) -> dict:
         print(f"       ERR: {str(e)[:120]}")
     phase_results["IM1"] = {"http": st1, "elapsed": el1, "ok": ok1, "errors": errors1}
 
-    # IM2: Full import (may fail in dev if integration_bridge env not configured)
+    # IM2: Full import via core runner (core may call integration bridge for provider load)
     print()
-    print("  [NOTE] Full import requires integration_bridge to be configured.")
+    print("  [NOTE] IM2 hits core directly; full list path may need INTEGRATION_BRIDGE_BASE_URL on core-run.")
     st2, resp2, el2 = run_workflow(
         "migration.import_leads_v1",
         {},

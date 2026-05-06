@@ -542,7 +542,7 @@ def integration_resync(ctx: click.Context) -> None:
 
 @cli.group()
 def fub() -> None:
-    """Follow Up Boss direct operations — people, notes, tasks, tags, import."""
+    """Follow Up Boss — people, notes, tasks, tags, token refresh, import, webhooks."""
 
 
 # ── fub people ───────────────────────────────────────────────────────────────
@@ -798,6 +798,25 @@ def fub_tasks_create(ctx: click.Context, person_id: int, task_body: str) -> None
     _out(status, resp, raw=ctx.obj["raw"])
 
 
+# ── fub OAuth token ───────────────────────────────────────────────────────────
+
+@fub.command("refresh")
+@click.pass_context
+def fub_refresh(ctx: click.Context) -> None:
+    """Refresh the FUB OAuth access token (use when list/import return expired-access-token)."""
+    try:
+        status, resp = request(
+            "POST",
+            "/integrations/followupboss/refresh",
+            json={},
+            base_url_override=ctx.obj.get("base_url"),
+            timeout=60,
+        )
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
 # ── fub webhooks ─────────────────────────────────────────────────────────────
 
 @fub.group("webhooks")
@@ -847,6 +866,67 @@ def fub_import(ctx: click.Context, person_id: Optional[int], max_pages: Optional
     try:
         status, resp = request("POST", "/integrations/followupboss/import", json=body,
                                base_url_override=ctx.obj.get("base_url"), timeout=300)
+    except CliError as e:
+        _err(str(e))
+    _out(status, resp, raw=ctx.obj["raw"])
+
+
+@fub.command("import-batch")
+@click.option("--batch-size", default=None, type=int, help="FUB people list page size (list mode).")
+@click.option("--offset", default=None, type=int, help="FUB list offset (list mode).")
+@click.option("--next", "next_token", default=None, type=str, help="FUB pagination cursor (list mode).")
+@click.option("--person-id", default=None, type=int, help="Import a single person by FUB id.")
+@click.option("--max-list-pages", default=None, type=int, help="Cap list sync pages (list mode).")
+@click.pass_context
+def fub_import_batch(
+    ctx: click.Context,
+    batch_size: Optional[int],
+    offset: Optional[int],
+    next_token: Optional[str],
+    person_id: Optional[int],
+    max_list_pages: Optional[int],
+) -> None:
+    """
+    One batch via POST /integrations/followupboss/migration/import-batch (integration preflight + core).
+
+    Derives Firebase uid from the CLI session token — no --user-id flag needed.
+    """
+    session = config.get_session()
+    token = session.get("id_token")
+    if not token:
+        _err("Not logged in. Run `acs auth login` first.")
+    try:
+        import base64 as _b64
+
+        parts = token.split(".")
+        padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+        payload = json.loads(_b64.b64decode(padded.replace("-", "+").replace("_", "/")))
+        uid = payload.get("user_id") or payload.get("sub")
+    except Exception:
+        uid = None
+    if not uid:
+        _err("Could not read uid from id_token; re-run `acs auth login`.")
+
+    body: dict = {"userId": uid}
+    if person_id is not None:
+        body["personId"] = person_id
+    if batch_size is not None:
+        body["batchSize"] = batch_size
+    if offset is not None:
+        body["offset"] = offset
+    if next_token:
+        body["next"] = next_token
+    if max_list_pages is not None:
+        body["maxListPages"] = max_list_pages
+
+    try:
+        status, resp = request(
+            "POST",
+            "/integrations/followupboss/migration/import-batch",
+            json=body,
+            base_url_override=ctx.obj.get("base_url"),
+            timeout=180,
+        )
     except CliError as e:
         _err(str(e))
     _out(status, resp, raw=ctx.obj["raw"])
